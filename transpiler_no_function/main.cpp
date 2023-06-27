@@ -7,7 +7,9 @@
 #include <stdio.h>
 // #include "duckdb.hpp"
 #include <unistd.h>
+#include <format>
 #include "pg_query.h"
+#include "utils.hpp"
 
 using namespace std;
 
@@ -16,6 +18,9 @@ const string HELP_MES =
 -h print this helper message;\n\
 -f output to a file;\n\
 -d output to a directory together with a test file;\n";
+int add(int x, int y){
+    return x+y;
+}
 
 int main(int argc, char const *argv[])
 {
@@ -74,5 +79,11 @@ LANGUAGE PLPGSQL";
     pg_query_exit();
     for (index = optind; index < argc; index++)
         printf("Non-option argument %s\n", argv[index]);
+    // int i = utils::unpack_caller(std::max, {0,1});
+    // struct format_caller<3> fc;
+    // std::vector<std::string> input({"ads", "dsa", "ads"});
+    // auto i = fc(std::format, "{} {} {}", input);
+    // std::cout<<i<<std::endl;
+    // std::cout<<std::format("{}{}", "ad", "ads")<<std::endl;
     return 0;
 }

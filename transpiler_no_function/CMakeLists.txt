@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.24.2)
 project(transpiler)
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS "-O2 -Wall")
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_COMPILER "clang++")
+set(CMAKE_CXX_FLAGS "-O2 -Wall -std=c++20")
 # set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE INTERNAL "" FORCE)
 
 # duckdb lib
