@@ -5,6 +5,8 @@
 #include <vector>
 #include <cassert>
 
+// #define dbg_assert {assert()}
+
 namespace utils
 {
     template <typename ReturnType, typename... Args>

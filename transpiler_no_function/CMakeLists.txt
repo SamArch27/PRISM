@@ -39,7 +39,15 @@ include_directories(${CMAKE_SOURCE_DIR}/dependencies/yaml-cpp/include)
 # # include_directories(${CMAKE_SOURCE_DIR}/dependencies/libduckdb-src) # *.h
 # # link_directories(${CMAKE_SOURCE_DIR}/dependencies/libduckdb-src)    # *.dylib
 
-add_executable(main main.cpp)
+include_directories(${CMAKE_SOURCE_DIR}/src)
+include_directories(${CMAKE_SOURCE_DIR}/include)
+file(GLOB all_SRCS
+        # "${PROJECT_SOURCE_DIR}/include/*.h"
+        # "${PROJECT_SOURCE_DIR}/include/*.hpp"
+        "${PROJECT_SOURCE_DIR}/src/*.cpp"
+        "${PROJECT_SOURCE_DIR}/src/*.c"
+    )
+add_executable(main ${all_SRCS})
 add_dependencies(main pg_parser)
 
 target_link_libraries(main duckdb ${PG_PARSER_ROOT}/libpg_query.a fmt yaml-cpp)
