@@ -22,6 +22,10 @@ add_custom_target(pg_parser
 add_subdirectory(${CMAKE_SOURCE_DIR}/dependencies/fmt)
 include_directories(${CMAKE_SOURCE_DIR}/dependencies/fmt/include)
 
+# the parser lib
+add_subdirectory(${CMAKE_SOURCE_DIR}/dependencies/yaml-cpp)
+include_directories(${CMAKE_SOURCE_DIR}/dependencies/yaml-cpp/include)
+
 # boost lib
 # # set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/dependencies/boost_1_82_0/)
 # set(Boost_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/dependencies/boost_1_82_0/)
@@ -38,4 +42,4 @@ include_directories(${CMAKE_SOURCE_DIR}/dependencies/fmt/include)
 add_executable(main main.cpp)
 add_dependencies(main pg_parser)
 
-target_link_libraries(main duckdb ${PG_PARSER_ROOT}/libpg_query.a fmt)
+target_link_libraries(main duckdb ${PG_PARSER_ROOT}/libpg_query.a fmt yaml-cpp)

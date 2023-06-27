@@ -10,6 +10,7 @@
 #include <format>
 #include "pg_query.h"
 #include <fmt/core.h>
+#include <yaml-cpp/yaml.h>
 #include "utils.hpp"
 
 using namespace std;
@@ -80,6 +81,8 @@ LANGUAGE PLPGSQL";
     pg_query_exit();
     for (index = optind; index < argc; index++)
         printf("Non-option argument %s\n", argv[index]);
+
+    YAML::Node config = YAML::LoadFile("../control.yaml");
     // int i = utils::unpack_caller(std::max, {0,1});
     // struct format_caller<3> fc;
     // std::vector<std::string> input({"ads", "dsa", "ads"});

@@ -1,0 +1,159 @@
+simple: |-
+  /** SIMPLE WHILE **/
+  std::vector<bool> {loop_active_var} = {input_active_lanes};
+  std::vector<bool> {continued_var}(args.size());
+  while (true) {{
+    for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+      {continued_var}[{i_var}] = false;
+    }}
+    bool {any_active_lane_var} = false;
+    for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+      if({loop_active_var}[{i_var}] && !{return_mask_var}[{i_var}]) {{
+        {any_active_lane_var} = true;
+        break;
+      }}
+    }}
+    if (!{any_active_lane_var}) {{
+      break;
+    }}
+    
+    {body}
+  }}
+
+break: |-
+  /** BREAK **/
+  for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+    if({active_var}[{i_var}] && !{continued_var}[{i_var}] && !{return_mask_var}[{i_var}]) {{
+      {loop_active_var}[{i_var}] = false;
+    }}
+  }}
+
+continue: |-
+  /** CONTINUE **/
+  for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+    if({active_var}[{i_var}] && {loop_active_var}[{i_var}] && !{return_mask_var}[{i_var}]) {{
+      {continued_var}[{i_var}] = true;
+    }}
+  }}
+
+return: |-
+  /** RETURN **/
+  std::vector<duckdb::Value> {return_exp_var} = {return_exp};
+  for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+    if({active_var}[{i_var}] && !{return_mask_var}[{i_var}]{return_loop_mask_conditions}) {{
+      // note that this lane has returned
+      {return_mask_var}[{i_var}] = true;
+      // set its return value
+      return_values[{i_var}] = {return_exp_var}[{i_var}];
+    }}
+  }}
+
+return_loop_cond: |-
+  && {loop_active_var}[{i_var}] && !{continued_var}[{i_var}]
+
+while: |-
+  /** WHILE **/
+  std::vector<bool> {loop_active_var} = {input_active_lanes};
+  std::vector<bool> {continued_var}(args.size());
+  while (true) {{
+    for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+      {continued_var}[{i_var}] = false;
+    }}
+    std::vector<duckdb::Value> {cond_var} = {condition};
+    bool {any_active_lane_var} = false;
+    for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+      if (!{cond_var}[{i_var}].IsNull()) {{
+        {loop_active_var}[{i_var}] = ({cond_var}[{i_var}].template GetValue<bool>());
+      }} else {{
+        {loop_active_var}[{i_var}] = false;
+      }}
+      if({loop_active_var}[{i_var}]) {{
+        {any_active_lane_var} = true;
+      }}
+    }}
+    if (!{any_active_lane_var}) {{
+      break;
+    }}
+    
+    {body}
+  }}
+
+for: |- 
+  /** FOR **/
+  std::vector<bool> {loop_active_var} = {input_active_lanes};
+  std::vector<bool> {continued_var}(args.size());
+  for (size_t {name} = {start}; {name} <= {end}; {name} += {step}) {{
+    for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+      {continued_var}[{i_var}] = false;
+    }}
+    bool {any_active_lane_var} = false;
+    for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+      if({loop_active_var}[{i_var}] && !{return_mask_var}[{i_var}]) {{
+        {any_active_lane_var} = true;
+        break;
+      }}
+    }}
+    if (!{any_active_lane_var}) {{
+      break;
+    }}
+    
+    {body}
+  }}
+
+
+revfor: |- 
+  std::vector<bool> {loop_active_var} = {input_active_lanes};
+  std::vector<bool> {continued_var}(args.size());
+  for (size_t {name} = {start}; {name} >= {end}; {name} -= {step}) {{
+    for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+      {continued_var}[{i_var}] = false;
+    }}
+    bool {any_active_lane_var} = false;
+    for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+      if({loop_active_var}[{i_var}] && !{return_mask_var}[{i_var}]) {{
+        {any_active_lane_var} = true;
+        break;
+      }}
+    }}
+    if (!{any_active_lane_var}) {{
+      break;
+    }}
+    
+    {body}
+  }}
+
+
+
+
+if_block: |-
+  /** IF BLOCK **/
+  std::vector<duckdb::Value> {cond_var} = {condition};
+  std::vector<bool> {active_var} = {input_active_lanes};
+  for (size_t {i_var} = 0; {i_var} < {cond_var}.size() ; {i_var}++) {{
+    // if we are in a while loop, we don't need to check loop_active/continues since
+    // the {cond_var} will be appropriately set to null. 
+    if (!{cond_var}[{i_var}].IsNull()) {{
+      {active_var}[{i_var}] = {active_var}[{i_var}] && ({cond_var}[{i_var}].template GetValue<bool>());
+    }}
+  }}
+
+  {then_body}
+  for (size_t {i_var} = 0 ; {i_var} < {active_var}.size() ; {i_var}++) {{
+    if (!{cond_var}[{i_var}].IsNull()) {{
+      {active_var}[{i_var}] = !{active_var}[{i_var}];
+    }}
+  }}
+  {else}
+
+else: |-
+  {else_body}
+
+
+assign: |-
+  /** ASSIGN {assigned_var} **/
+  std::vector<duckdb::Value> {temp_var} = {expr};
+  for(size_t {i_var} = 0 ; {i_var} < args.size() ; {i_var}++) {{
+    if({active_var}[{i_var}] && !{return_mask_var}[{i_var}]{return_loop_mask_conditions}) {{
+      {assigned_var}[{i_var}] = {temp_var}[{i_var}];
+    }}
+  }}

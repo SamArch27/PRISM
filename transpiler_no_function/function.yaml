@@ -1,0 +1,43 @@
+fshell: |-
+  void {function_name}(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result) {{
+    std::vector<bool> {return_mask_var}(args.size());
+    std::vector<duckdb::Value> return_values(args.size());
+    for(size_t i = 0; i < args.size() ; i++) {{
+      {return_mask_var}[i] = false;
+    }}
+    std::vector<bool> {active_lanes_var}(args.size());
+    for(size_t i = 0; i < args.size() ; i++) {{
+      {active_lanes_var}[i] = true;
+    }}
+    /** FUNCTION ARGS **/
+    {function_args}
+    /** INITIALIZE VARIABLES **/
+    {initializations}
+    /** FUNCTION BODY **/
+    {body}
+    /** SET RETURN VALUE **/
+    for (idx_t i = 0; i < args.size(); i++) {{
+      result.SetValue(i, return_values[i]);
+    }}
+  }}
+
+# farg: |-
+#   {type} {name}
+
+farg: |-
+  std::vector<duckdb::Value> {name}(args.size());
+  for (idx_t {i_var} = 0; {i_var} < args.size(); {i_var}++) {{
+    {name}[{i_var}] = args.data[{arg_num}].GetValue({i_var});
+  }}
+
+fdecl_var: |-
+  std::vector<duckdb::Value> {name} = {var};
+
+finit_var: |-
+  std::vector<duckdb::Value> {name}(args.size());
+
+func_dec: |-
+  void {function_name}(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result);
+
+fcreate: |-
+  con->CreateVectorizedFunction("{func_name}", {{{duck_arg_types}}}, {duck_ret_type}, &{func_name});
