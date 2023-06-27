@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <format>
 #include "pg_query.h"
+#include <fmt/core.h>
 #include "utils.hpp"
 
 using namespace std;
@@ -82,8 +83,8 @@ LANGUAGE PLPGSQL";
     // int i = utils::unpack_caller(std::max, {0,1});
     // struct format_caller<3> fc;
     // std::vector<std::string> input({"ads", "dsa", "ads"});
-    // auto i = fc(std::format, "{} {} {}", input);
+    // std::string i = fc(fmt::format, "{} {} {}", input);
     // std::cout<<i<<std::endl;
-    // std::cout<<std::format("{}{}", "ad", "ads")<<std::endl;
+    // std::cout<<fmt::format("{}{}", "ad", "ads")<<std::endl;
     return 0;
 }

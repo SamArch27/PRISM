@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.24.2)
 project(transpiler)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_COMPILER "clang++")
-set(CMAKE_CXX_FLAGS "-O2 -Wall -std=c++20")
+# set(CMAKE_CXX_COMPILER "clang++")
+set(CMAKE_CXX_FLAGS "-O2 -Wall")
 # set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE INTERNAL "" FORCE)
 
 # duckdb lib
@@ -17,6 +17,10 @@ add_custom_target(pg_parser
     COMMAND make build
     WORKING_DIRECTORY ${PG_PARSER_ROOT}
 )
+
+# the formatting lib
+add_subdirectory(${CMAKE_SOURCE_DIR}/dependencies/fmt)
+include_directories(${CMAKE_SOURCE_DIR}/dependencies/fmt/include)
 
 # boost lib
 # # set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/dependencies/boost_1_82_0/)
@@ -34,4 +38,4 @@ add_custom_target(pg_parser
 add_executable(main main.cpp)
 add_dependencies(main pg_parser)
 
-target_link_libraries(main duckdb ${PG_PARSER_ROOT}/libpg_query.a)
+target_link_libraries(main duckdb ${PG_PARSER_ROOT}/libpg_query.a fmt)

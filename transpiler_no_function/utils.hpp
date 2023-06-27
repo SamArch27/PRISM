@@ -174,14 +174,14 @@ template <size_t num_args>
 struct format_caller
 {
 private:
-    template <typename FuncType, size_t... I>
-    auto call(FuncType &f, std::vector<int> &args, std::string &temp, std::index_sequence<I...>){
+    template <size_t... I>
+    std::string call(std::string &f, std::vector<int> &args, std::string &temp, std::index_sequence<I...>){
         return f(temp, args[I]...);
     }
 
 public:
-    template <typename FuncType>
-    auto operator()(FuncType &f, std::string temp, std::vector<int> &args){
+    // template <typename FuncType>
+    std::string operator()(std::string &f, std::string temp, std::vector<int> &args){
         assert(args.size() == num_args); // just to be sure
         return call(f, args, temp, std::make_index_sequence<num_args>{});
     }
