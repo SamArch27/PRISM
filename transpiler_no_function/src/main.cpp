@@ -3,13 +3,14 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <stdlib.h>
-#include <ctype.h>
+// #include <stdlib.h>
+// #include <ctype.h>
 #include <stdio.h>
 // #include "duckdb.hpp"
 #include <unistd.h>
 #include "utils.hpp"
 #include "trans.hpp"
+#include <tclap/CmdLine.h>
 
 using namespace std;
 
@@ -24,55 +25,64 @@ int add(int x, int y){
 
 int main(int argc, char const *argv[])
 {
-    // int aflag = 0;
-    // int bflag = 0;
-    // char *cvalue = NULL;
-    char *fvalue = NULL;
-    char *dvalue = NULL;
-    int index;
-    int c;
 
-    opterr = 0;
+    // Wrap everything in a try block.  Do this every time, 
+	// because exceptions will be thrown for problems.
+	try {  
 
-    while ((c = getopt(argc, (char *const *)argv, "hf:d:")) != -1){
-        switch (c)
-        {
-        case 'h':
-            std::cout << HELP_MES << std::endl;
-            break;
-        case 'f':
-            // bflag = 1;
-            fvalue = optarg;
-            std::cout << fvalue << std::endl;
-            break;
-        case 'd':
-            // cvalue = optarg;
-            dvalue = optarg;
-            std::cout << dvalue << std::endl;
-            break;
-        default:
-            abort();
-        }
-    }
-    const char *input_file = NULL;
-    for (index = optind; index < argc; index++)
-        if(input_file == NULL){
-            input_file = argv[index];
-        }
-        else{
-            throw std::runtime_error("More than one input file is provided.");
-        }
-        // printf ("Non-option argument %s\n", argv[index]);
-    std::ifstream t(input_file);
+	// Define the command line object, and insert a message
+	// that describes the program. The "Command description message" 
+	// is printed last in the help text. The second argument is the 
+	// delimiter (usually space) and the last one is the version number. 
+	// The CmdLine object parses the argv array based on the Arg objects
+	// that it contains. 
+	TCLAP::CmdLine cmd("Command description message", ' ', "0.1");
+
+	// Define a value argument and add it to the command line.
+	// A value arg defines a flag and a type of value that it expects,
+	// such as "-n Bishop".
+	TCLAP::ValueArg<std::string> dirArg("d","dir","Output to directory path (together with a test file)",false,"","string");
+    TCLAP::ValueArg<std::string> fileArg("f","file","Output to file path",false,"","string");
+	TCLAP::UnlabeledValueArg<std::string> inputArg("input", "Input file path", true, "", "nameString");
+    cmd.add(inputArg);
+    // Add the argument nameArg to the CmdLine object. The CmdLine object
+	// uses this Arg to parse the command line.
+	cmd.add(dirArg);
+    cmd.add(fileArg);
+
+	// Define a switch and add it to the command line.
+	// A switch arg is a boolean argument and only defines a flag that
+	// indicates true or false.  In this example the SwitchArg adds itself
+	// to the CmdLine object as part of the constructor.  This eliminates
+	// the need to call the cmd.add() method.  All args have support in
+	// their constructors to add themselves directly to the CmdLine object.
+	// It doesn't matter which idiom you choose, they accomplish the same thing.
+	// TCLAP::SwitchArg reverseSwitch("r","reverse","Print name backwards", cmd, false);
+
+	// Parse the argv array.
+	cmd.parse(argc, argv);
+
+	// Get the value parsed by each arg. 
+	std::string o_dir = dirArg.getValue();
+    std::string o_file = fileArg.getValue();
+    std::string i_file = inputArg.getValue();
+	// bool reverseName = reverseSwitch.getValue();
+    // std::cout<<o_dir<<o_file<<i_file<<std::endl;
+
+    std::ifstream t(i_file);
     std::ostringstream buffer;
     buffer << t.rdbuf();
     if(buffer.str().empty()){
-        throw std::runtime_error(fmt::format("Input file is empty or does not exist: {}", input_file));
+        throw std::runtime_error(fmt::format("Input file is empty or does not exist: {}", i_file));
     }
     std::vector<std::string> ret = transpile_plpgsql_udf_str(buffer.str());
     std::cout << ret[0] << std::endl;
     std::cout << ret[1] << std::endl;
     std::cout << ret[2] << std::endl;
+    } 
+    catch (TCLAP::ArgException &e){ 
+        std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl; 
+    }
     
     return 0;
 }

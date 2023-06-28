@@ -10,6 +10,10 @@ set(CMAKE_CXX_FLAGS "-O2 -Wall")
 include_directories(${CMAKE_SOURCE_DIR}/dependencies/libduckdb-osx-universal) # *.h
 link_directories(${CMAKE_SOURCE_DIR}/dependencies/libduckdb-osx-universal)    # *.dylib
 
+# the commandline lib
+include_directories(${CMAKE_SOURCE_DIR}/dependencies/tclap) # *.h
+# include_directories(${CMAKE_SOURCE_DIR}/dependencies/tclap)
+
 # plpgsql parser lib
 set(PG_PARSER_ROOT ${CMAKE_SOURCE_DIR}/dependencies/libpg_query)
 include_directories(${PG_PARSER_ROOT})
