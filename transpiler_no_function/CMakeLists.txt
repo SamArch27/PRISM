@@ -3,7 +3,7 @@ project(transpiler)
 
 set(CMAKE_CXX_STANDARD 20)
 # set(CMAKE_CXX_COMPILER "clang++")
-set(CMAKE_CXX_FLAGS "-O2 -Wall")
+set(CMAKE_CXX_FLAGS "-O2 -Wall -pthread")
 # set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE INTERNAL "" FORCE)
 
 # duckdb lib
@@ -54,4 +54,4 @@ file(GLOB all_SRCS
 add_executable(main ${all_SRCS})
 add_dependencies(main pg_parser)
 
-target_link_libraries(main duckdb ${PG_PARSER_ROOT}/libpg_query.a fmt yaml-cpp)
+target_link_libraries(main ${PG_PARSER_ROOT}/libpg_query.a fmt yaml-cpp)
