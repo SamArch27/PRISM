@@ -22,7 +22,7 @@ string translate_action(json &action){
  * Returns a tuple with a list of the formatted function arguments, and a
  * list of initializations/declarations for function variables.
 */
-vector<string> &&get_function_vars(json &datums, string &udf_str){
+void get_function_vars(json &datums, string &udf_str){
     vector<string> initializations;
     ASSERT(datums.is_array(), "Datums is not an array.");
     for(int i=0;i<datums.size();i++){
@@ -46,20 +46,20 @@ vector<string> &&get_function_vars(json &datums, string &udf_str){
             gv->func_args[name] = var_info;
         }                                         
     }
-    return std::move(initializations);
+    return;
 }
 
-vector<string> &&translate_function(json &ast, string &udf_str){
-    vector<string> initializations = get_function_vars(ast["datums"], udf_str);
+vector<string> translate_function(json &ast, string &udf_str){
+    get_function_vars(ast["datums"], udf_str);
     // for(auto i : gv->func_args){
     //     std::cout<<i.first<<i.second.type.duckdb_type<<i.second.init<<std::endl;
     // }
-    // todo remove
     string function_args = "";
     string arg_indexes = "";
     string subfunc_args = "";
     string fbody_args = "";
-    int count = 0;
+    vector<string> check_null;
+    // int count = 0;
     for(auto &pair : gv->func_args){
         function_args += fmt::format(fmt::runtime(function_config["fargs2"].Scalar()), \
                                     fmt::arg("var_name", pair.first), \
@@ -72,9 +72,11 @@ vector<string> &&translate_function(json &ast, string &udf_str){
                                     fmt::arg("var_name", pair.first));    
         subfunc_args += ", "; 
         fbody_args += fmt::format(fmt::runtime(function_config["fbody_arg"].Scalar()), \
-                                    fmt::arg("i", count));    
+                                    fmt::arg("i", pair.second.id), \
+                                    fmt::arg("var_name", pair.first));    
         fbody_args += ", "; 
-        count++;
+        // count++;
+        check_null.push_back(pair.first + "_null");
     }
     string output = fmt::format(fmt::runtime(function_config["fshell2"].Scalar()), \
                                             fmt::arg("function_name", gv->func_name), \
@@ -83,10 +85,10 @@ vector<string> &&translate_function(json &ast, string &udf_str){
                                             fmt::arg("subfunc_args", subfunc_args));
     std::cout<<output<<std::endl;
     
-    // string function_body = 
     cc->global_functions.push_back(fmt::format(fmt::runtime(function_config["fbodyshell"].Scalar()), \
                                                 fmt::arg("function_name", gv->func_name), \
-                                                fmt::arg("fbody_args", fbody_args)));
+                                                fmt::arg("fbody_args", fbody_args), \
+                                                fmt::arg("check_null", vec_join(check_null, " | "))));
     // string decl = fmt::format(fmt::runtime(function_config["func_dec"].Scalar()), \
     //                                         fmt::arg("function_name", gv->func_name), \
     //                                         fmt::arg("function_args", args_str), \
@@ -96,7 +98,9 @@ vector<string> &&translate_function(json &ast, string &udf_str){
     //                                         fmt::arg("duck_ret_type", gv->func_return_type.get_duckdb_type()), \
     //                                         fmt::arg("function_args", args_str), \
     //                                         fmt::arg("initializations", ""));                                        
-    return std::move(initializations);                                   
+    vector<string> ret;
+    ret.push_back(output);
+    return ret;                                   
 }
 
 /**

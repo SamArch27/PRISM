@@ -60,11 +60,15 @@ subfunc_arg: |-
 
 fbodyshell: |-
   inline void {function_name}_body({fbody_args}Value& result, bool& result_null) {{
-    
+    if ({check_null})
+    {{
+      result_null = true;
+      return;
+    }}
   }}
 
 fbody_arg: |-
-  const Value& v{i}, bool v{i}_null
+  const Value& v{i}, bool {var_name}_null
 
 # farg: |-
 #   {type} {name}
