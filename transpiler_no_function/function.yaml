@@ -21,6 +21,51 @@ fshell: |-
     }}
   }}
 
+fshell2: |-
+  void {function_name}(DataChunk &args, ExpressionState &state, Vector &result) {{
+    const int count = args.size();
+    result.SetVectorType(VectorType::FLAT_VECTOR);
+
+    // the extraction of function arguments
+    {function_args}
+
+    for (int base_idx = 0; base_idx < count; base_idx++) {{
+      {arg_indexes}
+      Value temp_result;
+      bool  temp_result_null = false;
+      {function_name}_body({subfunc_args}temp_result, temp_result_null);
+      if (temp_result_null) {{
+        FlatVector::SetNull(result, base_idx, true);
+      }}
+      else {{
+        result.SetValue(index, temp_result);
+      }}
+    }}
+
+    result.Verify(count);
+  }}
+
+fargs2: |-
+    auto &{var_name} = args.data[{i}];
+    auto {var_name}_type = {var_name}.GetVectorType();
+    UnifiedVectorFormat {var_name}_data;
+    {var_name}.ToUnifiedFormat(count, {var_name}_data);
+
+argindex: |-
+  auto {var_name}_index = {var_name}_data.sel->get_index(base_idx);
+
+subfunc_arg: |-
+  {var_name}.GetValue({var_name}_index), !{var_name}_data.validity.RowIsValid({var_name}_index)
+
+
+fbodyshell: |-
+  inline void {function_name}_body({fbody_args}Value& result, bool& result_null) {{
+    
+  }}
+
+fbody_arg: |-
+  const Value& v{i}, bool v{i}_null
+
 # farg: |-
 #   {type} {name}
 

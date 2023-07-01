@@ -3,190 +3,117 @@
 #include <iostream>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 #include <cassert>
+#include <numeric>
+#include <fmt/core.h>
+#include <algorithm>
+#include <regex>
+using namespace std;
 
-// #define dbg_assert {assert()}
 
-namespace utils
-{
-    template <typename ReturnType, typename... Args>
-    struct function_traits_defs
-    {
-        static constexpr size_t arity = sizeof...(Args);
+#define ASSERT(condition, message) \
+    do { \
+        if (!(condition)) { \
+            std::cerr << "Assertion failed: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
+            std::terminate(); \
+        } \
+    } while (false)
 
-        using result_type = ReturnType;
+static unordered_map<string, string> alias_to_duckdb_type = {{"BIGINT", "BIGINT"}, {"INT8", "BIGINT"}, {"LONG", "BIGINT"}, {"BIT", "BIT"}, {"BITSTRING", "BIT"}, {"BOOLEAN", "BOOLEAN"}, {"BOOL", "BOOLEAN"}, {"LOGICAL", "BOOLEAN"}, {"BLOB", "BLOB"}, {"BYTEA", "BLOB"}, {"BINARY", "BLOB"}, {"VARBINARY", "BLOB"}, {"DATE", "DATE"}, {"DOUBLE", "DOUBLE"}, {"FLOAT8", "DOUBLE"}, {"NUMERIC", "DOUBLE"}, {"DECIMAL", "DOUBLE"}, {"HUGEINT", "HUGEINT"}, {"INTEGER", "INTEGER"}, {"INT", "INTEGER"}, {"INT4", "INTEGER"}, {"SIGNED", "INTEGER"}, {"INTERVAL", "INTERVAL"}, {"REAL", "REAL"}, {"FLOAT4", "REAL"}, {"FLOAT", "REAL"}, {"SMALLINT", "SMALLINT"}, {"INT2", "SMALLINT"}, {"SHORT", "SMALLINT"}, {"TIME", "TIME"}, {"TIMESTAMP", "TIMESTAMP"}, {"DATETIME", "TIMESTAMP"}, {"TINYINT", "TINYINT"}, {"INT1", "TINYINT"}, {"UBIGINT", "UBIGINT"}, {"UINTEGER", "UINTEGER"}, {"USMALLINT", "USMALLINT"}, {"UTINYINT", "UTINYINT"}, {"UUID", "UUID"}, {"VARCHAR", "VARCHAR"}, {"CHAR", "VARCHAR"}, {"BPCHAR", "VARCHAR"}, {"TEXT", "VARCHAR"}, {"STRING", "VARCHAR"}};
 
-        template <size_t i>
-        struct arg
-        {
-            using type = typename std::tuple_element<i, std::tuple<Args...>>::type;
-        };
-    };
-
-    template <typename T>
-    struct function_traits_impl;
-
-    template <typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType(Args...)>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (*)(Args...)>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...)>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...) const>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...) const &>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...) const &&>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...) volatile>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...) volatile &>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...) volatile &&>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...) const volatile>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...) const volatile &>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename ClassType, typename ReturnType, typename... Args>
-    struct function_traits_impl<ReturnType (ClassType::*)(Args...) const volatile &&>
-        : function_traits_defs<ReturnType, Args...>
-    {
-    };
-
-    template <typename T, typename V = void>
-    struct function_traits
-        : function_traits_impl<T>
-    {
-    };
-
-    template <typename T>
-    struct function_traits<T, decltype((void)&T::operator())>
-        : function_traits_impl<decltype(&T::operator())>
-    {
-    };
-
-    template <size_t... Indices>
-    struct indices
-    {
-        using next = indices<Indices..., sizeof...(Indices)>;
-    };
-    template <size_t N>
-    struct build_indices
-    {
-        using type = typename build_indices<N - 1>::type::next;
-    };
-    template <>
-    struct build_indices<0>
-    {
-        using type = indices<>;
-    };
-    template <size_t N>
-    using BuildIndices = typename build_indices<N>::type;
-
-    namespace details
-    {
-        template <typename FuncType,
-                  typename VecType,
-                  size_t... I,
-                  typename Traits = function_traits<FuncType>,
-                  typename ReturnT = typename Traits::result_type>
-        ReturnT do_call(FuncType &func,
-                        VecType &args,
-                        indices<I...>)
-        {
-            assert(args.size() >= Traits::arity);
-            return func(args[I]...);
+class UDF_Type{
+    public:
+    string duckdb_type;
+    
+    /**
+     * @brief Resolve a type name to a C++ type name and a type size.
+    */
+    static string resolve_type(string &type_name, const string &udf_str){
+        // std::cout<<type_name<<std::endl;
+        // std::cout<<std::stoi("#28#")<<std::endl;
+        if(type_name.starts_with('#')){
+            if(udf_str.size() == 0){
+                throw std::runtime_error("UDF string is empty");
+            }
+            int type_start = type_name.find('#');
+            // int type_end = type_name.find('#', type_start);
+            type_start = std::stoi(type_name.substr(type_start+1));
+            int type_end = type_start;
+            while(isalpha(udf_str[type_end])){
+                type_end++;
+            }
+            string real_type_name = udf_str.substr(type_start, type_end - type_start);
+            return resolve_type(real_type_name, udf_str);
         }
-    } // namespace details
 
-    template <typename FuncType,
-              typename VecType,
-              typename Traits = function_traits<FuncType>,
-              typename ReturnT = typename Traits::result_type>
-    ReturnT unpack_caller(FuncType &func,
-                          VecType &args)
-    {
-        return details::do_call(func, args, BuildIndices<Traits::arity>());
-    }
-} // namespace util
-
-template <size_t num_args>
-struct unpack_caller
-{
-private:
-    template <typename FuncType, size_t... I>
-    auto call(FuncType &f, std::vector<int> &args, std::index_sequence<I...>){
-        return f(args[I]...);
+        std::transform(type_name.begin(), type_name.end(), type_name.begin(), ::toupper);
+        if(type_name.starts_with("DECIMAL")){
+            std::regex type_pattern("^DECIMAL ?(\\(\\d+,\\d+\\))", std::regex_constants::icase);
+            std::smatch tmp_types;
+            std::regex_search(type_name, tmp_types, type_pattern);
+            if(tmp_types.size() > 0){
+                return type_name;
+            }
+        }
+        if(alias_to_duckdb_type.contains(type_name)){
+            return alias_to_duckdb_type.at(type_name);
+        }
+        else{
+            throw runtime_error(fmt::format("Unknown type: {}", type_name));
+        }
     }
 
-public:
-    template <typename FuncType>
-    auto operator()(FuncType &f, std::vector<int> &args){
-        assert(args.size() == num_args); // just to be sure
-        return call(f, args, std::make_index_sequence<num_args>{});
-    }
-};
+    UDF_Type(){};
 
-template <size_t num_args>
-struct format_caller
-{
-private:
-    template <size_t... I>
-    std::string call(std::string &f, std::vector<int> &args, std::string &temp, std::index_sequence<I...>){
-        return f(temp, args[I]...);
+    UDF_Type(string &type_name, const string &udf_str){
+        duckdb_type = UDF_Type::resolve_type(type_name, udf_str);
+    }
+    
+    string get_duckdb_type(){
+        return "duckdb::LogicalType::"+duckdb_type;
     }
 
-public:
-    // template <typename FuncType>
-    std::string operator()(std::string &f, std::string temp, std::vector<int> &args){
-        assert(args.size() == num_args); // just to be sure
-        return call(f, args, temp, std::make_index_sequence<num_args>{});
+    string get_cpp_type(){
+        return "";
+    }
+    
+    bool is_unknown(){
+        return strcmp(duckdb_type.c_str(), "UNKNOWN") == 0;
     }
 };
+
+class VarInfo{
+    public:
+    int id;
+    bool init;
+    UDF_Type type;
+    VarInfo(){};
+    VarInfo(int id, string &type_name, const string &udf_str, bool i): id(id), init(i), type(type_name, udf_str){};
+
+};
+
+class CodeContainer{
+    public:
+    bool query_macro = false;
+    vector<string> global_macros;
+    vector<string> global_variables;
+    vector<string> global_functions;
+};
+
+class GV{
+    public:
+    int function_count = 0;
+    int vector_size = 2048;
+    // func_vars
+    string func_name;
+    UDF_Type func_return_type;
+    int temp_var_count = 0;
+    unordered_map<string, VarInfo> func_args;
+    // temp_var_subs
+};
+
+string vec_join(vector<string> &vec, const string &del);
+
 
 #endif

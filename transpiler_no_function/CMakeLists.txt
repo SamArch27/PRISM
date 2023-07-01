@@ -30,6 +30,9 @@ include_directories(${CMAKE_SOURCE_DIR}/dependencies/fmt/include)
 add_subdirectory(${CMAKE_SOURCE_DIR}/dependencies/yaml-cpp)
 include_directories(${CMAKE_SOURCE_DIR}/dependencies/yaml-cpp/include)
 
+# the json formatter lib
+include_directories(${CMAKE_SOURCE_DIR}/dependencies/json)
+
 # boost lib
 # # set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/dependencies/boost_1_82_0/)
 # set(Boost_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/dependencies/boost_1_82_0/)
