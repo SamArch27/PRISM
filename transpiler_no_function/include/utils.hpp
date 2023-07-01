@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 #include <algorithm>
 #include <regex>
+#include <yaml-cpp/yaml.h>
 using namespace std;
 
 
@@ -111,6 +112,12 @@ class GV{
     int temp_var_count = 0;
     unordered_map<string, VarInfo> func_args;
     // temp_var_subs
+};
+
+class YAMLConfig{
+    public:
+    YAML::Node query = YAML::LoadFile("../query.yaml");
+    YAML::Node function = YAML::LoadFile("../function.yaml");
 };
 
 string vec_join(vector<string> &vec, const string &del);

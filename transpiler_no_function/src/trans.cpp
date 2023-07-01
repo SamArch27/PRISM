@@ -1,18 +1,18 @@
 #include "trans.hpp"
 using json = nlohmann::json;
 
-std::shared_ptr<CodeContainer> cc;
-std::shared_ptr<GV> gv;
-YAML::Node query_config = YAML::LoadFile("../query.yaml");
-YAML::Node function_config = YAML::LoadFile("../function.yaml");
+// std::shared_ptr<CodeContainer> cc;
+// std::shared_ptr<GV> gv;
+// YAML::Node config->query = YAML::LoadFile("../query.yaml");
+// YAML::Node config->function = YAML::LoadFile("../function.yaml");
 
 // todo
-string translate_expr(json &expr, UDF_Type &expected_type, bool query_is_assignment = false){
+string Transpiler::translate_expr(json &expr, UDF_Type &expected_type, bool query_is_assignment = false){
     return "";
 }
 
 // todo
-string translate_action(json &action){
+string Transpiler::translate_action(json &action){
     return "";
 }
 
@@ -22,7 +22,7 @@ string translate_action(json &action){
  * Returns a tuple with a list of the formatted function arguments, and a
  * list of initializations/declarations for function variables.
 */
-void get_function_vars(json &datums, string &udf_str){
+void Transpiler::get_function_vars(json &datums, string &udf_str){
     vector<string> initializations;
     ASSERT(datums.is_array(), "Datums is not an array.");
     for(int i=0;i<datums.size();i++){
@@ -49,7 +49,7 @@ void get_function_vars(json &datums, string &udf_str){
     return;
 }
 
-vector<string> translate_function(json &ast, string &udf_str){
+vector<string> Transpiler::translate_function(json &ast, string &udf_str){
     get_function_vars(ast["datums"], udf_str);
     // for(auto i : gv->func_args){
     //     std::cout<<i.first<<i.second.type.duckdb_type<<i.second.init<<std::endl;
@@ -61,40 +61,40 @@ vector<string> translate_function(json &ast, string &udf_str){
     vector<string> check_null;
     // int count = 0;
     for(auto &pair : gv->func_args){
-        function_args += fmt::format(fmt::runtime(function_config["fargs2"].Scalar()), \
+        function_args += fmt::format(fmt::runtime(config->function["fargs2"].Scalar()), \
                                     fmt::arg("var_name", pair.first), \
                                     fmt::arg("i", pair.second.id));
         function_args += "\n";                            
-        arg_indexes += fmt::format(fmt::runtime(function_config["argindex"].Scalar()), \
+        arg_indexes += fmt::format(fmt::runtime(config->function["argindex"].Scalar()), \
                                     fmt::arg("var_name", pair.first));    
         arg_indexes += "\n";     
-        subfunc_args += fmt::format(fmt::runtime(function_config["subfunc_arg"].Scalar()), \
+        subfunc_args += fmt::format(fmt::runtime(config->function["subfunc_arg"].Scalar()), \
                                     fmt::arg("var_name", pair.first));    
         subfunc_args += ", "; 
-        fbody_args += fmt::format(fmt::runtime(function_config["fbody_arg"].Scalar()), \
+        fbody_args += fmt::format(fmt::runtime(config->function["fbody_arg"].Scalar()), \
                                     fmt::arg("i", pair.second.id), \
                                     fmt::arg("var_name", pair.first));    
         fbody_args += ", "; 
         // count++;
         check_null.push_back(pair.first + "_null");
     }
-    string output = fmt::format(fmt::runtime(function_config["fshell2"].Scalar()), \
+    string output = fmt::format(fmt::runtime(config->function["fshell2"].Scalar()), \
                                             fmt::arg("function_name", gv->func_name), \
                                             fmt::arg("function_args", function_args), \
                                             fmt::arg("arg_indexes", arg_indexes), \
                                             fmt::arg("subfunc_args", subfunc_args));
     std::cout<<output<<std::endl;
     
-    cc->global_functions.push_back(fmt::format(fmt::runtime(function_config["fbodyshell"].Scalar()), \
+    cc.global_functions.push_back(fmt::format(fmt::runtime(config->function["fbodyshell"].Scalar()), \
                                                 fmt::arg("function_name", gv->func_name), \
                                                 fmt::arg("fbody_args", fbody_args), \
-                                                fmt::arg("check_null", vec_join(check_null, " | "))));
-    // string decl = fmt::format(fmt::runtime(function_config["func_dec"].Scalar()), \
+                                                fmt::arg("check_null", vec_join(check_null, " or "))));
+    // string decl = fmt::format(fmt::runtime(config->function["func_dec"].Scalar()), \
     //                                         fmt::arg("function_name", gv->func_name), \
     //                                         fmt::arg("function_args", args_str), \
     //                                         fmt::arg("initializations", ""));
 
-    // string fcreate = fmt::format(fmt::runtime(function_config["fcreate"].Scalar()), \
+    // string fcreate = fmt::format(fmt::runtime(config->function["fcreate"].Scalar()), \
     //                                         fmt::arg("duck_ret_type", gv->func_return_type.get_duckdb_type()), \
     //                                         fmt::arg("function_args", args_str), \
     //                                         fmt::arg("initializations", ""));                                        
@@ -108,7 +108,7 @@ vector<string> translate_function(json &ast, string &udf_str){
  * @param udf_str a plpgsql string
  * @return a vector of three strings: the udf file; udf register; udf declaration
 */
-vector<string> transpile_plpgsql_udf_str(string &&udf_str){
+vector<string> Transpiler::run(){
     // collect the function return types
     std::vector<std::string> return_types;
     std::regex return_pattern("RETURNS\\s+(\\w+(\\(\\d+, ?\\d+\\))?)", std::regex_constants::icase);
@@ -144,15 +144,15 @@ vector<string> transpile_plpgsql_udf_str(string &&udf_str){
     json ast = json::parse(result.plpgsql_funcs);
     ASSERT(return_types.size() >= ast.size(), "Return type not specified for all functions");
     ASSERT(func_names.size() >= ast.size(), "Function name not specified for all functions");
-    cc = std::make_shared<CodeContainer>();
-    std::string code = fmt::format(fmt::runtime(query_config["macro2"].Scalar()),\
+    // cc = std::make_shared<CodeContainer>();
+    std::string code = fmt::format(fmt::runtime(config->query["macro2"].Scalar()),\
                                                 fmt::arg("db_name", "db"),\
                                                 fmt::arg("vector_size", 2048));
-    cc->global_macros.push_back(code);
-    cc->query_macro = true;
+    cc.global_macros.push_back(code);
+    cc.query_macro = true;
     for(int i=0;i<ast.size();i++){
         if(ast[i].contains("PLpgSQL_function")){
-            gv = std::make_shared<GV>();
+            gv = std::make_unique<GV>();
             gv->func_name = func_names[i];
             gv->func_return_type = UDF_Type(return_types[i], udf_str);
             vector<string> tmp_ret = translate_function(ast[i]["PLpgSQL_function"], udf_str);
@@ -166,7 +166,7 @@ vector<string> transpile_plpgsql_udf_str(string &&udf_str){
     pg_query_exit();
     vector<string> ret;
     // ret.push_back("This is the udf C++.");
-    ret.push_back(vec_join(cc->global_macros, "\n")+"\n"+vec_join(cc->global_functions, "\n"));
+    ret.push_back(vec_join(cc.global_macros, "\n")+"\n"+vec_join(cc.global_functions, "\n"));
     ret.push_back("This is the udf register.");
     ret.push_back("This is the declaration.");
     return ret;
