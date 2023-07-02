@@ -12,20 +12,23 @@ using namespace std;
 using json = nlohmann::json;
 
 // vector<string> transpile_plpgsql_udf_str(string &&udf_str);
-class Transpiler{
-    public:
-    Transpiler();
-    Transpiler(string &&udf_str, YAMLConfig *config): udf_str(udf_str), config(config){};
+class Transpiler
+{
+public:
+    // Transpiler();
+    Transpiler(string &&udf_str, YAMLConfig *config) : udf_str(udf_str), config(config){};
     vector<string> run();
-    private:
+
+private:
     CodeContainer cc;
-    std::unique_ptr<GV> gv;
+    std::unique_ptr<FunctionInfo> function_info;
     string udf_str;
     YAMLConfig *config;
-    private:
+
+private:
     string translate_expr(json &expr, UDF_Type &expected_type, bool query_is_assignment);
     string translate_action(json &action);
-    void get_function_vars(json &datums, string &udf_str);
+    string get_function_vars(json &datums, string &udf_str);
     vector<string> translate_function(json &ast, string &udf_str);
 };
 

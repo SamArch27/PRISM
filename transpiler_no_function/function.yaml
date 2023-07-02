@@ -65,6 +65,8 @@ fbodyshell: |-
       result_null = true;
       return;
     }}
+    // the declaration / initialization of local variables
+    {vars_init}
   }}
 
 fbody_arg: |-

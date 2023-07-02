@@ -1,11 +1,6 @@
 #include "trans.hpp"
 using json = nlohmann::json;
 
-// std::shared_ptr<CodeContainer> cc;
-// std::shared_ptr<GV> gv;
-// YAML::Node config->query = YAML::LoadFile("../query.yaml");
-// YAML::Node config->function = YAML::LoadFile("../function.yaml");
-
 // todo
 string Transpiler::translate_expr(json &expr, UDF_Type &expected_type, bool query_is_assignment = false){
     return "";
@@ -18,40 +13,48 @@ string Transpiler::translate_action(json &action){
 
 // todo
 /**
- * Get the function arguments from the datums.
- * Returns a tuple with a list of the formatted function arguments, and a
- * list of initializations/declarations for function variables.
+ * Get the function arguments from the datums. Datums contain arguments (before found) and local
+ * variables (after found). 
 */
-void Transpiler::get_function_vars(json &datums, string &udf_str){
-    vector<string> initializations;
+std::string Transpiler::get_function_vars(json &datums, string &udf_str){
+    std::string vars_init;
     ASSERT(datums.is_array(), "Datums is not an array.");
-    for(int i=0;i<datums.size();i++){
+    bool scanning_func_args = true;
+    for(size_t i=0;i<datums.size();i++){
         auto &datum = datums[i];
         ASSERT(datum.contains("PLpgSQL_var"), "Datum does not contain PLpgSQL_var.");
         auto var = datum["PLpgSQL_var"];
         string name = var["refname"];
-        if(strcmp(name.c_str(), "found") == 0) continue;
+        if(strcmp(name.c_str(), "found") == 0){
+            scanning_func_args = false;
+            continue;
+        } 
         string typ = var["datatype"]["PLpgSQL_type"]["typname"];
         VarInfo var_info(i, typ, udf_str, false);
         if(var_info.type.is_unknown()) continue;    // variables with UNKNOWN types are created by for loops later in the code
                                                     // We don't need to do anything with them here
-        if(var.contains("default_val")){
-            string query_result = translate_expr(var["default_val"]["PLpgSQL_expr"], var_info.type, false);
-            // todo initialization
-            var_info.init = true;
-            gv->func_args[name] = var_info;
-        }   
+        if(scanning_func_args){
+            function_info->func_args[name] = var_info;
+        }
         else{
-            // todo initialization
-            gv->func_args[name] = var_info;
-        }                                         
+            if(var.contains("default_val")){
+                string query_result = translate_expr(var["default_val"]["PLpgSQL_expr"], var_info.type, false);
+                vars_init += fmt::format("{} {} = {};\n", var_info.type.get_cpp_type(), name, query_result);
+                var_info.init = true;
+                function_info->func_vars[name] = var_info;
+            }   
+            else{
+                function_info->func_vars[name] = var_info;
+                vars_init += fmt::format("{} {};\n", var_info.type.get_cpp_type(), name);
+            }     
+        }                                    
     }
-    return;
+    return vars_init;
 }
 
 vector<string> Transpiler::translate_function(json &ast, string &udf_str){
-    get_function_vars(ast["datums"], udf_str);
-    // for(auto i : gv->func_args){
+    string vars_init = get_function_vars(ast["datums"], udf_str);
+    // for(auto i : function_info->func_args){
     //     std::cout<<i.first<<i.second.type.duckdb_type<<i.second.init<<std::endl;
     // }
     string function_args = "";
@@ -60,7 +63,7 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
     string fbody_args = "";
     vector<string> check_null;
     // int count = 0;
-    for(auto &pair : gv->func_args){
+    for(auto &pair : function_info->func_args){
         function_args += fmt::format(fmt::runtime(config->function["fargs2"].Scalar()), \
                                     fmt::arg("var_name", pair.first), \
                                     fmt::arg("i", pair.second.id));
@@ -79,23 +82,24 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
         check_null.push_back(pair.first + "_null");
     }
     string output = fmt::format(fmt::runtime(config->function["fshell2"].Scalar()), \
-                                            fmt::arg("function_name", gv->func_name), \
+                                            fmt::arg("function_name", function_info->func_name), \
                                             fmt::arg("function_args", function_args), \
                                             fmt::arg("arg_indexes", arg_indexes), \
                                             fmt::arg("subfunc_args", subfunc_args));
     std::cout<<output<<std::endl;
     
     cc.global_functions.push_back(fmt::format(fmt::runtime(config->function["fbodyshell"].Scalar()), \
-                                                fmt::arg("function_name", gv->func_name), \
+                                                fmt::arg("function_name", function_info->func_name), \
                                                 fmt::arg("fbody_args", fbody_args), \
-                                                fmt::arg("check_null", vec_join(check_null, " or "))));
+                                                fmt::arg("check_null", vec_join(check_null, " or ")), \
+                                                fmt::arg("vars_init", vars_init)));
     // string decl = fmt::format(fmt::runtime(config->function["func_dec"].Scalar()), \
-    //                                         fmt::arg("function_name", gv->func_name), \
+    //                                         fmt::arg("function_name", function_info->func_name), \
     //                                         fmt::arg("function_args", args_str), \
     //                                         fmt::arg("initializations", ""));
 
     // string fcreate = fmt::format(fmt::runtime(config->function["fcreate"].Scalar()), \
-    //                                         fmt::arg("duck_ret_type", gv->func_return_type.get_duckdb_type()), \
+    //                                         fmt::arg("duck_ret_type", function_info->func_return_type.get_duckdb_type()), \
     //                                         fmt::arg("function_args", args_str), \
     //                                         fmt::arg("initializations", ""));                                        
     vector<string> ret;
@@ -105,7 +109,6 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
 
 /**
  * @brief transpile a PL/PgSQL function definition to the C++ implementation
- * @param udf_str a plpgsql string
  * @return a vector of three strings: the udf file; udf register; udf declaration
 */
 vector<string> Transpiler::run(){
@@ -150,13 +153,13 @@ vector<string> Transpiler::run(){
                                                 fmt::arg("vector_size", 2048));
     cc.global_macros.push_back(code);
     cc.query_macro = true;
-    for(int i=0;i<ast.size();i++){
+    for(size_t i=0;i<ast.size();i++){
         if(ast[i].contains("PLpgSQL_function")){
-            gv = std::make_unique<GV>();
-            gv->func_name = func_names[i];
-            gv->func_return_type = UDF_Type(return_types[i], udf_str);
+            function_info = std::make_unique<FunctionInfo>();
+            function_info->func_name = func_names[i];
+            function_info->func_return_type = UDF_Type(return_types[i], udf_str);
             vector<string> tmp_ret = translate_function(ast[i]["PLpgSQL_function"], udf_str);
-            // std::cout<<gv->func_return_type.duckdb_type<<std::endl;
+            // std::cout<<function_info->func_return_type.duckdb_type<<std::endl;
 
         }
     }
