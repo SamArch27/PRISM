@@ -94,6 +94,12 @@ class YAMLConfig
 public:
     YAML::Node query = YAML::LoadFile("../query.yaml");
     YAML::Node function = YAML::LoadFile("../function.yaml");
+    YAML::Node control = YAML::LoadFile("../control.yaml");
 };
 
+bool is_const_or_var(string &expr, FunctionInfo &funtion_info, string &res);
+
+
 #endif
+
+

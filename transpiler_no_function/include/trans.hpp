@@ -26,10 +26,22 @@ private:
     YAMLConfig *config;
 
 private:
-    string translate_expr(json &expr, UDF_Type &expected_type, bool query_is_assignment);
-    string translate_action(json &action);
+    string translate_expr(json &expr, UDF_Type *expected_type, bool query_is_assignment);
+    string translate_assign_stmt(json &stmt);
+    string translate_return_stmt(json &stmt);
+    string translate_cond_stmt(json &cond_stmt);
+    string translate_if_stmt(json &stmt);
+    string translate_loop_stmt(json &stmt);
+    string translate_for_stmt(json &stmt);
+    string translate_while_stmt(json &stmt);
+    string translate_stmt_block(json &stmt_block);
+    string translate_exitcont_stmt(json &stmt);
     string get_function_vars(json &datums, string &udf_str);
+    string translate_body(json &body, UDF_Type *expectd_type = NULL);
+    string translate_action(json &action);
     vector<string> translate_function(json &ast, string &udf_str);
+    string translate_query(json &query, UDF_Type *expected_type, bool query_is_assignment);
+    void parse_assignment(string &query, string &lvalue, string &rvalue);
 };
 
 #endif

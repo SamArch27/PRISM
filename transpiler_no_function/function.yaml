@@ -67,6 +67,7 @@ fbodyshell: |-
     }}
     // the declaration / initialization of local variables
     {vars_init}
+    {action}
   }}
 
 fbody_arg: |-

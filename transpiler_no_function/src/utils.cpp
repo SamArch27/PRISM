@@ -12,6 +12,24 @@ void remove_spaces(std::string& str) {
     str.erase(remove(str.begin(), str.end(), ' '), str.end());
 }
 
+bool is_number(){
+
+}
+
+// /**
+//  * @brief check if an expression is a constant such as 2 or 'string' or variable
+// */
+// bool is_const_or_var(string &expr, FunctionInfo &funtion_info, UDF_Type &expected_type, string &result){
+//     if((expr.starts_with("\"") and expr.ends_with("\"")) or (expr.starts_with("'") and expr.ends_with("'"))){
+//         ASSERT("")
+//         result = expr;
+//         return true;
+//     }
+//     else if(){
+
+//     }
+// }
+
 /**
  * @brief Resolve a type name to a C++ type name and a type size.
  */

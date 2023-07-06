@@ -1,14 +1,163 @@
 #include "trans.hpp"
 using json = nlohmann::json;
 
+/**
+ * @brief Parse an assignment query. May raise exception if wrong.
+*/
+void Transpiler::parse_assignment(string &query, string &lvalue, string &rvalue){
+    std::regex assign_pattern("\\:?\\=", std::regex_constants::icase);
+    std::smatch equal_match;
+    // std::cout << tmp_string << '\n';
+    std::regex_search(query, equal_match, assign_pattern);
+    lvalue = equal_match.prefix();
+    rvalue = equal_match.suffix();
+}
+
 // todo
-string Transpiler::translate_expr(json &expr, UDF_Type &expected_type, bool query_is_assignment = false){
+string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool query_is_assignment = false){
+    ASSERT(query.is_string(), "Query statement should be a string.");
+    // todo substitute variable
+    // todo query is assignment
+    if(query_is_assignment){
+
+    }
+    return "";
+}
+
+string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool query_is_assignment = false){
+    if(expr.contains("query") and expr.size() == 1){
+        return translate_query(expr["query"], expected_type, query_is_assignment);
+    }
+    else{
+        throw std::runtime_error(fmt::format("Unsupport PLpgSQL_expr: {}", expr));
+    }
+    return "";
+}
+
+/**
+ * example: {'lineno': 5, 'varno': 3, 'expr': {'PLpgSQL_expr': {'query': 'pd2 := pd'}}
+*/
+string Transpiler::translate_assign_stmt(json &assign){
+    ASSERT(assign["expr"].contains("PLpgSQL_expr"), "Assignment must be in form of expression.");
+    return translate_expr(assign["expr"]["PLpgSQL_expr"], NULL, true);
+}
+
+string Transpiler::translate_return_stmt(json &stmt){
+    ASSERT(stmt.size() == 2, "Return_stmt should only have lineno and expr.");
+    ASSERT(stmt["expr"].contains("PLpgSQL_expr"), "Return_stmt expression should have PLpgSQL_expr.");
+    return "return " + translate_expr(stmt["expr"]["PLpgSQL_expr"], &function_info->func_return_type) + ";\n";
+}
+
+string Transpiler::translate_cond_stmt(json &cond_stmt){
+    ASSERT(cond_stmt.contains("PLpgSQL_expr"), "cond stmt should contain PLpgSQL_expr.");
+    string tmp = "BOOL";
+    UDF_Type cond_type(tmp, udf_str);
+    return translate_expr(cond_stmt["PLpgSQL_expr"], &cond_type);
+}
+
+string Transpiler::translate_if_stmt(json &if_stmt){
+    ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
+    string cond_expr = translate_cond_stmt(if_stmt["cond"]);
+    string then_body = "";
+    string elseifs = "";
+    string _else = "";
+    if(if_stmt.contains("then_body")){
+        then_body = translate_body(if_stmt["then_body"]);
+    }
+    if(if_stmt.contains("elsif_list")){
+        for(auto &elseif_outer : if_stmt["elsif_list"]){
+            ASSERT(elseif_outer.contains("PLpgSQL_if_elsif"),\
+                       "elsif should be PLpgSQL_if_elsif.");
+            auto &elseif = elseif_outer["PLpgSQL_if_elsif"];
+            ASSERT(elseif.contains("cond"), "elseif should have cond.");
+            string elseif_then_body;
+            if(elseif.contains("stmts")){
+                elseif_then_body = translate_body(elseif["stmts"]);
+            }
+            else{
+                elseif_then_body = "";
+            }
+            elseifs += fmt::format(fmt::runtime(config->control["else_if"].Scalar()), \
+                                    fmt::arg("condition", translate_cond_stmt(elseif["cond"])), \
+                                    fmt::arg("then_body", elseif_then_body));
+            elseifs += "\n";
+
+        }
+    }
+    if(if_stmt.contains("else_body")){
+        _else = fmt::format(fmt::runtime(config->control["else"].Scalar()), \
+                            fmt::arg("else_body", translate_body(if_stmt["else_body"])));
+        _else += "\n";                                        
+    }
+    return fmt::format(fmt::runtime(config->control["if_block"].Scalar()), \
+                        fmt::arg("condition", cond_expr), \
+                        fmt::arg("then_body", then_body), \
+                        fmt::arg("elseifs", elseifs), \
+                        fmt::arg("else", _else));
+}
+
+string Transpiler::translate_loop_stmt(json &loop_stmt){
+    // ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
+    return "";
+}
+
+string Transpiler::translate_for_stmt(json &for_stmt){
+    // ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
+    return "";
+}
+
+string Transpiler::translate_while_stmt(json &while_stmt){
+    // ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
+    return "";
+}
+
+string Transpiler::translate_exitcont_stmt(json &stmt){
+    // ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
     return "";
 }
 
 // todo
+/**
+ * Transpile a body from PL/pgSQL to C++.
+ * This function might be called recursively inside trans_*. If there is called
+ * by return type determined stmts like "cond":{"PLpgSQL_expr"..., should set 
+ * argument expected_type.
+*/
+string Transpiler::translate_body(json &body, UDF_Type *expected_type){
+    string output = "";
+    for(auto &stmt : body){
+        if (stmt.contains("PLpgSQL_stmt_if"))
+            output += translate_if_stmt(stmt["PLpgSQL_stmt_if"]);
+        else if (stmt.contains("PLpgSQL_stmt_return"))
+            output += translate_return_stmt(stmt["PLpgSQL_stmt_return"]);
+        else if (stmt.contains("PLpgSQL_expr"))
+            output += translate_expr(stmt["PLpgSQL_expr"], \
+                                     expected_type, false);
+        else if(stmt.contains("PLpgSQL_stmt_assign"))
+            output += translate_assign_stmt(stmt["PLpgSQL_stmt_assign"]);
+        else if(stmt.contains("PLpgSQL_stmt_loop"))
+            output += translate_loop_stmt(stmt["PLpgSQL_stmt_loop"]);
+        else if(stmt.contains("PLpgSQL_stmt_fori"))
+            output += translate_for_stmt(stmt["PLpgSQL_stmt_fori"]);
+        else if(stmt.contains("PLpgSQL_stmt_while"))
+            output += translate_while_stmt(stmt["PLpgSQL_stmt_while"]);
+        else if(stmt.contains("PLpgSQL_stmt_exit"))
+            output += translate_exitcont_stmt(stmt["PLpgSQL_stmt_exit"]);
+        else
+            throw std::runtime_error(fmt::format("Unknown statement type: {}", stmt));
+
+        // TODO: support EXIT and CONTINUE
+    }
+    return output;
+}
+
+string Transpiler::translate_stmt_block(json &stmt_block){
+    UDF_Type tmp;
+    return translate_body(stmt_block["body"], NULL);
+}
+
 string Transpiler::translate_action(json &action){
-    return "";
+    return translate_stmt_block(action["PLpgSQL_stmt_block"]);
 }
 
 // todo
@@ -38,7 +187,7 @@ std::string Transpiler::get_function_vars(json &datums, string &udf_str){
         }
         else{
             if(var.contains("default_val")){
-                string query_result = translate_expr(var["default_val"]["PLpgSQL_expr"], var_info.type, false);
+                string query_result = translate_expr(var["default_val"]["PLpgSQL_expr"], &var_info.type, false);
                 vars_init += fmt::format("{} {} = {};\n", var_info.type.get_cpp_type(), name, query_result);
                 var_info.init = true;
                 function_info->func_vars[name] = var_info;
@@ -92,7 +241,8 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
                                                 fmt::arg("function_name", function_info->func_name), \
                                                 fmt::arg("fbody_args", fbody_args), \
                                                 fmt::arg("check_null", vec_join(check_null, " or ")), \
-                                                fmt::arg("vars_init", vars_init)));
+                                                fmt::arg("vars_init", vars_init), \
+                                                fmt::arg("action", translate_action(ast["action"]))));
     // string decl = fmt::format(fmt::runtime(config->function["func_dec"].Scalar()), \
     //                                         fmt::arg("function_name", function_info->func_name), \
     //                                         fmt::arg("function_args", args_str), \
