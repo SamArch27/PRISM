@@ -198,8 +198,6 @@ string Transpiler::translate_body(json &body, UDF_Type *expected_type){
             output += translate_exitcont_stmt(stmt["PLpgSQL_stmt_exit"]);
         else
             throw std::runtime_error(fmt::format("Unknown statement type: {}", stmt));
-
-        // TODO: support EXIT and CONTINUE
     }
     return output;
 }
@@ -236,7 +234,11 @@ std::string Transpiler::get_function_vars(json &datums, string &udf_str){
         if(var_info.type.is_unknown()) continue;    // variables with UNKNOWN types are created by for loops later in the code
                                                     // We don't need to do anything with them here
         if(scanning_func_args){
+            var_info.init = true;
             function_info->func_args[name] = var_info;
+            function_info->func_args_vec.push_back(name);
+            string extract_data_from_value = fmt::format("v{}.GetValueUnsafe<{}>()", i, var_info.type.get_cpp_type());
+            vars_init += fmt::format("{} {} = {};\n", var_info.type.get_cpp_type(), name, extract_data_from_value);
         }
         else{
             if(var.contains("default_val")){
@@ -265,23 +267,23 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
     string fbody_args = "";
     vector<string> check_null;
     // int count = 0;
-    for(auto &pair : function_info->func_args){
+    for(auto &name : function_info->func_args_vec){
         function_args += fmt::format(fmt::runtime(config->function["fargs2"].Scalar()), \
-                                    fmt::arg("var_name", pair.first), \
-                                    fmt::arg("i", pair.second.id));
+                                    fmt::arg("var_name", name), \
+                                    fmt::arg("i", function_info->func_args[name].id));
         function_args += "\n";                            
         arg_indexes += fmt::format(fmt::runtime(config->function["argindex"].Scalar()), \
-                                    fmt::arg("var_name", pair.first));    
+                                    fmt::arg("var_name", name));    
         arg_indexes += "\n";     
         subfunc_args += fmt::format(fmt::runtime(config->function["subfunc_arg"].Scalar()), \
-                                    fmt::arg("var_name", pair.first));    
+                                    fmt::arg("var_name", name));    
         subfunc_args += ", "; 
         fbody_args += fmt::format(fmt::runtime(config->function["fbody_arg"].Scalar()), \
-                                    fmt::arg("i", pair.second.id), \
-                                    fmt::arg("var_name", pair.first));    
+                                    fmt::arg("i", function_info->func_args[name].id), \
+                                    fmt::arg("var_name", name));    
         fbody_args += ", "; 
         // count++;
-        check_null.push_back(pair.first + "_null");
+        check_null.push_back(name + "_null");
     }
     string output = fmt::format(fmt::runtime(config->function["fshell2"].Scalar()), \
                                             fmt::arg("function_name", function_info->func_name), \

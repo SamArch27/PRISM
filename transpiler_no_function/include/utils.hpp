@@ -84,6 +84,7 @@ public:
     string func_name;
     UDF_Type func_return_type;
     int tmp_var_count = 0;
+    vector<string> func_args_vec;
     unordered_map<string, VarInfo> func_args;
     unordered_map<string, VarInfo> func_vars;
     unordered_map<string, string> tmp_var_substitutes;
