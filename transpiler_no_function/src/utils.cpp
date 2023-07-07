@@ -12,8 +12,9 @@ void remove_spaces(std::string& str) {
     str.erase(remove(str.begin(), str.end(), ' '), str.end());
 }
 
+// todo
 bool is_number(){
-
+    return false;
 }
 
 // /**

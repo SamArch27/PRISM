@@ -21,7 +21,8 @@ string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool qu
     if(query_is_assignment){
 
     }
-    return "";
+    return fmt::format("[Unresolved Query: {}]", query.dump());
+    // return query;
 }
 
 string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool query_is_assignment = false){
@@ -39,7 +40,7 @@ string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool quer
 */
 string Transpiler::translate_assign_stmt(json &assign){
     ASSERT(assign["expr"].contains("PLpgSQL_expr"), "Assignment must be in form of expression.");
-    return translate_expr(assign["expr"]["PLpgSQL_expr"], NULL, true);
+    return translate_expr(assign["expr"]["PLpgSQL_expr"], NULL, true) + ";\n";
 }
 
 string Transpiler::translate_return_stmt(json &stmt){
@@ -96,24 +97,76 @@ string Transpiler::translate_if_stmt(json &if_stmt){
                         fmt::arg("else", _else));
 }
 
+/**
+ * loop is a while loop with the condition always being true
+*/
 string Transpiler::translate_loop_stmt(json &loop_stmt){
-    // ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
-    return "";
+    return fmt::format(fmt::runtime(config->control["simple"].Scalar()), \
+                        fmt::arg("body", translate_body(loop_stmt["body"])));
 }
 
 string Transpiler::translate_for_stmt(json &for_stmt){
-    // ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
-    return "";
+    auto &for_var = for_stmt["var"]["PLpgSQL_var"];
+    string for_var_name = for_var["refname"];
+
+    string prev_sub = "";
+
+    // cache the previous name if any
+    if(function_info->tmp_var_substitutes.contains(for_var_name)){
+        prev_sub = function_info->tmp_var_substitutes[for_var_name];
+    }
+
+    string tmp_var_name = function_info->new_variable();
+    function_info->tmp_var_substitutes[for_var_name] = tmp_var_name;
+    ASSERT(!function_info->func_vars.contains(tmp_var_name) and !function_info->tmp_var_substitutes.contains(tmp_var_name), \
+            fmt::format("temporary loop variable {} cannot be used elsewhere", tmp_var_name));
+    string for_var_type = "INTEGER";
+    function_info->func_vars[tmp_var_name] = VarInfo(-1, for_var_type, udf_str, true);
+    
+    bool is_reverse = for_stmt.contains("reverse");
+    if(is_reverse)
+        ASSERT(for_stmt["reverse"], "reverse must be true.");
+    
+    UDF_Type tmp_int_type(for_var_type, udf_str);
+    string step_size = "1";
+    if(for_stmt.contains("step")){
+        step_size = translate_expr(for_stmt["step"]["PLpgSQL_expr"], &tmp_int_type, false);
+    }
+    // todo: uncomment when trans_expr is done
+    // ASSERT(stoi(step_size) > 0, "Step size should be positive.");
+    string start = translate_expr(for_stmt["lower"]["PLpgSQL_expr"], &tmp_int_type, false);
+    string end = translate_expr(for_stmt["upper"]["PLpgSQL_expr"], &tmp_int_type, false);
+    string output = fmt::format(fmt::runtime(config->control[is_reverse ? "revfor" : "for"].Scalar()), \
+                                fmt::arg("body", translate_body(for_stmt["body"])), \
+                                fmt::arg("start", start), \
+                                fmt::arg("end", end), \
+                                fmt::arg("name", tmp_var_name), \
+                                fmt::arg("step", step_size));
+    // clean all temporary variables                       
+    function_info->func_vars.erase(tmp_var_name);
+    if(prev_sub.compare("") == 0){
+        function_info->tmp_var_substitutes.erase(for_var_name);
+    }
+    else{
+        function_info->tmp_var_substitutes[for_var_name] = prev_sub;
+    }
+    return output + "\n";
 }
 
 string Transpiler::translate_while_stmt(json &while_stmt){
-    // ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
-    return "";
+    string body = translate_body(while_stmt["body"]);
+    string condition = translate_cond_stmt(while_stmt["cond"]);
+    return fmt::format(fmt::runtime(config->control["while"].Scalar()), \
+                        fmt::arg("body", body), \
+                        fmt::arg("condition", condition));
 }
 
 string Transpiler::translate_exitcont_stmt(json &stmt){
-    // ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
-    return "";
+    if(stmt.contains("is_exit")){
+        ASSERT(stmt["is_exit"], "if_exit should be true.");
+        return "break;\n";
+    }
+    return "continue;\n";
 }
 
 // todo

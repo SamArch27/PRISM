@@ -25,7 +25,7 @@ using namespace std;
 string vec_join(vector<string> &vec, const string &del);
 void remove_spaces(std::string &str);
 
-static unordered_map<string, string> alias_to_duckdb_type = {{"BIGINT", "BIGINT"}, {"INT8", "BIGINT"}, {"LONG", "BIGINT"}, {"BIT", "BIT"}, {"BITSTRING", "BIT"}, {"BOOLEAN", "BOOLEAN"}, {"BOOL", "BOOLEAN"}, {"LOGICAL", "BOOLEAN"}, {"BLOB", "BLOB"}, {"BYTEA", "BLOB"}, {"BINARY", "BLOB"}, {"VARBINARY", "BLOB"}, {"DATE", "DATE"}, {"DOUBLE", "DOUBLE"}, {"FLOAT8", "DOUBLE"}, {"NUMERIC", "DOUBLE"}, {"DECIMAL", "DOUBLE"}, {"HUGEINT", "HUGEINT"}, {"INTEGER", "INTEGER"}, {"INT", "INTEGER"}, {"INT4", "INTEGER"}, {"SIGNED", "INTEGER"}, {"INTERVAL", "INTERVAL"}, {"REAL", "REAL"}, {"FLOAT4", "REAL"}, {"FLOAT", "REAL"}, {"SMALLINT", "SMALLINT"}, {"INT2", "SMALLINT"}, {"SHORT", "SMALLINT"}, {"TIME", "TIME"}, {"TIMESTAMP", "TIMESTAMP"}, {"DATETIME", "TIMESTAMP"}, {"TINYINT", "TINYINT"}, {"INT1", "TINYINT"}, {"UBIGINT", "UBIGINT"}, {"UINTEGER", "UINTEGER"}, {"USMALLINT", "USMALLINT"}, {"UTINYINT", "UTINYINT"}, {"UUID", "UUID"}, {"VARCHAR", "VARCHAR"}, {"CHAR", "VARCHAR"}, {"BPCHAR", "VARCHAR"}, {"TEXT", "VARCHAR"}, {"STRING", "VARCHAR"}};
+static unordered_map<string, string> alias_to_duckdb_type = {{"UNKNOWN", "UNKNOWN"}, {"BIGINT", "BIGINT"}, {"INT8", "BIGINT"}, {"LONG", "BIGINT"}, {"BIT", "BIT"}, {"BITSTRING", "BIT"}, {"BOOLEAN", "BOOLEAN"}, {"BOOL", "BOOLEAN"}, {"LOGICAL", "BOOLEAN"}, {"BLOB", "BLOB"}, {"BYTEA", "BLOB"}, {"BINARY", "BLOB"}, {"VARBINARY", "BLOB"}, {"DATE", "DATE"}, {"DOUBLE", "DOUBLE"}, {"FLOAT8", "DOUBLE"}, {"NUMERIC", "DOUBLE"}, {"DECIMAL", "DOUBLE"}, {"HUGEINT", "HUGEINT"}, {"INTEGER", "INTEGER"}, {"INT", "INTEGER"}, {"INT4", "INTEGER"}, {"SIGNED", "INTEGER"}, {"INTERVAL", "INTERVAL"}, {"REAL", "REAL"}, {"FLOAT4", "REAL"}, {"FLOAT", "REAL"}, {"SMALLINT", "SMALLINT"}, {"INT2", "SMALLINT"}, {"SHORT", "SMALLINT"}, {"TIME", "TIME"}, {"TIMESTAMP", "TIMESTAMP"}, {"DATETIME", "TIMESTAMP"}, {"TINYINT", "TINYINT"}, {"INT1", "TINYINT"}, {"UBIGINT", "UBIGINT"}, {"UINTEGER", "UINTEGER"}, {"USMALLINT", "USMALLINT"}, {"UTINYINT", "UTINYINT"}, {"UUID", "UUID"}, {"VARCHAR", "VARCHAR"}, {"CHAR", "VARCHAR"}, {"BPCHAR", "VARCHAR"}, {"TEXT", "VARCHAR"}, {"STRING", "VARCHAR"}};
 static unordered_map<string, string> duckdb_to_cpp_type = {{"BOOLEAN", "bool"}, {"TINYINT", "int8_t"}, {"SMALLINT", "int16_t"}, {"DATE", "int32_t"}, {"TIME", "int32_t"}, {"INTEGER", "int32_t"}, {"BIGINT", "int64_t"}, {"TIMESTAMP", "int64_t"}, {"FLOAT", "double"}, {"DOUBLE", "double"}, {"DECIMAL", "double"}, {"VARCHAR", "string_t"}, {"CHAR", "string_t"}, {"BLOB", "string_t"}, {"VARBINARY", "blob_t"}};
 
 class UDF_Type
@@ -83,10 +83,15 @@ public:
     int vector_size = 2048;
     string func_name;
     UDF_Type func_return_type;
-    int temp_var_count = 0;
+    int tmp_var_count = 0;
     unordered_map<string, VarInfo> func_args;
     unordered_map<string, VarInfo> func_vars;
+    unordered_map<string, string> tmp_var_substitutes;
     // temp_var_subs
+    string new_variable(){
+        tmp_var_count += 1;
+        return "tmpvar" + std::to_string(tmp_var_count);
+    }
 };
 
 class YAMLConfig
