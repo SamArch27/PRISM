@@ -26,7 +26,7 @@ string vec_join(vector<string> &vec, const string &del);
 void remove_spaces(std::string &str);
 
 static unordered_map<string, string> alias_to_duckdb_type = {{"UNKNOWN", "UNKNOWN"}, {"BIGINT", "BIGINT"}, {"INT8", "BIGINT"}, {"LONG", "BIGINT"}, {"BIT", "BIT"}, {"BITSTRING", "BIT"}, {"BOOLEAN", "BOOLEAN"}, {"BOOL", "BOOLEAN"}, {"LOGICAL", "BOOLEAN"}, {"BLOB", "BLOB"}, {"BYTEA", "BLOB"}, {"BINARY", "BLOB"}, {"VARBINARY", "BLOB"}, {"DATE", "DATE"}, {"DOUBLE", "DOUBLE"}, {"FLOAT8", "DOUBLE"}, {"NUMERIC", "DOUBLE"}, {"DECIMAL", "DOUBLE"}, {"HUGEINT", "HUGEINT"}, {"INTEGER", "INTEGER"}, {"INT", "INTEGER"}, {"INT4", "INTEGER"}, {"SIGNED", "INTEGER"}, {"INTERVAL", "INTERVAL"}, {"REAL", "REAL"}, {"FLOAT4", "REAL"}, {"FLOAT", "REAL"}, {"SMALLINT", "SMALLINT"}, {"INT2", "SMALLINT"}, {"SHORT", "SMALLINT"}, {"TIME", "TIME"}, {"TIMESTAMP", "TIMESTAMP"}, {"DATETIME", "TIMESTAMP"}, {"TINYINT", "TINYINT"}, {"INT1", "TINYINT"}, {"UBIGINT", "UBIGINT"}, {"UINTEGER", "UINTEGER"}, {"USMALLINT", "USMALLINT"}, {"UTINYINT", "UTINYINT"}, {"UUID", "UUID"}, {"VARCHAR", "VARCHAR"}, {"CHAR", "VARCHAR"}, {"BPCHAR", "VARCHAR"}, {"TEXT", "VARCHAR"}, {"STRING", "VARCHAR"}};
-static unordered_map<string, string> duckdb_to_cpp_type = {{"BOOLEAN", "bool"}, {"TINYINT", "int8_t"}, {"SMALLINT", "int16_t"}, {"DATE", "int32_t"}, {"TIME", "int32_t"}, {"INTEGER", "int32_t"}, {"BIGINT", "int64_t"}, {"TIMESTAMP", "int64_t"}, {"FLOAT", "double"}, {"DOUBLE", "double"}, {"DECIMAL", "double"}, {"VARCHAR", "string_t"}, {"CHAR", "string_t"}, {"BLOB", "string_t"}, {"VARBINARY", "blob_t"}};
+static unordered_map<string, string> duckdb_to_cpp_type = {{"BOOLEAN", "bool"}, {"TINYINT", "int8_t"}, {"SMALLINT", "int16_t"}, {"DATE", "int32_t"}, {"TIME", "int32_t"}, {"INTEGER", "int32_t"}, {"BIGINT", "int64_t"}, {"TIMESTAMP", "int64_t"}, {"FLOAT", "float"}, {"DOUBLE", "double"}, {"DECIMAL", "double"}, {"VARCHAR", "string_t"}, {"CHAR", "string_t"}, {"BLOB", "string_t"}};
 
 class UDF_Type
 {
@@ -50,6 +50,8 @@ public:
     }
 
     string get_cpp_type();
+    
+    string create_duckdb_value(const string &ret_name, const string &cpp_value);
 
     bool is_unknown()
     {

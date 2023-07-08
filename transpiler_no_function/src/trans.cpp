@@ -46,7 +46,10 @@ string Transpiler::translate_assign_stmt(json &assign){
 string Transpiler::translate_return_stmt(json &stmt){
     ASSERT(stmt.size() == 2, "Return_stmt should only have lineno and expr.");
     ASSERT(stmt["expr"].contains("PLpgSQL_expr"), "Return_stmt expression should have PLpgSQL_expr.");
-    return "return " + translate_expr(stmt["expr"]["PLpgSQL_expr"], &function_info->func_return_type) + ";\n";
+    string ret = fmt::format("{};\nreturn;\n", function_info->func_return_type.create_duckdb_value(\
+                            config->function["return_name"].Scalar(),\
+                            translate_expr(stmt["expr"]["PLpgSQL_expr"], &function_info->func_return_type)));
+    return ret;
 }
 
 string Transpiler::translate_cond_stmt(json &cond_stmt){

@@ -1,9 +1,9 @@
-simple: |-
+simple: |
   while (true){{
     {body}
   }}
 
-while: |-
+while: |
   while ({condition}){{
     {body}
   }}

@@ -111,3 +111,22 @@ string UDF_Type::get_cpp_type()
     }
     return duckdb_to_cpp_type.at(duckdb_type);
 }
+
+string UDF_Type::create_duckdb_value(const string &ret_name, const string &cpp_value){
+    const vector<string> numeric = {"BOOLEAN", "TINYINT", "SMALLINT", "DATE", "TIME", "INTEGER", "BIGINT", "TIMESTAMP", "FLOAT", "DOUBLE", "DECIMAL"};
+    const vector<string> blob = {"VARCHAR", "BLOB"};
+    if(duckdb_type.starts_with("DECIMAL")){
+        int width, scale;
+        UDF_Type::get_decimal_width_scale(duckdb_type, width, scale);
+        return fmt::format("{} = Value::DECIMAL({}, {}, {})", ret_name, cpp_value, width, scale);
+    }
+    else if(std::find(numeric.begin(), numeric.end(), duckdb_type) != numeric.end()){
+        return fmt::format("{} = Value::{}({})", ret_name, duckdb_type, cpp_value);
+    }
+    else if(std::find(blob.begin(), blob.end(), duckdb_type) != blob.end()){
+        return fmt::format("{0} = Value({1});{0}.\n{0}.GetTypeMutable() = {2}", ret_name, cpp_value, duckdb_type);
+    }
+    else{
+        throw std::runtime_error(fmt::format("Cannot create duckdb value from type {}", duckdb_type));
+    }
+}

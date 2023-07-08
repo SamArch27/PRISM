@@ -70,6 +70,9 @@ fbodyshell: |-
     {action}
   }}
 
+return_name: |-
+  result
+
 fbody_arg: |-
   const Value& v{i}, bool {var_name}_null
 
