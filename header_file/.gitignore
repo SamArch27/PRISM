@@ -1,17 +1,8 @@
-.DS_Store
-.vscode/
-build/
-*.o
-*.a
-*.so
-
-# folder specific
-
-# for header file
+build
 .idea
 cmake-build-debug
 duckdb_unittest_tempdir/
+.DS_Store
 testext
 test/python/__pycache__/
 .Rhistory
-
