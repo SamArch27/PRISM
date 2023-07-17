@@ -38,7 +38,7 @@ fshell2: |-
         FlatVector::SetNull(result, base_idx, true);
       }}
       else {{
-        result.SetValue(index, temp_result);
+        result.SetValue(base_idx, temp_result);
       }}
     }}
 

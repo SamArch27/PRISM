@@ -124,7 +124,7 @@ string UDF_Type::create_duckdb_value(const string &ret_name, const string &cpp_v
         return fmt::format("{} = Value::{}({})", ret_name, duckdb_type, cpp_value);
     }
     else if(std::find(blob.begin(), blob.end(), duckdb_type) != blob.end()){
-        return fmt::format("{0} = Value({1});{0}.\n{0}.GetTypeMutable() = {2}", ret_name, cpp_value, duckdb_type);
+        return fmt::format("{0} = Value({1});\n{0}.GetTypeMutable() = LogicalType::{2}", ret_name, cpp_value, duckdb_type);
     }
     else{
         throw std::runtime_error(fmt::format("Cannot create duckdb value from type {}", duckdb_type));
