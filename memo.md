@@ -13,11 +13,14 @@ in the binder, besides storing
 1. function name
 2. if template -> 
     1. if templated:
-        1. input type options (physical)
+        1. input type options (logical)
         2. return type options ..
     2. else:
-        1. input type (physical)
+        1. input type (logical)
         2. return type ..
 3. how to handle null values ->
     1. default handler i.e. input null return null
     2. input null return not guaranteed
+4. whether it is a switch function ->
+    1. it is: run the switch to and repeat
+    2. not: generate the function

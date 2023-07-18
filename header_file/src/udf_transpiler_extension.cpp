@@ -1,6 +1,9 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "udf_transpiler_extension.hpp"
+#include "functions.hpp"
+#include "numeric.hpp"
+#include "cast.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
@@ -12,7 +15,7 @@
 namespace duckdb
 {
 
-	inline void itos_body(const Value &v0, bool val1_null, Value &result, bool &result_null)
+	inline void itos_body(const Value &v0, bool val1_null, Value &result, bool &result_null, Vector &tmp_vec)
 	{
 		if (val1_null)
 		{
@@ -21,8 +24,8 @@ namespace duckdb
 		}
 		// the declaration / initialization of local variables
 		int32_t val1 = v0.GetValueUnsafe<int32_t>();
-
-		result = Value("hello world");
+		
+		result = Value(udf::int_to_string(udf::AddOperation<int32_t, int64_t>(val1, 1), tmp_vec));
 		result.GetTypeMutable() = LogicalType::VARCHAR;
 		return;
 	}
@@ -37,6 +40,7 @@ namespace duckdb
 		auto val1_type = val1.GetVectorType();
 		UnifiedVectorFormat val1_data;
 		val1.ToUnifiedFormat(count, val1_data);
+		Vector tmp_vec(LogicalType::VARCHAR, 2048);
 
 		for (int base_idx = 0; base_idx < count; base_idx++)
 		{
@@ -44,7 +48,7 @@ namespace duckdb
 
 			Value temp_result;
 			bool temp_result_null = false;
-			itos_body(val1.GetValue(val1_index), !val1_data.validity.RowIsValid(val1_index), temp_result, temp_result_null);
+			itos_body(val1.GetValue(val1_index), !val1_data.validity.RowIsValid(val1_index), temp_result, temp_result_null, tmp_vec);
 			if (temp_result_null)
 			{
 				FlatVector::SetNull(result, base_idx, true);

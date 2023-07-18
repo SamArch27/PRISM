@@ -1,4 +1,8 @@
+#pragma once
 #include "duckdb.hpp"
+#include "duckdb/common/types/string_type.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/types/cast_helpers.hpp"
 
 using namespace duckdb;
 namespace udf{
@@ -7,13 +11,15 @@ namespace udf{
 */
 
 template <class SRCTYPE, class UTYPE>
-inline bool AddOperation(SRCTYPE left, SRCTYPE right, SRCTYPE &result);
+SRCTYPE AddOperation(SRCTYPE left, SRCTYPE right);
+
+
 
 /**
  * String functions
  * 
 */
 
-
+string_t int_to_string(int32_t input, Vector &vector);
 
 }
