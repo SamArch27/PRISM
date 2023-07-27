@@ -6,12 +6,13 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/extension_util.hpp"
-
+#include "duckdb/function/cast/cast_function_set.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
+#include <iostream>
 
 namespace duckdb
 {
-
+    duckdb::DuckDB &db_instance;
 	// inline void itos_body(const Value &v0, bool val1_null, Value &result, bool &result_null, Vector &tmp_vec)
 	// {
 	// 	if (val1_null)
@@ -66,6 +67,7 @@ namespace duckdb
 			name_vector, result, args.size(),
 			[&](string_t name)
 			{
+                std::cout<<duckdb::CastFunctionSet::Get(*db_instance.instance).ImplicitCastCost(duckdb::LogicalType::INTEGER, duckdb::LogicalType::VARCHAR)<<std::endl;
 				return StringVector::AddString(result, "Udf_transpiler " + name.GetString() + " 🐥");
 				;
 			});
@@ -76,7 +78,6 @@ namespace duckdb
 		auto udf_transpiler_scalar_function = ScalarFunction("udf_transpiler", {LogicalType::VARCHAR},
 															 LogicalType::VARCHAR, Udf_transpilerScalarFun);
 		ExtensionUtil::RegisterFunction(instance, udf_transpiler_scalar_function);
-		
 		// auto itos_scalar_function = ScalarFunction("itos", {LogicalType::INTEGER},
 		// 													 LogicalType::VARCHAR, itos);
 		// ExtensionUtil::RegisterFunction(instance, itos_scalar_function);
@@ -84,6 +85,8 @@ namespace duckdb
 
 	void Udf_transpilerExtension::Load(DuckDB &db)
 	{
+        this->db = db;
+        db_instance = db;
 		LoadInternal(*db.instance);
 	}
 	std::string Udf_transpilerExtension::Name()

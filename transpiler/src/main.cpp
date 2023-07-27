@@ -7,7 +7,7 @@
 // #include <ctype.h>
 #include <stdio.h>
 #include "duckdb.hpp"
-#include "duckdb/function/cast/cast_function_set.hpp"
+// #include "duckdb/function/cast/cast_function_set.hpp"
 #include <unistd.h>
 #include "utils.hpp"
 #include "trans.hpp"
@@ -78,7 +78,6 @@ int main(int argc, char const *argv[])
     }
 
     duckdb::DuckDB db;
-    std::cout<<duckdb::CastFunctionSet::Get(*db.instance).ImplicitCastCost(duckdb::LogicalType::INTEGER, duckdb::LogicalType::VARCHAR)<<std::endl;
     YAMLConfig config;
     Transpiler transpiler(buffer.str(), &config);
     // std::vector<std::string> ret = transpile_plpgsql_udf_str(buffer.str());

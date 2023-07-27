@@ -34,14 +34,14 @@
 #   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
 #   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
 
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.24.2)
 set(TARGET_NAME udf_transpiler)
 
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 project(${TARGET_NAME})
 # project(transpiler)
 
-# set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 20)
 # set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_CXX_FLAGS "-O2 -Wall -pthread")
 # set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE INTERNAL "" FORCE)
@@ -63,8 +63,9 @@ add_custom_target(pg_parser
 )
 
 # the formatting lib
-# add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
-# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt/include)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt EXCLUDE_FROM_ALL)
+# add_dependencies(${EXTENSION_NAME} fmt)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
 # include_directories(duckdb/third_party/fmt/include)
 
 # the parser lib
@@ -97,6 +98,8 @@ file(GLOB all_SRCS
     )
 # add_executable(main ${all_SRCS})
 add_library(${EXTENSION_NAME} STATIC ${all_SRCS})
+
+# target_include_directories(${EXTENSION_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
 add_dependencies(${EXTENSION_NAME} pg_parser)
 target_link_libraries(${EXTENSION_NAME} ${PG_PARSER_ROOT}/libpg_query.a ${TRANSPILER_OBJECT_FILES})
 set(PARAMETERS "-warnings")
