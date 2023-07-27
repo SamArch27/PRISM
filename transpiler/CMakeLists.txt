@@ -34,24 +34,28 @@
 #   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
 #   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
 
-cmake_minimum_required(VERSION 3.24.2)
-project(transpiler)
+cmake_minimum_required(VERSION 2.8.12)
+set(TARGET_NAME udf_transpiler)
 
-set(CMAKE_CXX_STANDARD 20)
+set(EXTENSION_NAME ${TARGET_NAME}_extension)
+project(${TARGET_NAME})
+# project(transpiler)
+
+# set(CMAKE_CXX_STANDARD 20)
 # set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_CXX_FLAGS "-O2 -Wall -pthread")
 # set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE INTERNAL "" FORCE)
 
 # duckdb lib
-# include_directories(${CMAKE_SOURCE_DIR}/src/dependencies/libduckdb-osx-universal) # *.h
-# link_directories(${CMAKE_SOURCE_DIR}/src/dependencies/libduckdb-osx-universal)    # *.dylib
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/libduckdb-osx-universal) # *.h
+# link_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/libduckdb-osx-universal)    # *.dylib
 
 # the commandline lib
-include_directories(${CMAKE_SOURCE_DIR}/src/dependencies/tclap) # *.h
-# include_directories(${CMAKE_SOURCE_DIR}/src/dependencies/tclap)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/tclap) # *.h
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/tclap)
 
 # plpgsql parser lib
-set(PG_PARSER_ROOT ${CMAKE_SOURCE_DIR}/src/dependencies/libpg_query)
+set(PG_PARSER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/libpg_query)
 include_directories(${PG_PARSER_ROOT})
 add_custom_target(pg_parser
     COMMAND make build
@@ -59,19 +63,20 @@ add_custom_target(pg_parser
 )
 
 # the formatting lib
-add_subdirectory(${CMAKE_SOURCE_DIR}/src/dependencies/fmt)
-include_directories(${CMAKE_SOURCE_DIR}/src/dependencies/fmt/include)
+# add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt/include)
+# include_directories(duckdb/third_party/fmt/include)
 
 # the parser lib
-add_subdirectory(${CMAKE_SOURCE_DIR}/src/dependencies/yaml-cpp)
-include_directories(${CMAKE_SOURCE_DIR}/src/dependencies/yaml-cpp/include)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/yaml-cpp)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/yaml-cpp/include)
 
 # the json formatter lib
-include_directories(${CMAKE_SOURCE_DIR}/src/dependencies/json)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/json)
 
 # boost lib
-# # set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/src/dependencies/boost_1_82_0/)
-# set(Boost_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/src/dependencies/boost_1_82_0/)
+# # set(BOOST_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/boost_1_82_0/)
+# set(Boost_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/boost_1_82_0/)
 # set(Boost_LIBRARY_DIR ${Boost_INCLUDE_DIR}/libs)
 # # program options
 # # add_subdirectory(${Boost_LIBRARY_DIR}/program_options)
@@ -79,21 +84,32 @@ include_directories(${CMAKE_SOURCE_DIR}/src/dependencies/json)
 # include_directories(${Boost_INCLUDE_DIR})
 # link_directories(${Boost_LIBRARY_DIR})
 # # include_directories(${Boost_INCLUDE_DIR})
-# # include_directories(${CMAKE_SOURCE_DIR}/src/dependencies/libduckdb-src) # *.h
-# # link_directories(${CMAKE_SOURCE_DIR}/src/dependencies/libduckdb-src)    # *.dylib
+# # include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/libduckdb-src) # *.h
+# # link_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/libduckdb-src)    # *.dylib
 
-# include_directories(${CMAKE_SOURCE_DIR}/src)
-include_directories(${CMAKE_SOURCE_DIR}/src/include)
-include_directories(${CMAKE_SOURCE_DIR}/duckdb/src/include)
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/include)
 file(GLOB all_SRCS
         # "${PROJECT_SOURCE_DIR}/include/*.h"
         # "${PROJECT_SOURCE_DIR}/include/*.hpp"
         "${PROJECT_SOURCE_DIR}/src/*.cpp"
         "${PROJECT_SOURCE_DIR}/src/*.c"
     )
-add_executable(main ${all_SRCS})
-add_dependencies(main pg_parser)
+# add_executable(main ${all_SRCS})
+add_library(${EXTENSION_NAME} STATIC ${all_SRCS})
+add_dependencies(${EXTENSION_NAME} pg_parser)
+target_link_libraries(${EXTENSION_NAME} ${PG_PARSER_ROOT}/libpg_query.a ${TRANSPILER_OBJECT_FILES})
+set(PARAMETERS "-warnings")
+build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${all_SRCS} ${PG_PARSER_ROOT}/libpg_query.a ${TRANSPILER_OBJECT_FILES})
 
-add_subdirectory(duckdb)
-add_dependencies(main duckdb)
-target_link_libraries(main ${PG_PARSER_ROOT}/libpg_query.a fmt yaml-cpp duckdb)
+install(
+  TARGETS ${EXTENSION_NAME}
+  EXPORT "${DUCKDB_EXPORT_SET}"
+  LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
+  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
+# # duckdb
+# set(DUCKDB_LIB duckdb)
+# add_subdirectory(duckdb)
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/duckdb/src/include)
+# add_dependencies(main duckdb)
+# target_link_libraries(main PRIVATE duckdb)

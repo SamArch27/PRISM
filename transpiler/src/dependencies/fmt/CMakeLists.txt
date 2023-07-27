@@ -286,6 +286,9 @@ add_module_library(fmt src/fmt.cc FALLBACK
                    ${FMT_SOURCES} ${FMT_HEADERS} README.rst ChangeLog.rst
                    IF FMT_MODULE)
 add_library(fmt::fmt ALIAS fmt)
+set(TRANSPILER_OBJECT_FILES
+    ${TRANSPILER_OBJECT_FILES} $<TARGET_OBJECTS:fmt>
+    PARENT_SCOPE)
 if (FMT_MODULE)
   enable_module(fmt)
 endif ()

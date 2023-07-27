@@ -76,6 +76,9 @@ set(backport-msvc-runtime $<VERSION_LESS:${CMAKE_VERSION},3.15>)
 
 add_library(yaml-cpp ${yaml-cpp-type} "")
 add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
+set(TRANSPILER_OBJECT_FILES
+    ${TRANSPILER_OBJECT_FILES} $<TARGET_OBJECTS:yaml-cpp>
+    PARENT_SCOPE)
 
 set_property(TARGET yaml-cpp
   PROPERTY
