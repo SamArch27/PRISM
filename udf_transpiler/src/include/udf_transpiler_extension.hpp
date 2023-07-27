@@ -6,7 +6,7 @@ namespace duckdb {
 
 class Udf_transpilerExtension : public Extension {
 private:
-	duckdb::DuckDB& db;
+	duckdb::DuckDB* db = NULL;
 public:
 	void Load(DuckDB &db) override;
 	std::string Name() override;

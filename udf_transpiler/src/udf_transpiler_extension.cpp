@@ -12,7 +12,7 @@
 
 namespace duckdb
 {
-    duckdb::DuckDB &db_instance;
+    duckdb::DuckDB *db_instance;
 	// inline void itos_body(const Value &v0, bool val1_null, Value &result, bool &result_null, Vector &tmp_vec)
 	// {
 	// 	if (val1_null)
@@ -67,7 +67,7 @@ namespace duckdb
 			name_vector, result, args.size(),
 			[&](string_t name)
 			{
-                std::cout<<duckdb::CastFunctionSet::Get(*db_instance.instance).ImplicitCastCost(duckdb::LogicalType::INTEGER, duckdb::LogicalType::VARCHAR)<<std::endl;
+                std::cout<<duckdb::CastFunctionSet::Get(*db_instance->instance).ImplicitCastCost(duckdb::LogicalType::INTEGER, duckdb::LogicalType::VARCHAR)<<std::endl;
 				return StringVector::AddString(result, "Udf_transpiler " + name.GetString() + " 🐥");
 				;
 			});
@@ -85,8 +85,8 @@ namespace duckdb
 
 	void Udf_transpilerExtension::Load(DuckDB &db)
 	{
-        this->db = db;
-        db_instance = db;
+        this->db = &db;
+        db_instance = &db;
 		LoadInternal(*db.instance);
 	}
 	std::string Udf_transpilerExtension::Name()
