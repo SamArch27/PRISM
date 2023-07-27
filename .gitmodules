@@ -1,3 +1,7 @@
 [submodule "header_file/duckdb"]
 	path = header_file/duckdb
 	url = https://github.com/duckdb/duckdb.git
+
+[submodule "transpiler/duckdb"]
+	path = transpiler/duckdb
+	url = https://github.com/duckdb/duckdb.git

@@ -24,3 +24,16 @@ in the binder, besides storing
 4. whether it is a switch function ->
     1. it is: run the switch to and repeat
     2. not: generate the function
+5. whether it is a string operator
+
+
+<!-- should we modify the duckdb's binder or build ourselves'? -->
+pros:
+guaranteed same behavior
+less code?
+
+cons:
+understand the whole thing
+import the local variables to the catalog
+reconstruct from the physical plan
+must base on duckdb's source code

@@ -1,18 +1,18 @@
-# name: test/sql/udf_transpiler.test
-# description: test udf_transpiler extension
-# group: [udf_transpiler]
+# name: test/sql/udf1.test
+# description: test udf1 extension
+# group: [udf1]
 
 # Before we load the extension, this will fail
 statement error
-SELECT udf_transpiler('Sam');
+SELECT udf1('Sam');
 ----
-Catalog Error: Scalar Function with name udf_transpiler does not exist!
+Catalog Error: Scalar Function with name udf1 does not exist!
 
 # Require statement will ensure this test is run with this extension loaded
-require udf_transpiler
+require udf1
 
 # Confirm the extension works
 query I
-SELECT udf_transpiler('Sam');
+SELECT udf1('Sam');
 ----
-Udf_transpiler Sam 🐥
+Udf1 Sam 🐥

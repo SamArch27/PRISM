@@ -13,7 +13,7 @@ describe(`udf_transpiler extension`, () => {
     it('function should return expected constant', function (done) {
         db.all("SELECT udf_transpiler('Sam') as value;", function (err, res) {
             if (err) throw err;
-            assert.deepEqual(res, [{value: "Udf_transpiler Sam 🐥"}]);
+            assert.deepEqual(res, [{value: "Udf1 Sam 🐥"}]);
             done();
         });
     });
