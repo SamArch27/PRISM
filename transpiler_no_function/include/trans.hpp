@@ -8,6 +8,7 @@
 #include <yaml-cpp/yaml.h>
 #include "json.hpp"
 #include "utils.hpp"
+#include "query.hpp"
 using namespace std;
 using json = nlohmann::json;
 
@@ -41,7 +42,7 @@ private:
     string translate_action(json &action);
     vector<string> translate_function(json &ast, string &udf_str);
     string translate_query(json &query, UDF_Type *expected_type, bool query_is_assignment);
-    void parse_assignment(string &query, string &lvalue, string &rvalue);
+    void parse_assignment(const string &query, string &lvalue, string &rvalue);
 };
 
 #endif

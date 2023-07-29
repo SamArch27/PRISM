@@ -4,7 +4,7 @@ using json = nlohmann::json;
 /**
  * @brief Parse an assignment query. May raise exception if wrong.
 */
-void Transpiler::parse_assignment(string &query, string &lvalue, string &rvalue){
+void Transpiler::parse_assignment(const string &query, string &lvalue, string &rvalue){
     std::regex assign_pattern("\\:?\\=", std::regex_constants::icase);
     std::smatch equal_match;
     // std::cout << tmp_string << '\n';
@@ -19,6 +19,14 @@ string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool qu
     // todo substitute variable
     // todo query is assignment
     if(query_is_assignment){
+        ASSERT(expected_type == NULL, "In assignment, expected_type should be NULL.");
+        string lvalue;
+        string rvalue;
+        parse_assignment(query, lvalue, rvalue);
+        QueryTranspiler query_transpiler(function_info.get(), rvalue, expected_type, config);
+        string result = query_transpiler.run();
+    }
+    else{
 
     }
     return fmt::format("[Unresolved Query: {}]", query.dump());
@@ -346,6 +354,8 @@ vector<string> Transpiler::run(){
 
     PgQueryPlpgsqlParseResult result;
     result = pg_query_parse_plpgsql(udf_str.c_str());
+    
+
     if (result.error)
     {
         printf("error: %s at %d\n", result.error->message, result.error->cursorpos);
