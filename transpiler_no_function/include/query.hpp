@@ -8,6 +8,7 @@
 #include "json.hpp"
 #include "utils.hpp"
 #include <unordered_map>
+#include "VariadicTable.h"
 using namespace std;
 using json = nlohmann::json;
 
@@ -108,23 +109,38 @@ public:
         }
     }
     static void Print(Catalog catalog){
+        VariadicTable<string, string, bool, bool, bool, bool, string, string> vt({"SQL Name", "C++ Name", "Templated", "Default NULL", "Switch", "String Op", "Inputs", "Return"}, 10);
         for(auto &pair : catalog.table){
-            cout<<pair.first<<endl;
-            cout<<pair.second.cpp_name<<endl;
-            cout<<pair.second.templated<<endl;
-            cout<<pair.second.default_null<<endl;
-            cout<<pair.second.if_switch<<endl;
-            cout<<pair.second.if_string<<endl;
-            for(auto &input_type_vec : pair.second.input_type){
-                for(auto &input_type : input_type_vec){
-                    cout<<input_type.duckdb_type<<endl;
+            
+            // table<<vec_join(pair.second.return_type, "\n");
+            // for(auto &input_type : pair.second.input_type){
+            //     table<<vec_join(input_type, "\n");
+            // }
+            string return_type_str;
+            bool first = true;
+            auto return_types = pair.second.return_type;
+            auto input_types = pair.second.input_type;
+            for(int i = 0; i < return_types.size(); i++){
+                // return_type_str += return_type.duckdb_type + ", ";
+                auto return_type = return_types[i];
+                auto input_type = input_types[i];
+                string return_type_str = return_type.duckdb_type;
+                string input_type_str = "";
+                for(int j = 0; j < input_type.size(); j++){
+                    input_type_str += input_type[j].duckdb_type;
+                    if(j != input_type.size()-1)
+                        input_type_str += ", ";
                 }
+                if(first){
+                    vt.addRow(pair.first, pair.second.cpp_name, pair.second.templated, pair.second.default_null, pair.second.if_switch, pair.second.if_string, return_type.duckdb_type, input_type_str);
+                    first = false;
+                }
+                else
+                    vt.addRow("", "", "", "", "", "", return_type.duckdb_type, input_type_str);
             }
-            for(auto &return_type : pair.second.return_type){
-                cout<<return_type.duckdb_type<<endl;
-            }
-            cout<<endl;
+            // cout<<endl;
         }
+        vt.print(cout);
     }
 };
 
@@ -176,7 +192,7 @@ private:
     YAMLConfig *config;
     Catalog *catalog;
 public:
-    QueryTranspiler(FunctionInfo *function_info, const string &query_str, UDF_Type *expected_type, YAMLConfig *config):
+    QueryTranspiler(FunctionInfo *function_info, const string &query_str, UDF_Type *expected_type, YAMLConfig *config, Catalog *catalog):
                     function_info(function_info), query_str(query_str), expected_type(expected_type), config(config), catalog(catalog){};
     bool bind(QueryAST &ast);
     string run();

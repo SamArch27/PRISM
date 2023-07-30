@@ -23,7 +23,7 @@ string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool qu
         string lvalue;
         string rvalue;
         parse_assignment(query, lvalue, rvalue);
-        QueryTranspiler query_transpiler(function_info.get(), rvalue, expected_type, config);
+        QueryTranspiler query_transpiler(function_info.get(), rvalue, expected_type, config, catalog);
         string result = query_transpiler.run();
     }
     else{

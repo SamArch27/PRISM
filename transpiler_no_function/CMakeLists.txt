@@ -33,6 +33,10 @@ include_directories(${CMAKE_SOURCE_DIR}/dependencies/yaml-cpp/include)
 # the json formatter lib
 include_directories(${CMAKE_SOURCE_DIR}/dependencies/json)
 
+# the pretty print lib
+include_directories(${CMAKE_SOURCE_DIR}/dependencies/pretty-print)
+# add_subdirectory(${CMAKE_SOURCE_DIR}/dependencies/pretty-print)
+
 # boost lib
 # # set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/dependencies/boost_1_82_0/)
 # set(Boost_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/dependencies/boost_1_82_0/)
