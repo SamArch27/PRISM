@@ -34,7 +34,7 @@ bool is_number(){
 /**
  * @brief Resolve a type name to a C++ type name and a type size.
  */
-string UDF_Type::resolve_type(string &type_name, const string &udf_str){
+string UDF_Type::resolve_type(string type_name, const string &udf_str){
     // std::cout<<type_name<<std::endl;
     // std::cout<<std::stoi("#28#")<<std::endl;
     if (type_name.starts_with('#'))

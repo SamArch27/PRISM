@@ -33,13 +33,17 @@ class UDF_Type
 public:
     string duckdb_type;
 
-    static string resolve_type(string &type_name, const string &udf_str);
+    static string resolve_type(string type_name, const string &udf_str);
     static void get_decimal_width_scale(string &duckdb_type, int &width, int &scale);
     static string get_decimal_int_type(int width, int scale);
 
     UDF_Type(){};
 
-    UDF_Type(string &type_name, const string &udf_str)
+    UDF_Type(const string &type_name){
+        duckdb_type = UDF_Type::resolve_type(type_name, "");
+    }
+
+    UDF_Type(const string &type_name, const string &udf_str)
     {
         duckdb_type = UDF_Type::resolve_type(type_name, udf_str);
     }

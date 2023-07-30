@@ -17,7 +17,8 @@ class Transpiler
 {
 public:
     // Transpiler();
-    Transpiler(string &&udf_str, YAMLConfig *config) : udf_str(udf_str), config(config){};
+    Transpiler(string &&udf_str, YAMLConfig *config, Catalog *catalog) : 
+        udf_str(udf_str), config(config), catalog(catalog){};
     vector<string> run();
 
 private:
@@ -25,6 +26,7 @@ private:
     std::unique_ptr<FunctionInfo> function_info;
     string udf_str;
     YAMLConfig *config;
+    Catalog *catalog;
 
 private:
     string translate_expr(json &expr, UDF_Type *expected_type, bool query_is_assignment);

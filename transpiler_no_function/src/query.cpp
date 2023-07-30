@@ -35,6 +35,10 @@ QueryNode QueryAST::node_resolver(json &ast){
         res.type = EXPRESSION;
         
     }
+    else if(ast_type == "TypeCast"){
+        res.type = FUNCTION;
+        res.name = "::";
+    }
     else if(ast_type == "A_Const"){
         res.type = CONSTANT;
     }

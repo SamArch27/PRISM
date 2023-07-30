@@ -9,6 +9,7 @@
 
 
 in the binder, besides storing
+1. sql name
 1. function name
 2. if template -> 
     1. if templated:

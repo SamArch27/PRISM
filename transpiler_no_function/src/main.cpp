@@ -76,7 +76,9 @@ int main(int argc, char const *argv[])
         throw std::runtime_error(fmt::format("Input file is empty or does not exist: {}", i_file));
     }
     YAMLConfig config;
-    Transpiler transpiler(buffer.str(), &config);
+    Catalog catalog;
+    Catalog::Print(catalog);
+    Transpiler transpiler(buffer.str(), &config, &catalog);
     // std::vector<std::string> ret = transpile_plpgsql_udf_str(buffer.str());
     std::vector<std::string> ret = transpiler.run();
     std::cout << ret[0] << std::endl;
