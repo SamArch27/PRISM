@@ -109,7 +109,7 @@ public:
         }
     }
     static void Print(Catalog catalog){
-        VariadicTable<string, string, bool, bool, bool, bool, string, string> vt({"SQL Name", "C++ Name", "Templated", "Default NULL", "Switch", "String Op", "Inputs", "Return"}, 10);
+        VariadicTable<string, string, string, string, string, string, string, string> vt({"SQL Name", "C++ Name", "Templated", "Default NULL", "Switch", "String Op", "Inputs", "Return"}, 10);
         for(auto &pair : catalog.table){
             
             // table<<vec_join(pair.second.return_type, "\n");
@@ -132,11 +132,11 @@ public:
                         input_type_str += ", ";
                 }
                 if(first){
-                    vt.addRow(pair.first, pair.second.cpp_name, pair.second.templated, pair.second.default_null, pair.second.if_switch, pair.second.if_string, return_type.duckdb_type, input_type_str);
+                    vt.addRow(pair.first, pair.second.cpp_name, pair.second.templated ? "true" : "false", pair.second.default_null ? "true" : "false", pair.second.if_switch ? "true" : "false", pair.second.if_string ? "true" : "false", input_type_str, return_type_str);
                     first = false;
                 }
                 else
-                    vt.addRow("", "", "", "", "", "", return_type.duckdb_type, input_type_str);
+                    vt.addRow("", "", "", "", "", "", input_type_str, return_type_str);
             }
             // cout<<endl;
         }
