@@ -19,16 +19,30 @@
   - false
   - true
   - true
-  - false
+  - true
   - options:
-    - 'varchar':
+    - varchar:
       - int
 
 add:
   - addOperator
   - true
   - true
+  - false
+  - false
+  - options:
+    - int:
+      - int
+      - int
+    - bigint:
+      - bigint
+      - bigint
+
++:
+  - addOperator
   - true
+  - true
+  - false
   - false
   - options:
     - int:

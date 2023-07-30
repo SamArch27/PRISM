@@ -51,13 +51,23 @@ public:
 */
 class QueryNodeBoundInfo{
 public:
-    HeaderFileFunctionInfo *func_info;
+    union{
+        /**
+         * if the QueryNode is a function, this is the function info
+        */
+        HeaderFileFunctionInfo *function_info;
+        /**
+         * if the QueryNode is a variable, this is the variable info
+        */
+        VarInfo *variable_info;
+    };
+    // HeaderFileFunctionInfo *func_info;
     /**
      * actual types of input used
     */
     vector<UDF_Type> *input_type;
     /**
-     * actual return type
+     * actual return type | type of the variable or constant
     */
     UDF_Type return_type;
     QueryNodeBoundInfo(){};
@@ -111,11 +121,6 @@ public:
     static void Print(Catalog catalog){
         VariadicTable<string, string, string, string, string, string, string, string> vt({"SQL Name", "C++ Name", "Templated", "Default NULL", "Switch", "String Op", "Inputs", "Return"}, 10);
         for(auto &pair : catalog.table){
-            
-            // table<<vec_join(pair.second.return_type, "\n");
-            // for(auto &input_type : pair.second.input_type){
-            //     table<<vec_join(input_type, "\n");
-            // }
             string return_type_str;
             bool first = true;
             auto return_types = pair.second.return_type;
@@ -151,10 +156,11 @@ public:
     */
     QueryNodeType type;
     string name;
+    bool bound = false;
     /**
      * was orginally empty before binding
     */
-    QueryNodeBoundInfo info;
+    QueryNodeBoundInfo bound_info;
     vector<QueryNode> args;
 public:
     QueryNode(){};
@@ -164,7 +170,7 @@ public:
     QueryNode(QueryNodeType type, string name): type(type), name(name){};
 
     static void Print(const QueryNode &node, int indent = 0){
-        cout<<fmt::format(fmt::runtime("{:<{}}{}[{}]"), "", indent, node.name, getQueryNodeTypeString(node.type))<<endl;
+        cout<<fmt::format(fmt::runtime("{:<{}}{}[{}]->{}"), "", indent, node.name, getQueryNodeTypeString(node.type), node.bound ? "bound" : "")<<endl;
         for(const auto &arg : node.args){
             QueryNode::Print(arg, indent+4);
         }
@@ -172,6 +178,7 @@ public:
 };
 
 class QueryAST{
+public:
     QueryNode root;
 public:
     static QueryNode node_resolver(json &ast);
@@ -191,6 +198,11 @@ private:
     UDF_Type *expected_type;
     YAMLConfig *config;
     Catalog *catalog;
+    bool bind(QueryNode &node);
+    bool bind_variable(QueryNode &node);
+    bool bind_function(QueryNode &node);
+    bool bind_constant(QueryNode &node);
+    bool bind_expression(QueryNode &node);
 public:
     QueryTranspiler(FunctionInfo *function_info, const string &query_str, UDF_Type *expected_type, YAMLConfig *config, Catalog *catalog):
                     function_info(function_info), query_str(query_str), expected_type(expected_type), config(config), catalog(catalog){};

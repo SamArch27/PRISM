@@ -1,4 +1,5 @@
 #include "query.hpp"
+#include "bind.hpp"
 using namespace std;
 
 const char * getQueryNodeTypeString(QueryNodeType type){
@@ -6,7 +7,7 @@ const char * getQueryNodeTypeString(QueryNodeType type){
 }
 
 /**
- * resolve the libpg_query returned ast recursively to the QueryNode
+ * resolve the libpg_query returned ast recursively to QueryNode
 */
 QueryNode QueryAST::node_resolver(json &ast){
     ASSERT(ast.is_object() && ast.size() == 1, "The root ast should be a map.");
@@ -62,7 +63,8 @@ string QueryTranspiler::run(){
     ast = ast["stmts"][0]["stmt"]["SelectStmt"]["targetList"][0]["ResTarget"]["val"];
     ASSERT(!ast.empty(), "The generated ast is empty.");
     QueryAST transpiler_ast(ast);
+    bind(transpiler_ast);
     QueryAST::Print(transpiler_ast);
-    cout<<ast.dump()<<endl;
+    cout<<ast.dump(4, ' ')<<endl;
     return "";
 }

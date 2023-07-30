@@ -93,11 +93,33 @@ public:
     vector<string> func_args_vec;
     unordered_map<string, VarInfo> func_args;
     unordered_map<string, VarInfo> func_vars;
+    /**
+     * 
+    */
     unordered_map<string, string> tmp_var_substitutes;
     // temp_var_subs
     string new_variable(){
         tmp_var_count += 1;
         return "tmpvar" + std::to_string(tmp_var_count);
+    }
+
+    bool if_exists(const string &var_name){
+        return func_vars.find(var_name) != func_vars.end() || func_args.find(var_name) != func_args.end();
+    }
+
+    VarInfo &get_var_info(const string &var_name){
+        if(func_vars.find(var_name) != func_vars.end()){
+            if(tmp_var_substitutes.contains(var_name)){
+                return func_vars[tmp_var_substitutes[var_name]];
+            }
+            return func_vars[var_name];
+        }
+        else if(func_args.find(var_name) != func_args.end()){
+            return func_args[var_name];
+        }
+        else{
+            throw runtime_error(fmt::format("Variable {} not found.", var_name));
+        }
     }
 };
 
