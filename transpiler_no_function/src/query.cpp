@@ -21,7 +21,16 @@ QueryNode QueryAST::resolve_node(json &ast){
     }
     else if(ast_type == "BoolExpr"){
         res.type = EXPRESSION;
-        ERROR("Unsupported BoolExpr");
+        // ERROR("Unsupported BoolExpr: \n"+ast.dump(4, ' '));
+        if(value["boolop"] == "AND_EXPR")
+            res.name = "and";
+        else if(value["boolop"] == "OR_EXPR")
+            res.name = "or";
+        else
+            ERROR("Unsupported BoolExpr: \n"+ast.dump(4, ' '));
+        ASSERT(value["args"].size() == 2, "BoolExpr should have 2 args.");
+        res.args.push_back(resolve_node(value["args"][0]));
+        res.args.push_back(resolve_node(value["args"][1]));
     }
     else if(ast_type == "A_Expr"){
         res.type = EXPRESSION;
@@ -55,14 +64,21 @@ QueryNode QueryAST::resolve_node(json &ast){
         }
     }
     else{
-        ERROR(fmt::format("Not supported libpg_query type: {}", ast_type));
+        ERROR(fmt::format("Not supported libpg_query type: \n{}", ast.dump(4, ' ')));
     }
     return res;
 }
 
 string QueryTranspiler::run(){
-    cout<<query_str<<endl;
+    // string tmp = query_str.substr(1, query_str.size() - 1);
+    // if(query_str.starts_with('(') and query_str.ends_with(')'))
+    //     query_str = query_str.substr(1, query_str.size() - 2);
+    cout<<"select " + query_str<<endl;
     auto result = pg_query_parse(("select " + query_str).c_str());
+    if(result.error){
+        ERROR(result.error->message);
+        // todo: think of the memory leak
+    }
     json ast = json::parse(result.parse_tree);
     ast = ast["stmts"][0]["stmt"]["SelectStmt"]["targetList"][0]["ResTarget"]["val"];
     ASSERT(!ast.empty(), "The generated ast is empty.");

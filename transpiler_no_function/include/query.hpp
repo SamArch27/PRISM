@@ -231,7 +231,10 @@ public:
 class QueryTranspiler{
 private:
     FunctionInfo *function_info;
-    const string &query_str;
+    /**
+     * tried to use const reference but failed due to bug in nlohmann::json
+    */
+    string query_str;
     UDF_Type *expected_type;
     YAMLConfig *config;
     Catalog *catalog;
@@ -244,8 +247,10 @@ private:
     QueryAST *curr_ast = NULL;
 // public:
 public:
-    QueryTranspiler(FunctionInfo *function_info, const string &query_str, UDF_Type *expected_type, YAMLConfig *config, Catalog *catalog):
-                    function_info(function_info), query_str(query_str), expected_type(expected_type), config(config), catalog(catalog){};
+    QueryTranspiler(FunctionInfo *function_info, string query_str, UDF_Type *expected_type, YAMLConfig *config, Catalog *catalog):
+                    function_info(function_info), query_str(query_str), expected_type(expected_type), config(config), catalog(catalog){
+        // cout<<query_str<<endl;
+    }
     bool bind(QueryAST &ast);
     string run();
 };

@@ -16,20 +16,23 @@ void Transpiler::parse_assignment(const string &query, string &lvalue, string &r
 // todo
 string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool query_is_assignment = false){
     ASSERT(query.is_string(), "Query statement should be a string.");
+    // cout<<query<<endl;
     // todo substitute variable
     // todo query is assignment
+    string result;
     if(query_is_assignment){
         ASSERT(expected_type == NULL, "In assignment, expected_type should be NULL.");
         string lvalue;
         string rvalue;
         parse_assignment(query, lvalue, rvalue);
         QueryTranspiler query_transpiler(function_info.get(), rvalue, expected_type, config, catalog);
-        string result = query_transpiler.run();
+        result = query_transpiler.run();
     }
     else{
         QueryTranspiler query_transpiler(function_info.get(), query, expected_type, config, catalog);
-        string result = query_transpiler.run();
+        result = query_transpiler.run();
     }
+    cout<<result<<endl;
     return fmt::format("[Unresolved Query: {}]", query.dump());
     // return query;
 }

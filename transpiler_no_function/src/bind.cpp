@@ -9,9 +9,6 @@ bool QueryTranspiler::bind_variable(QueryNode &node){
     return true;
 }
 
-/**
- * constant binding happens at the QueryAST building stage, so the input is a JSON object
-*/
 bool QueryTranspiler::bind_constant(QueryNode &node){
     // cout<<node.name<<endl;
     json value = json::parse(node.name);
@@ -29,8 +26,15 @@ bool QueryTranspiler::bind_constant(QueryNode &node){
     else if(value.contains("ival")){
         // integer constant
         const_type = UDF_Type("int");
-        ASSERT(value["ival"]["ival"].is_number_integer(), "unexpected json format");
-        const_value = to_string(value["ival"]["ival"]);
+        // this is to handle the quark in pg_query that 0 int has no ival
+        if(value["ival"].empty()){
+            const_value = "0";
+        }
+        else{
+            ASSERT(value["ival"]["ival"].is_number_integer() || value["ival"]["ival"].is_boolean(), "unexpected json format");
+            const_value = to_string(value["ival"]["ival"]);
+        }
+        
     }
     else if(value.contains("sval")){
         const_type = UDF_Type("varchar");
