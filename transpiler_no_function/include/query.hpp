@@ -46,8 +46,20 @@ public:
                             cpp_name(cpp_name), templated(templated), default_null(default_null), if_switch(if_switch), if_string(if_string), input_type(input_type), return_type(return_type){};
 };
 
+class ConstantInfo{
+public:
+    string value;
+    UDF_Type type;
+    ConstantInfo(){};
+    ConstantInfo(string value, UDF_Type type): value(value), type(type){};
+};
+
 /**
  * the binded info for each QueryNode
+ * this class does not itself contain the actual info except for constants, but a pointer 
+ * to the actual info for example, function and expression info are stored in the catalog
+ * variable info are stored in the function_info  
+ * only constant info are stored here 
 */
 class QueryNodeBoundInfo{
 public:
@@ -60,6 +72,10 @@ public:
          * if the QueryNode is a variable, this is the variable info
         */
         VarInfo *variable_info;
+        /**
+         * if the QueryNode is a constant, this is the constant info
+        */
+        ConstantInfo *constant_info;
     };
     // HeaderFileFunctionInfo *func_info;
     /**
@@ -69,7 +85,7 @@ public:
     /**
      * actual return type | type of the variable or constant
     */
-    UDF_Type return_type;
+    UDF_Type *return_type;
     QueryNodeBoundInfo(){};
 };
 
@@ -104,9 +120,9 @@ public:
                 // this loop should have only one iteration due to a wired behavior of yaml-cpp
                 // that a map with only one pair will be parsed as a sequence of maps with one pair
                 for(auto ret_input_pair : ret_input_pair_tmp){
-                    cout<<ret_input_pair.first.Scalar()<<endl;
+                    // cout<<ret_input_pair.first.Scalar()<<endl;
                     ASSERT(ret_input_pair.first.IsScalar() && ret_input_pair.second.IsSequence(), "key should be string and value should be a sequence");
-                    cout<<ret_input_pair.first.Scalar()<<endl;
+                    // cout<<ret_input_pair.first.Scalar()<<endl;
                     return_type.emplace_back(ret_input_pair.first.Scalar());
                     vector<UDF_Type> input_type_vec;
                     for(auto input_type_str : ret_input_pair.second){
@@ -170,6 +186,13 @@ public:
     QueryNode(QueryNodeType type, string name): type(type), name(name){};
 
     static void Print(const QueryNode &node, int indent = 0){
+        // if(node.type == CONSTANT)
+        //     cout<<fmt::format(fmt::runtime("{:<{}}{}[{}]->{}"), "", indent, node.bound_info.constant_info->value, getQueryNodeTypeString(node.type), node.bound ? "bound" : "")<<endl;
+        // else if(node.type == VARIABLE)
+        //     cout<<fmt::format(fmt::runtime("{:<{}}{}[{}]->{}"), "", indent, node.name, getQueryNodeTypeString(node.type), node.bound ? "bound" : "")<<endl;
+        // else if(node.type == FUNCTION)
+        //     cout<<fmt::format(fmt::runtime("{:<{}}{}[{}]->{}"), "", indent, node.name, getQueryNodeTypeString(node.type), node.bound ? "bound" : "")<<endl;
+        // else if(node.type == EXPRESSION)
         cout<<fmt::format(fmt::runtime("{:<{}}{}[{}]->{}"), "", indent, node.name, getQueryNodeTypeString(node.type), node.bound ? "bound" : "")<<endl;
         for(const auto &arg : node.args){
             QueryNode::Print(arg, indent+4);
@@ -177,20 +200,34 @@ public:
     }
 };
 
+class QueryTranspiler;
+
+/**
+ * the self defined AST for the query, should leave room for the binding step
+*/
 class QueryAST{
 public:
+    vector<ConstantInfo> constant_infos;
     QueryNode root;
-public:
-    static QueryNode node_resolver(json &ast);
+    static QueryNode resolve_node(json &ast);
     static void Print(const QueryAST &ast){
         QueryNode::Print(ast.root);
     }
 public:
-    QueryAST(json &ast): root(QueryAST::node_resolver(ast)){
+    /**
+     * resolve the libpg_query returned ast recursively to QueryNode
+     * use the transpiler pointer to bind consts in advanced
+    */
+    QueryAST(json &ast): 
+        root(resolve_node(ast)){
         // ASSERT(ast.is_object() && ast.size() == 1, "The root ast should be a map.");
     }
 };
 
+/**
+ * the transpiler class that transpile the QueryAST to C++ code
+ * it controls the whole lifecycle of QueryAST including construction, binding and transpiling
+*/
 class QueryTranspiler{
 private:
     FunctionInfo *function_info;
@@ -201,8 +238,11 @@ private:
     bool bind(QueryNode &node);
     bool bind_variable(QueryNode &node);
     bool bind_function(QueryNode &node);
-    bool bind_constant(QueryNode &node);
     bool bind_expression(QueryNode &node);
+    /** no need make it public to let the QueryAST call this function*/
+    bool bind_constant(QueryNode &node);
+    QueryAST *curr_ast = NULL;
+// public:
 public:
     QueryTranspiler(FunctionInfo *function_info, const string &query_str, UDF_Type *expected_type, YAMLConfig *config, Catalog *catalog):
                     function_info(function_info), query_str(query_str), expected_type(expected_type), config(config), catalog(catalog){};

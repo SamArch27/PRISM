@@ -73,7 +73,7 @@ int main(int argc, char const *argv[])
     std::ostringstream buffer;
     buffer << t.rdbuf();
     if(buffer.str().empty()){
-        throw std::runtime_error(fmt::format("Input file is empty or does not exist: {}", i_file));
+        ERROR(fmt::format("Input file is empty or does not exist: {}", i_file));
     }
     YAMLConfig config;
     Catalog catalog;

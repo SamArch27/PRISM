@@ -41,7 +41,7 @@ string UDF_Type::resolve_type(string type_name, const string &udf_str){
     {
         if (udf_str.size() == 0)
         {
-            throw std::runtime_error("UDF string is empty");
+            ERROR("UDF string is empty");
         }
         int type_start = type_name.find('#');
         // int type_end = type_name.find('#', type_start);
@@ -72,7 +72,7 @@ string UDF_Type::resolve_type(string type_name, const string &udf_str){
     }
     else
     {
-        throw runtime_error(fmt::format("Unknown type: {}", type_name));
+        ERROR(fmt::format("Unknown type: {}", type_name));
     }
 }
 
@@ -97,7 +97,7 @@ string UDF_Type::get_decimal_int_type(int width, int scale){
     else if (width <= 38)
         return "duckdb::hugeint_t";
     else
-        throw std::runtime_error("Width larger than 38.");
+        ERROR("Width larger than 38.");
 }
 
 string UDF_Type::get_cpp_type()
@@ -127,6 +127,6 @@ string UDF_Type::create_duckdb_value(const string &ret_name, const string &cpp_v
         return fmt::format("{0} = Value({1});\n{0}.GetTypeMutable() = LogicalType::{2}", ret_name, cpp_value, duckdb_type);
     }
     else{
-        throw std::runtime_error(fmt::format("Cannot create duckdb value from type {}", duckdb_type));
+        ERROR(fmt::format("Cannot create duckdb value from type {}", duckdb_type));
     }
 }

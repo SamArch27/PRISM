@@ -22,6 +22,13 @@ using namespace std;
         }                                                                                                            \
     } while (false)
 
+#define ERROR(message)                                                                                   \
+    do                                                                                                               \
+    {                                                                                                                \
+        std::cerr << "Error: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
+        std::terminate();                                                                                        \
+    } while (false)
+
 string vec_join(vector<string> &vec, const string &del);
 void remove_spaces(std::string &str);
 
@@ -118,7 +125,7 @@ public:
             return func_args[var_name];
         }
         else{
-            throw runtime_error(fmt::format("Variable {} not found.", var_name));
+            ERROR(fmt::format("Variable {} not found.", var_name));
         }
     }
 };

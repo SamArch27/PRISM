@@ -27,7 +27,8 @@ string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool qu
         string result = query_transpiler.run();
     }
     else{
-
+        QueryTranspiler query_transpiler(function_info.get(), query, expected_type, config, catalog);
+        string result = query_transpiler.run();
     }
     return fmt::format("[Unresolved Query: {}]", query.dump());
     // return query;
@@ -38,7 +39,7 @@ string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool quer
         return translate_query(expr["query"], expected_type, query_is_assignment);
     }
     else{
-        throw std::runtime_error(fmt::format("Unsupport PLpgSQL_expr: {}", expr));
+        ERROR(fmt::format("Unsupport PLpgSQL_expr: {}", expr));
     }
     return "";
 }
@@ -208,7 +209,7 @@ string Transpiler::translate_body(json &body, UDF_Type *expected_type){
         else if(stmt.contains("PLpgSQL_stmt_exit"))
             output += translate_exitcont_stmt(stmt["PLpgSQL_stmt_exit"]);
         else
-            throw std::runtime_error(fmt::format("Unknown statement type: {}", stmt));
+            ERROR(fmt::format("Unknown statement type: {}", stmt));
     }
     return output;
 }
@@ -359,7 +360,7 @@ vector<string> Transpiler::run(){
     if (result.error)
     {
         printf("error: %s at %d\n", result.error->message, result.error->cursorpos);
-        throw std::runtime_error(fmt::format("Error when parsing the plpgsql: {}", result.error->message));
+        ERROR(fmt::format("Error when parsing the plpgsql: {}", result.error->message));
     }
     printf("%s\n", result.plpgsql_funcs);
     json ast = json::parse(result.plpgsql_funcs);
