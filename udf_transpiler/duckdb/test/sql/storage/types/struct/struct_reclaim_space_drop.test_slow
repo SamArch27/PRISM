@@ -1,0 +1,63 @@
+# name: test/sql/storage/types/struct/struct_reclaim_space_drop.test_slow
+# description: Test that we reclaim space when dropping tables with struct columns
+# group: [struct]
+
+require skip_reload
+
+
+load __TEST_DIR__/test_reclaim_space.db
+
+statement ok
+PRAGMA force_checkpoint;
+
+statement ok
+CREATE TABLE structs AS SELECT {'i': i, 'j': i::VARCHAR} c FROM range(10000000) tbl(i);
+
+statement ok
+CHECKPOINT;
+
+statement ok
+CHECKPOINT;
+
+query III
+SELECT MIN(c['i']), MAX(c['i']), COUNT(*) FROM structs
+----
+0	9999999	10000000
+
+statement ok
+CREATE TABLE block_count(count int)
+
+statement ok
+insert into block_count select total_blocks from pragma_database_size();
+
+loop i 0 10
+
+statement ok
+DROP TABLE structs;
+
+statement ok
+CREATE TABLE structs AS SELECT {'i': i, 'j': i::VARCHAR} c FROM range(10000000) tbl(i);
+
+query III
+SELECT MIN(c['i']), MAX(c['i']), COUNT(*) FROM structs
+----
+0	9999999	10000000
+
+statement ok
+CHECKPOINT;
+
+statement ok
+insert into block_count select total_blocks from pragma_database_size();
+
+query III
+SELECT MIN(c['i']), MAX(c['i']), COUNT(*) FROM structs
+----
+0	9999999	10000000
+
+endloop
+
+# ensure there is a small diff between min and max block counts
+query I
+select (max(count)-min(count))<20 from block_count
+----
+true

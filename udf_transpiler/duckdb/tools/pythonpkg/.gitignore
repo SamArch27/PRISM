@@ -1,0 +1,14 @@
+dist
+duckdb.egg-info
+build
+.eggs
+.pytest_cache
+/duckdb_tarball/
+duckdb.cpp
+duckdb.hpp
+parquet_extension.cpp
+parquet_extension.hpp
+githash.list
+includes.list
+sources.list
+venv/
