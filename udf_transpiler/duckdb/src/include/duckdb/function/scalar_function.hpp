@@ -223,4 +223,59 @@ public:
 	}
 };
 
+/**
+ * This is used to register the SCALAR scalar functions
+*/
+class ScalarFunctionInfo{
+	public:
+    /**
+     * function name in the header file 
+    */
+    string cpp_name;
+    /**
+     * if the function definition is templated
+    */
+    bool templated = false;
+	std::vector<std::string> template_args;
+    /**
+     * if use the default null handling method which is pass NULL return NULL
+    */
+    bool default_null = true;
+    bool if_switch = false;
+    bool if_string = false;
+    /**
+     * length of input_type should be the same as return_type because they are 
+     * one to one mapping
+    */
+    // vector<vector<LogicalType>> input_type;
+    // vector<LogicalType> return_type;
+    ScalarFunctionInfo(){};
+	ScalarFunctionInfo(string cpp_name, bool templated = false, bool if_switch = false, bool default_null = true, bool if_string = false):
+                            cpp_name(cpp_name), templated(templated), default_null(default_null), if_switch(if_switch), if_string(if_string){};
+	ScalarFunctionInfo(ScalarFunctionInfo &&other) noexcept : cpp_name(std::move(other.cpp_name)), templated(other.templated), default_null(other.default_null), if_switch(other.if_switch), if_string(other.if_string) {};
+
+    // ScalarFunctionInfo(string cpp_name, bool templated, bool default_null, bool if_switch, bool if_string, vector<vector<LogicalType>> input_type, vector<LogicalType> return_type):
+    //                         cpp_name(cpp_name), templated(templated), default_null(default_null), if_switch(if_switch), if_string(if_string), input_type(input_type), return_type(return_type){};
+
+};
+
+class TranspilerScalarFunction : public ScalarFunction {
+public:
+	ScalarFunctionInfo function_info;
+	DUCKDB_API TranspilerScalarFunction(string name, vector<LogicalType> arguments, LogicalType return_type,
+	                          scalar_function_t function, ScalarFunctionInfo &&function_info, bind_scalar_function_t bind = nullptr,
+	                          dependency_function_t dependency = nullptr, function_statistics_t statistics = nullptr,
+	                          init_local_state_t init_local_state = nullptr,
+	                          LogicalType varargs = LogicalType(LogicalTypeId::INVALID),
+	                          FunctionSideEffects side_effects = FunctionSideEffects::NO_SIDE_EFFECTS,
+	                          FunctionNullHandling null_handling = FunctionNullHandling::DEFAULT_NULL_HANDLING);
+
+	DUCKDB_API TranspilerScalarFunction(vector<LogicalType> arguments, LogicalType return_type, scalar_function_t function, ScalarFunctionInfo &&function_info, 
+	                          bind_scalar_function_t bind = nullptr, dependency_function_t dependency = nullptr,
+	                          function_statistics_t statistics = nullptr, init_local_state_t init_local_state = nullptr,
+	                          LogicalType varargs = LogicalType(LogicalTypeId::INVALID),
+	                          FunctionSideEffects side_effects = FunctionSideEffects::NO_SIDE_EFFECTS,
+	                          FunctionNullHandling null_handling = FunctionNullHandling::DEFAULT_NULL_HANDLING);
+};
+
 } // namespace duckdb

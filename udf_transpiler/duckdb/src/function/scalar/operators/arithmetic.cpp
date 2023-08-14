@@ -14,6 +14,7 @@
 #include "duckdb/function/scalar/operators.hpp"
 #include "duckdb/planner/expression/bound_function_expression.hpp"
 #include "duckdb/function/scalar/nested_functions.hpp"
+#include <vector>
 
 #include <limits>
 
@@ -53,6 +54,38 @@ static scalar_function_t GetScalarIntegerFunction(PhysicalType type) {
 	return function;
 }
 
+void GetScalarIntegerFunctionInfoTemplate(PhysicalType type, std::vector<std::string> &template_args) {
+	scalar_function_t function;
+	switch (type) {
+	case PhysicalType::INT8:
+		template_args = {"int8_t", "int8_t", "int8_t"};
+		break;
+	case PhysicalType::INT16:
+		template_args = {"int16_t", "int16_t", "int16_t"};
+		break;
+	case PhysicalType::INT32:
+		template_args = {"int32_t", "int32_t", "int32_t"};
+		break;
+	case PhysicalType::INT64:
+		template_args = {"int64_t", "int64_t", "int64_t"};
+		break;
+	case PhysicalType::UINT8:
+		template_args = {"uint8_t", "uint8_t", "uint8_t"};
+		break;
+	case PhysicalType::UINT16:
+		template_args = {"uint16_t", "uint16_t", "uint16_t"};
+		break;
+	case PhysicalType::UINT32:
+		template_args = {"uint32_t", "uint32_t", "uint32_t"};
+		break;
+	case PhysicalType::UINT64:
+		template_args = {"uint64_t", "uint64_t", "uint64_t"};
+		break;
+	default:
+		throw NotImplementedException("Unimplemented type for GetScalarBinaryFunctionInfoTemplate");
+	}
+}
+
 template <class OP>
 static scalar_function_t GetScalarBinaryFunction(PhysicalType type) {
 	scalar_function_t function;
@@ -71,6 +104,23 @@ static scalar_function_t GetScalarBinaryFunction(PhysicalType type) {
 		break;
 	}
 	return function;
+}
+
+void GetScalarBinaryFunctionInfoTemplate(PhysicalType type, std::vector<std::string> &template_args) {
+	switch (type) {
+	case PhysicalType::INT128:
+		template_args = {"hugeint_t", "hugeint_t", "hugeint_t"};
+		break;
+	case PhysicalType::FLOAT:
+		template_args = {"float", "float", "float"};
+		break;
+	case PhysicalType::DOUBLE:
+		template_args = {"double", "double", "double"};
+		break;
+	default:
+		GetScalarIntegerFunctionInfoTemplate(type, template_args);
+		break;
+	}
 }
 
 //===--------------------------------------------------------------------===//
@@ -690,11 +740,11 @@ struct MultiplyPropagateStatistics {
 	}
 };
 
-unique_ptr<FunctionData> BindDecimalMultiply(ClientContext &context, ScalarFunction &bound_function,
+unique_ptr<FunctionData> BindDecimalMultiply(ClientContext &context, ScalarFunction &bound_function_old,
                                              vector<unique_ptr<Expression>> &arguments) {
 
 	auto bind_data = make_uniq<DecimalArithmeticBindData>();
-
+	auto &bound_function = dynamic_cast<TranspilerScalarFunction&>(bound_function_old);
 	uint8_t result_width = 0, result_scale = 0;
 	uint8_t max_width = 0;
 	for (idx_t i = 0; i < arguments.size(); i++) {
@@ -747,11 +797,18 @@ unique_ptr<FunctionData> BindDecimalMultiply(ClientContext &context, ScalarFunct
 	}
 	result_type.Verify();
 	bound_function.return_type = result_type;
+
 	// now select the physical function to execute
 	if (bind_data->check_overflow) {
 		bound_function.function = GetScalarBinaryFunction<DecimalMultiplyOverflowCheck>(result_type.InternalType());
+		bound_function.function_info.cpp_name = "DecimalMultiplyOverflowCheck";
+		bound_function.function_info.templated = true;
+		GetScalarBinaryFunctionInfoTemplate(result_type.InternalType(), bound_function.function_info.template_args);
 	} else {
 		bound_function.function = GetScalarBinaryFunction<MultiplyOperator>(result_type.InternalType());
+		bound_function.function_info.cpp_name = "MultiplyOperator";
+		bound_function.function_info.templated = true;
+		GetScalarBinaryFunctionInfoTemplate(result_type.InternalType(), bound_function.function_info.template_args);
 	}
 	if (result_type.InternalType() != PhysicalType::INT128) {
 		bound_function.statistics =
@@ -764,18 +821,24 @@ void MultiplyFun::RegisterFunction(BuiltinFunctions &set) {
 	ScalarFunctionSet functions("*");
 	for (auto &type : LogicalType::Numeric()) {
 		if (type.id() == LogicalTypeId::DECIMAL) {
-			ScalarFunction function({type, type}, type, nullptr, BindDecimalMultiply);
+			TranspilerScalarFunction function({type, type}, type, nullptr, std::move(ScalarFunctionInfo()), BindDecimalMultiply);
 			function.serialize = SerializeDecimalArithmetic;
 			function.deserialize = DeserializeDecimalArithmetic<MultiplyOperator, DecimalMultiplyOverflowCheck>;
 			functions.AddFunction(function);
 		} else if (TypeIsIntegral(type.InternalType()) && type.id() != LogicalTypeId::HUGEINT) {
-			functions.AddFunction(ScalarFunction(
+			ScalarFunctionInfo function_info("MultiplyOperatorOverflowCheck", true);
+			GetScalarIntegerFunctionInfoTemplate(type.InternalType(), function_info.template_args);
+			functions.AddFunction(
+				TranspilerScalarFunction(
 			    {type, type}, type, GetScalarIntegerFunction<MultiplyOperatorOverflowCheck>(type.InternalType()),
-			    nullptr, nullptr,
+			    std::move(function_info), nullptr, nullptr,
 			    PropagateNumericStats<TryMultiplyOperator, MultiplyPropagateStatistics, MultiplyOperator>));
 		} else {
+			ScalarFunctionInfo function_info("MultiplyOperator", true);
+			GetScalarBinaryFunctionInfoTemplate(type.InternalType(), function_info.template_args);
 			functions.AddFunction(
-			    ScalarFunction({type, type}, type, GetScalarBinaryFunction<MultiplyOperator>(type.InternalType())));
+			    TranspilerScalarFunction({type, type}, type, GetScalarBinaryFunction<MultiplyOperator>(type.InternalType()), 
+				std::move(function_info)));
 		}
 	}
 	functions.AddFunction(

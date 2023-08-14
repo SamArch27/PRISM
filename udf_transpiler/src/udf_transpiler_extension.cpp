@@ -83,13 +83,13 @@ namespace duckdb
 		// ExtensionUtil::RegisterFunction(instance, itos_scalar_function);
 	}
 
-	void Udf_transpilerExtension::Load(DuckDB &db)
+	void UdfTranspilerExtension::Load(DuckDB &db)
 	{
         this->db = &db;
         db_instance = &db;
 		LoadInternal(*db.instance);
 	}
-	std::string Udf_transpilerExtension::Name()
+	std::string UdfTranspilerExtension::Name()
 	{
 		return "udf_transpiler";
 	}

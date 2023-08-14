@@ -4,7 +4,7 @@
 
 namespace duckdb {
 
-class Udf_transpilerExtension : public Extension {
+class UdfTranspilerExtension : public Extension {
 private:
 	duckdb::DuckDB* db = NULL;
 public:
