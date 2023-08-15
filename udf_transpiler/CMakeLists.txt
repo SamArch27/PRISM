@@ -63,9 +63,9 @@ add_custom_target(pg_parser
 )
 
 # the formatting lib
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt EXCLUDE_FROM_ALL)
+# add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
 # add_dependencies(${EXTENSION_NAME} fmt)
-# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
 # include_directories(duckdb/third_party/fmt/include)
 
 # the parser lib
@@ -101,7 +101,7 @@ add_library(${EXTENSION_NAME} STATIC ${all_SRCS})
 
 # target_include_directories(${EXTENSION_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
 add_dependencies(${EXTENSION_NAME} pg_parser)
-target_link_libraries(${EXTENSION_NAME} PRIVATE ${PG_PARSER_ROOT}/libpg_query.a ${TRANSPILER_OBJECT_FILES} fmt::fmt-header-only)
+target_link_libraries(${EXTENSION_NAME} PRIVATE ${PG_PARSER_ROOT}/libpg_query.a ${TRANSPILER_OBJECT_FILES})
 set(PARAMETERS "-warnings")
 build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${all_SRCS} ${PG_PARSER_ROOT}/libpg_query.a ${TRANSPILER_OBJECT_FILES})
 

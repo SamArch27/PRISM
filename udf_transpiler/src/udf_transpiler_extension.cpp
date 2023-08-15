@@ -21,7 +21,7 @@ namespace duckdb
 	/**
 	 * just play around duckdb
 	*/
-	void test(){
+	void test(std::string query){
 		// make a new connection to avoid deadlocks
 		Connection con(*db_instance);
 		string error;
@@ -35,21 +35,22 @@ namespace duckdb
 
 		auto context = con.context.get();
 		context->config.enable_optimizer = false;
-		auto plan = context->ExtractPlan("select 1*1");
+		auto plan = context->ExtractPlan(query);
 		udf::LogicalOperatorPrinter printer;
 		printer.VisitOperator(*plan);
 	}
 
 	inline void Udf_transpilerScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
 	{	
-		test();
+		// test();
 		auto &name_vector = args.data[0];
 		UnaryExecutor::Execute<string_t, string_t>(
 			name_vector, result, args.size(),
 			[&](string_t name)
 			{
+				test(name.GetString());
                 // std::cout<<duckdb::CastFunctionSet::Get(*db_instance->instance).ImplicitCastCost(duckdb::LogicalType::INTEGER, duckdb::LogicalType::VARCHAR)<<std::endl;
-				return StringVector::AddString(result, "Udf_transpiler " + name.GetString() + " 🐥");
+				return StringVector::AddString(result, "Transpilation Done.");
 				;
 			});
 	}
