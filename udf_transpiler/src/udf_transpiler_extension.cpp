@@ -6,68 +6,49 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/extension_util.hpp"
+#include "duckdb/main/client_context.hpp"
 #include "duckdb/function/cast/cast_function_set.hpp"
-#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
+#include "duckdb/planner/binder.hpp"
+#include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
+#include "duckdb/main/relation/query_relation.hpp"
+#include "logical_operator_printer.hpp"
 #include <iostream>
 
 namespace duckdb
 {
     duckdb::DuckDB *db_instance;
-	// inline void itos_body(const Value &v0, bool val1_null, Value &result, bool &result_null, Vector &tmp_vec)
-	// {
-	// 	if (val1_null)
-	// 	{
-	// 		result_null = true;
-	// 		return;
-	// 	}
-	// 	// the declaration / initialization of local variables
-	// 	int32_t val1 = v0.GetValueUnsafe<int32_t>();
-		
-	// 	result = Value(udf::int_to_string(udf::AddOperation<int32_t, int64_t>(val1, 1), tmp_vec));
-	// 	result.GetTypeMutable() = LogicalType::VARCHAR;
-	// 	return;
-	// }
 
-	// void itos(DataChunk &args, ExpressionState &state, Vector &result)
-	// {
-	// 	const int count = args.size();
-	// 	result.SetVectorType(VectorType::FLAT_VECTOR);
+	/**
+	 * just play around duckdb
+	*/
+	void test(){
+		// make a new connection to avoid deadlocks
+		Connection con(*db_instance);
+		string error;
+		// duckdb::unique_ptr<duckdb::SQLStatement> statement = QueryRelation::ParseStatement(*con.context, "select 1*1", error);
+		// if(error.size() > 0){
+		// 	std::cerr<<error<<std::endl;
+		// }
+		// auto binder = Binder::CreateBinder(*con.context);
+		// auto result = binder->Bind(*statement);
+		// D_ASSERT(result.names.size() == result.types.size());
 
-	// 	// the extraction of function arguments
-	// 	auto &val1 = args.data[0];
-	// 	auto val1_type = val1.GetVectorType();
-	// 	UnifiedVectorFormat val1_data;
-	// 	val1.ToUnifiedFormat(count, val1_data);
-	// 	Vector tmp_vec(LogicalType::VARCHAR, 2048);
-
-	// 	for (int base_idx = 0; base_idx < count; base_idx++)
-	// 	{
-	// 		auto val1_index = val1_data.sel->get_index(base_idx);
-
-	// 		Value temp_result;
-	// 		bool temp_result_null = false;
-	// 		itos_body(val1.GetValue(val1_index), !val1_data.validity.RowIsValid(val1_index), temp_result, temp_result_null, tmp_vec);
-	// 		if (temp_result_null)
-	// 		{
-	// 			FlatVector::SetNull(result, base_idx, true);
-	// 		}
-	// 		else
-	// 		{
-	// 			result.SetValue(base_idx, temp_result);
-	// 		}
-	// 	}
-
-	// 	result.Verify(count);
-	// }
+		auto context = con.context.get();
+		context->config.enable_optimizer = false;
+		auto plan = context->ExtractPlan("select 1*1");
+		udf::LogicalOperatorPrinter printer;
+		printer.VisitOperator(*plan);
+	}
 
 	inline void Udf_transpilerScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
-	{
+	{	
+		test();
 		auto &name_vector = args.data[0];
 		UnaryExecutor::Execute<string_t, string_t>(
 			name_vector, result, args.size(),
 			[&](string_t name)
 			{
-                std::cout<<duckdb::CastFunctionSet::Get(*db_instance->instance).ImplicitCastCost(duckdb::LogicalType::INTEGER, duckdb::LogicalType::VARCHAR)<<std::endl;
+                // std::cout<<duckdb::CastFunctionSet::Get(*db_instance->instance).ImplicitCastCost(duckdb::LogicalType::INTEGER, duckdb::LogicalType::VARCHAR)<<std::endl;
 				return StringVector::AddString(result, "Udf_transpiler " + name.GetString() + " 🐥");
 				;
 			});

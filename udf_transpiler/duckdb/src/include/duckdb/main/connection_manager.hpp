@@ -20,6 +20,7 @@ class DatabaseInstance;
 class ConnectionManager {
 public:
 	ConnectionManager() {
+		
 	}
 
 	void AddConnection(ClientContext &context) {
