@@ -28,4 +28,16 @@
 */
 #include "duckdb/common/operator/multiply.hpp"
 
+/**
+ * Divide functions - done
+ * Can inline
+ * DivideOperator
+*/
+#include "duckdb/common/operator/numeric_binary_operators.hpp"
 
+/**
+ * Modulo functions - done
+ * Can inline
+ * ModuloOperator
+*/
+// already included by divide

@@ -79,6 +79,8 @@ typedef unique_ptr<FunctionData> (*function_format_deserialize_t)(FormatDeserial
 */
 class ScalarFunctionInfo{
 public:
+enum SpecialValueHandling : uint8_t {BinaryNumericDivideWrapper, BinaryZeroIsNullWrapper, BinaryZeroIsNullHugeintWrapper};
+public:
     /**
      * function name in the header file 
     */
@@ -90,8 +92,10 @@ public:
 	std::vector<std::string> template_args;
     /**
      * if use the default null handling method which is pass NULL return NULL
+	 * udf_todo: implement the specific rule for each type
     */
-    bool default_null = true;
+    // bool default_null = true;
+	std::vector<SpecialValueHandling> special_handling;
 	/**
 	 * if the function is a switch function (not used)
 	*/
@@ -106,13 +110,15 @@ public:
     DUCKDB_API ScalarFunctionInfo(){}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name) : cpp_name(cpp_name) {}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args) : cpp_name(cpp_name), templated(true), template_args(template_args) {}
+	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, std::vector<SpecialValueHandling> special_handling) : cpp_name(cpp_name), templated(true), template_args(template_args), special_handling(special_handling) {}
 	// DUCKDB_API ScalarFunctionInfo(string cpp_name, bool templated = false, bool if_switch = false, bool default_null = true, bool if_string = false):
     //                         cpp_name(cpp_name), templated(templated), default_null(default_null), if_switch(if_switch), if_string(if_string){}
 	DUCKDB_API ScalarFunctionInfo &operator=(const ScalarFunctionInfo &other) {
 		cpp_name = other.cpp_name;
 		templated = other.templated;
 		template_args = other.template_args;
-		default_null = other.default_null;
+		// default_null = other.default_null;
+		special_handling = other.special_handling;
 		if_switch = other.if_switch;
 		if_string = other.if_string;
 		return *this;
@@ -121,7 +127,8 @@ public:
 		cpp_name = std::move(other.cpp_name);
 		templated = other.templated;
 		template_args = std::move(other.template_args);
-		default_null = other.default_null;
+		// default_null = other.default_null;
+		special_handling = std::move(other.special_handling);
 		if_switch = other.if_switch;
 		if_string = other.if_string;
 		return *this;
@@ -348,23 +355,23 @@ public:
 	}
 };
 
-class TranspilerScalarFunction : public ScalarFunction {
-public:
-	ScalarFunctionInfo function_info;
-	DUCKDB_API TranspilerScalarFunction(string name, vector<LogicalType> arguments, LogicalType return_type,
-	                          scalar_function_t function, ScalarFunctionInfo &&function_info, bind_scalar_function_t bind = nullptr,
-	                          dependency_function_t dependency = nullptr, function_statistics_t statistics = nullptr,
-	                          init_local_state_t init_local_state = nullptr,
-	                          LogicalType varargs = LogicalType(LogicalTypeId::INVALID),
-	                          FunctionSideEffects side_effects = FunctionSideEffects::NO_SIDE_EFFECTS,
-	                          FunctionNullHandling null_handling = FunctionNullHandling::DEFAULT_NULL_HANDLING);
+// class TranspilerScalarFunction : public ScalarFunction {
+// public:
+// 	ScalarFunctionInfo function_info;
+// 	DUCKDB_API TranspilerScalarFunction(string name, vector<LogicalType> arguments, LogicalType return_type,
+// 	                          scalar_function_t function, ScalarFunctionInfo &&function_info, bind_scalar_function_t bind = nullptr,
+// 	                          dependency_function_t dependency = nullptr, function_statistics_t statistics = nullptr,
+// 	                          init_local_state_t init_local_state = nullptr,
+// 	                          LogicalType varargs = LogicalType(LogicalTypeId::INVALID),
+// 	                          FunctionSideEffects side_effects = FunctionSideEffects::NO_SIDE_EFFECTS,
+// 	                          FunctionNullHandling null_handling = FunctionNullHandling::DEFAULT_NULL_HANDLING);
 
-	DUCKDB_API TranspilerScalarFunction(vector<LogicalType> arguments, LogicalType return_type, scalar_function_t function, ScalarFunctionInfo &&function_info, 
-	                          bind_scalar_function_t bind = nullptr, dependency_function_t dependency = nullptr,
-	                          function_statistics_t statistics = nullptr, init_local_state_t init_local_state = nullptr,
-	                          LogicalType varargs = LogicalType(LogicalTypeId::INVALID),
-	                          FunctionSideEffects side_effects = FunctionSideEffects::NO_SIDE_EFFECTS,
-	                          FunctionNullHandling null_handling = FunctionNullHandling::DEFAULT_NULL_HANDLING);
-};
+// 	DUCKDB_API TranspilerScalarFunction(vector<LogicalType> arguments, LogicalType return_type, scalar_function_t function, ScalarFunctionInfo &&function_info, 
+// 	                          bind_scalar_function_t bind = nullptr, dependency_function_t dependency = nullptr,
+// 	                          function_statistics_t statistics = nullptr, init_local_state_t init_local_state = nullptr,
+// 	                          LogicalType varargs = LogicalType(LogicalTypeId::INVALID),
+// 	                          FunctionSideEffects side_effects = FunctionSideEffects::NO_SIDE_EFFECTS,
+// 	                          FunctionNullHandling null_handling = FunctionNullHandling::DEFAULT_NULL_HANDLING);
+// };
 
 } // namespace duckdb

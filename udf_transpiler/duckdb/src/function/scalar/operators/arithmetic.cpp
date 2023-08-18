@@ -983,29 +983,51 @@ static void BinaryScalarFunctionIgnoreZero(DataChunk &input, ExpressionState &st
 }
 
 template <class OP>
-static scalar_function_t GetBinaryFunctionIgnoreZero(const LogicalType &type) {
+static scalar_function_t GetBinaryFunctionIgnoreZero(const LogicalType &type, ScalarFunctionInfo &function_info) {
 	switch (type.id()) {
 	case LogicalTypeId::TINYINT:
+		function_info.template_args = {"int8_t", "int8_t", "int8_t"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryNumericDivideWrapper);
 		return BinaryScalarFunctionIgnoreZero<int8_t, int8_t, int8_t, OP, BinaryNumericDivideWrapper>;
 	case LogicalTypeId::SMALLINT:
+		template_args = {"int16_t", "int16_t", "int16_t"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryNumericDivideWrapper);
 		return BinaryScalarFunctionIgnoreZero<int16_t, int16_t, int16_t, OP, BinaryNumericDivideWrapper>;
 	case LogicalTypeId::INTEGER:
+		function_info.template_args = {"int32_t", "int32_t", "int32_t"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryNumericDivideWrapper);
 		return BinaryScalarFunctionIgnoreZero<int32_t, int32_t, int32_t, OP, BinaryNumericDivideWrapper>;
 	case LogicalTypeId::BIGINT:
+		function_info.template_args = {"int64_t", "int64_t", "int64_t"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryNumericDivideWrapper);
 		return BinaryScalarFunctionIgnoreZero<int64_t, int64_t, int64_t, OP, BinaryNumericDivideWrapper>;
 	case LogicalTypeId::UTINYINT:
+		function_info.template_args = {"uint8_t", "uint8_t", "uint8_t"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryZeroIsNullWrapper);
 		return BinaryScalarFunctionIgnoreZero<uint8_t, uint8_t, uint8_t, OP>;
 	case LogicalTypeId::USMALLINT:
+		function_info.template_args = {"uint16_t", "uint16_t", "uint16_t"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryZeroIsNullWrapper);
 		return BinaryScalarFunctionIgnoreZero<uint16_t, uint16_t, uint16_t, OP>;
 	case LogicalTypeId::UINTEGER:
+		function_info.template_args = {"uint32_t", "uint32_t", "uint32_t"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryZeroIsNullWrapper);
 		return BinaryScalarFunctionIgnoreZero<uint32_t, uint32_t, uint32_t, OP>;
 	case LogicalTypeId::UBIGINT:
+		function_info.template_args = {"uint64_t", "uint64_t", "uint64_t"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryZeroIsNullWrapper);
 		return BinaryScalarFunctionIgnoreZero<uint64_t, uint64_t, uint64_t, OP>;
 	case LogicalTypeId::HUGEINT:
+		function_info.template_args = {"hugeint_t", "hugeint_t", "hugeint_t"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryZeroIsNullHugeintWrapper);
 		return BinaryScalarFunctionIgnoreZero<hugeint_t, hugeint_t, hugeint_t, OP, BinaryZeroIsNullHugeintWrapper>;
 	case LogicalTypeId::FLOAT:
+		function_info.template_args = {"float", "float", "float"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryZeroIsNullWrapper);
 		return BinaryScalarFunctionIgnoreZero<float, float, float, OP>;
 	case LogicalTypeId::DOUBLE:
+		function_info.template_args = {"double", "double", "double"};
+		function_info.special_handling.push_back(ScalarFunctionInfo::BinaryZeroIsNullWrapper);
 		return BinaryScalarFunctionIgnoreZero<double, double, double, OP>;
 	default:
 		throw NotImplementedException("Unimplemented type for GetScalarUnaryFunction");
@@ -1014,13 +1036,16 @@ static scalar_function_t GetBinaryFunctionIgnoreZero(const LogicalType &type) {
 
 void DivideFun::RegisterFunction(BuiltinFunctions &set) {
 	ScalarFunctionSet fp_divide("/");
+	ScalarFunctionInfo function_info("DivideOperator");
 	fp_divide.AddFunction(ScalarFunction({LogicalType::FLOAT, LogicalType::FLOAT}, LogicalType::FLOAT,
-	                                     GetBinaryFunctionIgnoreZero<DivideOperator>(LogicalType::FLOAT)));
+	                                     GetBinaryFunctionIgnoreZero<DivideOperator>(LogicalType::FLOAT, function_info)));
+	ScalarFunctionInfo function_info2("DivideOperator");
 	fp_divide.AddFunction(ScalarFunction({LogicalType::DOUBLE, LogicalType::DOUBLE}, LogicalType::DOUBLE,
-	                                     GetBinaryFunctionIgnoreZero<DivideOperator>(LogicalType::DOUBLE)));
+	                                     GetBinaryFunctionIgnoreZero<DivideOperator>(LogicalType::DOUBLE, function_info2)));
+	ScalarFunctionInfo function_info3("DivideOperator", {"interval_t", "int64_t", "interval_t"}, {ScalarFunctionInfo::BinaryZeroIsNullWrapper});
 	fp_divide.AddFunction(
 	    ScalarFunction({LogicalType::INTERVAL, LogicalType::BIGINT}, LogicalType::INTERVAL,
-	                   BinaryScalarFunctionIgnoreZero<interval_t, int64_t, interval_t, DivideOperator>));
+	                   BinaryScalarFunctionIgnoreZero<interval_t, int64_t, interval_t, DivideOperator>, std::move(function_info3)));
 	set.AddFunction(fp_divide);
 
 	ScalarFunctionSet full_divide("//");
@@ -1028,8 +1053,9 @@ void DivideFun::RegisterFunction(BuiltinFunctions &set) {
 		if (type.id() == LogicalTypeId::DECIMAL) {
 			continue;
 		} else {
+			ScalarFunctionInfo function_info4("DivideOperator");
 			full_divide.AddFunction(
-			    ScalarFunction({type, type}, type, GetBinaryFunctionIgnoreZero<DivideOperator>(type)));
+			    ScalarFunction({type, type}, type, GetBinaryFunctionIgnoreZero<DivideOperator>(type, function_info4)));
 		}
 	}
 	set.AddFunction(full_divide);
@@ -1069,8 +1095,9 @@ void ModFun::RegisterFunction(BuiltinFunctions &set) {
 		if (type.id() == LogicalTypeId::DECIMAL) {
 			continue;
 		} else {
+			ScalarFunctionInfo function_info("ModuloOperator");
 			functions.AddFunction(
-			    ScalarFunction({type, type}, type, GetBinaryFunctionIgnoreZero<ModuloOperator>(type)));
+			    ScalarFunction({type, type}, type, GetBinaryFunctionIgnoreZero<ModuloOperator>(type, function_info)));
 		}
 	}
 	set.AddFunction(functions);
