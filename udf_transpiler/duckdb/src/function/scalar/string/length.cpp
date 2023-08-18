@@ -96,13 +96,13 @@ static unique_ptr<FunctionData> ListLengthBind(ClientContext &context, ScalarFun
 void LengthFun::RegisterFunction(BuiltinFunctions &set) {
 	ScalarFunction array_length_unary =
 	    ScalarFunction({LogicalType::LIST(LogicalType::ANY)}, LogicalType::BIGINT,
-	                   ScalarFunction::UnaryFunction<list_entry_t, int64_t, ArrayLengthOperator>, ScalarFunctionInfo("ArrayLengthOperator::Operation", {"list_entry_t", "int64_t"}, true), ListLengthBind);
+	                   ScalarFunction::UnaryFunction<list_entry_t, int64_t, ArrayLengthOperator>, ScalarFunctionInfo("ArrayLengthOperator::Operation", {"list_entry_t", "int64_t"}), ListLengthBind);
 	ScalarFunctionSet length("length");
 	length.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::BIGINT,
-	                                  ScalarFunction::UnaryFunction<string_t, int64_t, StringLengthOperator>, ScalarFunctionInfo("StringLengthOperator::Operation", {"string_t", "int64_t"}, true), nullptr,
+	                                  ScalarFunction::UnaryFunction<string_t, int64_t, StringLengthOperator>, ScalarFunctionInfo("StringLengthOperator::Operation", {"string_t", "int64_t"}), nullptr,
 	                                  nullptr, LengthPropagateStats));
 	length.AddFunction(ScalarFunction({LogicalType::BIT}, LogicalType::BIGINT,
-	                                  ScalarFunction::UnaryFunction<string_t, int64_t, BitStringLenOperator>, ScalarFunctionInfo("BitStringLenOperator::Operation", {"string_t", "int64_t"}, true)));
+	                                  ScalarFunction::UnaryFunction<string_t, int64_t, BitStringLenOperator>, ScalarFunctionInfo("BitStringLenOperator::Operation", {"string_t", "int64_t"})));
 	length.AddFunction(array_length_unary);
 	set.AddFunction(length);
 	length.name = "len";
@@ -110,7 +110,7 @@ void LengthFun::RegisterFunction(BuiltinFunctions &set) {
 
 	ScalarFunctionSet length_grapheme("length_grapheme");
 	length_grapheme.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::BIGINT,
-	                                           ScalarFunction::UnaryFunction<string_t, int64_t, GraphemeCountOperator>, ScalarFunctionInfo("GraphemeCountOperator::Operation", {"string_t", "int64_t"}, true),
+	                                           ScalarFunction::UnaryFunction<string_t, int64_t, GraphemeCountOperator>, ScalarFunctionInfo("GraphemeCountOperator::Operation", {"string_t", "int64_t"}),
 	                                           nullptr, nullptr, LengthPropagateStats));
 	set.AddFunction(length_grapheme);
 
@@ -118,24 +118,24 @@ void LengthFun::RegisterFunction(BuiltinFunctions &set) {
 	array_length.AddFunction(array_length_unary);
 	array_length.AddFunction(ScalarFunction(
 	    {LogicalType::LIST(LogicalType::ANY), LogicalType::BIGINT}, LogicalType::BIGINT,
-	    ScalarFunction::BinaryFunction<list_entry_t, int64_t, int64_t, ArrayLengthBinaryOperator>, ScalarFunctionInfo("ArrayLengthBinaryOperator::Operation", {"list_entry_t", "int64_t", "int64_t"}, true),
+	    ScalarFunction::BinaryFunction<list_entry_t, int64_t, int64_t, ArrayLengthBinaryOperator>, ScalarFunctionInfo("ArrayLengthBinaryOperator::Operation", {"list_entry_t", "int64_t", "int64_t"}),
 		ListLengthBind));
 	set.AddFunction(array_length);
 
 	set.AddFunction(ScalarFunction("strlen", {LogicalType::VARCHAR}, LogicalType::BIGINT,
-	                               ScalarFunction::UnaryFunction<string_t, int64_t, StrLenOperator>, ScalarFunctionInfo("StrLenOperator::Operation", {"string_t", "int64_t"}, true)));
+	                               ScalarFunction::UnaryFunction<string_t, int64_t, StrLenOperator>, ScalarFunctionInfo("StrLenOperator::Operation", {"string_t", "int64_t"})));
 	ScalarFunctionSet bit_length("bit_length");
 	bit_length.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::BIGINT,
-	                                      ScalarFunction::UnaryFunction<string_t, int64_t, BitLenOperator>, ScalarFunctionInfo("BitLenOperator::Operation", {"string_t", "int64_t"}, true)));
+	                                      ScalarFunction::UnaryFunction<string_t, int64_t, BitLenOperator>, ScalarFunctionInfo("BitLenOperator::Operation", {"string_t", "int64_t"})));
 	bit_length.AddFunction(ScalarFunction({LogicalType::BIT}, LogicalType::BIGINT,
-	                                      ScalarFunction::UnaryFunction<string_t, int64_t, BitStringLenOperator>, ScalarFunctionInfo("BitStringLenOperator::Operation", {"string_t", "int64_t"}, true)));
+	                                      ScalarFunction::UnaryFunction<string_t, int64_t, BitStringLenOperator>, ScalarFunctionInfo("BitStringLenOperator::Operation", {"string_t", "int64_t"})));
 	set.AddFunction(bit_length);
 	// length for BLOB type
 	ScalarFunctionSet octet_length("octet_length");
 	octet_length.AddFunction(ScalarFunction({LogicalType::BLOB}, LogicalType::BIGINT,
-	                                        ScalarFunction::UnaryFunction<string_t, int64_t, StrLenOperator>, ScalarFunctionInfo("StrLenOperator::Operation", {"string_t", "int64_t"}, true)));
+	                                        ScalarFunction::UnaryFunction<string_t, int64_t, StrLenOperator>, ScalarFunctionInfo("StrLenOperator::Operation", {"string_t", "int64_t"})));
 	octet_length.AddFunction(ScalarFunction({LogicalType::BIT}, LogicalType::BIGINT,
-	                                        ScalarFunction::UnaryFunction<string_t, int64_t, OctetLenOperator>, ScalarFunctionInfo("OctetLenOperator::Operation", {"string_t", "int64_t"}, true)));
+	                                        ScalarFunction::UnaryFunction<string_t, int64_t, OctetLenOperator>, ScalarFunctionInfo("OctetLenOperator::Operation", {"string_t", "int64_t"})));
 	set.AddFunction(octet_length);
 }
 

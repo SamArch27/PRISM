@@ -19,12 +19,20 @@ public:
         // do nothing
     }
 
+    std::string bound_function_to_string(duckdb::BoundFunctionExpression &exp){
+        std::string result = fmt::format(fmt::runtime("{}(exp: {})"), exp.ToString(), duckdb::ExpressionClassToString(exp.GetExpressionClass()));
+        if(exp.function.has_scalar_funcition_info){
+            result += fmt::format(fmt::runtime(" -> {}"), exp.function.function_info.str());
+        }
+        return result;
+    }
+
     void VisitOperatorHelper(duckdb::Expression &exp, int indent){
         switch (exp.GetExpressionClass())
         {
         case duckdb::ExpressionClass::BOUND_FUNCTION:
             std::cout<<fmt::format(fmt::runtime("{:<{}}{}(exp: {}) -> {}"), "", indent, exp.ToString(), duckdb::ExpressionClassToString(exp.GetExpressionClass()), 
-                                    exp.Cast<duckdb::BoundFunctionExpression>().function.has_scalar_funcition_info ? "bound" : "not bound")<<std::endl;
+                                    bound_function_to_string(exp.Cast<duckdb::BoundFunctionExpression>()))<<std::endl;
             for(auto &child : exp.Cast<duckdb::BoundFunctionExpression>().children){
                 VisitOperatorHelper(*child, indent + 4);
             }

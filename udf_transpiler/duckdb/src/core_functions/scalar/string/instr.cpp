@@ -51,7 +51,8 @@ static unique_ptr<BaseStatistics> InStrPropagateStats(ClientContext &context, Fu
 
 ScalarFunction InstrFun::GetFunction() {
 	return ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::BIGINT,
-	                      ScalarFunction::BinaryFunction<string_t, string_t, int64_t, InstrOperator>, nullptr, nullptr,
+	                      ScalarFunction::BinaryFunction<string_t, string_t, int64_t, InstrOperator>, ScalarFunctionInfo("InstrOperator::Operation", {"string_t", "string_t", "int64_t"}),
+						  nullptr, nullptr,
 	                      InStrPropagateStats);
 }
 

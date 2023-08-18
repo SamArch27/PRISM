@@ -317,10 +317,10 @@ static unique_ptr<BaseStatistics> SubstringPropagateStats(ClientContext &context
 void SubstringFun::RegisterFunction(BuiltinFunctions &set) {
 	ScalarFunctionSet substr("substring");
 	substr.AddFunction(ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT, LogicalType::BIGINT},
-	                                  LogicalType::VARCHAR, SubstringFunction<SubstringUnicodeOp>, ScalarFunctionInfo("SubstringUnicodeOp::SubString", true), nullptr, nullptr,
+	                                  LogicalType::VARCHAR, SubstringFunction<SubstringUnicodeOp>, ScalarFunctionInfo("SubstringUnicodeOp::SubString", {ScalarFunctionInfo::VectorFrontWrapper, ScalarFunctionInfo::VectorFrontWrapper}), nullptr, nullptr,
 	                                  SubstringPropagateStats));
 	substr.AddFunction(ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                                  SubstringFunction<SubstringUnicodeOp>, ScalarFunctionInfo("SubstringUnicodeOp::SubString", {ScalarFunctionInfo::SubStringAutoLengthWrapper}, true), nullptr, nullptr,
+	                                  SubstringFunction<SubstringUnicodeOp>, ScalarFunctionInfo("SubstringUnicodeOp::SubString", {ScalarFunctionInfo::SubStringAutoLengthWrapper, ScalarFunctionInfo::VectorFrontWrapper}), nullptr, nullptr,
 	                                  SubstringPropagateStats));
 	set.AddFunction(substr);
 	substr.name = "substr";

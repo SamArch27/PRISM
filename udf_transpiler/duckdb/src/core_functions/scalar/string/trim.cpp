@@ -127,27 +127,28 @@ static void BinaryTrimFunction(DataChunk &input, ExpressionState &state, Vector 
 
 ScalarFunctionSet TrimFun::GetFunctions() {
 	ScalarFunctionSet trim;
-	trim.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, UnaryTrimFunction<true, true>));
+	trim.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, UnaryTrimFunction<true, true>,
+						ScalarFunctionInfo("TrimOperator<true, true>::Operation", {"string_t", "string_t"}, {ScalarFunctionInfo::VectorBackWrapper})));
 
 	trim.AddFunction(ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                BinaryTrimFunction<true, true>));
+	                                BinaryTrimFunction<true, true>, ScalarFunctionInfo("BinaryTrimOperator<true, true>", {ScalarFunctionInfo::VectorBackWrapper})));
 	return trim;
 }
 
 ScalarFunctionSet LtrimFun::GetFunctions() {
 	ScalarFunctionSet ltrim;
-	ltrim.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, UnaryTrimFunction<true, false>));
+	ltrim.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, UnaryTrimFunction<true, false>, ScalarFunctionInfo("TrimOperator<true, false>::Operation", {"string_t", "string_t"}, {ScalarFunctionInfo::VectorBackWrapper})));
 	ltrim.AddFunction(ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                 BinaryTrimFunction<true, false>));
+	                                 BinaryTrimFunction<true, false>, ScalarFunctionInfo("BinaryTrimOperator<true, false>", {ScalarFunctionInfo::VectorBackWrapper})));
 	return ltrim;
 }
 
 ScalarFunctionSet RtrimFun::GetFunctions() {
 	ScalarFunctionSet rtrim;
-	rtrim.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, UnaryTrimFunction<false, true>));
+	rtrim.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, UnaryTrimFunction<false, true>, ScalarFunctionInfo("TrimOperator<false, true>::Operation", {"string_t", "string_t"}, {ScalarFunctionInfo::VectorBackWrapper})));
 
 	rtrim.AddFunction(ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                 BinaryTrimFunction<false, true>));
+	                                 BinaryTrimFunction<false, true>, ScalarFunctionInfo("BinaryTrimOperator<false, true>", {ScalarFunctionInfo::VectorBackWrapper})));
 	return rtrim;
 }
 

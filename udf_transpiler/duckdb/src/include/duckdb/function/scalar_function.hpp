@@ -83,6 +83,8 @@ enum SpecialValueHandling : uint8_t
 				{BinaryNumericDivideWrapper, 
 				BinaryZeroIsNullWrapper, 
 				BinaryZeroIsNullHugeintWrapper, 
+				VectorFrontWrapper,						// insert Vector& result as the first argument to the function
+				VectorBackWrapper,						// append Vector& result as the last argument to the function
 				SubStringAutoLengthWrapper				// auto add the length of the string
 														// as the thrird argument
 				};
@@ -107,7 +109,7 @@ public:
 	*/
     bool if_switch = false;
 	/**
-	 * if the function is a string function
+	 * if the function is a string function (not used)
 	*/
     bool if_string = false;
     /**
@@ -118,11 +120,11 @@ public:
     // vector<LogicalType> return_type;
     DUCKDB_API ScalarFunctionInfo(){}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name) : cpp_name(cpp_name) {}
-	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, bool if_string) : cpp_name(cpp_name), if_string(if_string) {}
+	// DUCKDB_API ScalarFunctionInfo(std::string cpp_name, bool if_string) : cpp_name(cpp_name), if_string(if_string) {}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args) : cpp_name(cpp_name), templated(true), template_args(template_args) {}
-	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, bool if_string) : cpp_name(cpp_name), templated(true), template_args(template_args), if_string(if_string) {}
+	// DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, b) : cpp_name(cpp_name), templated(true), template_args(template_args), if_string(if_string) {}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<SpecialValueHandling> special_handling) : cpp_name(cpp_name), special_handling(special_handling) {}
-	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<SpecialValueHandling> special_handling, bool if_string) : cpp_name(cpp_name), special_handling(special_handling), if_string(if_string) {}
+	// DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<SpecialValueHandling> special_handling, bool if_string) : cpp_name(cpp_name), special_handling(special_handling), if_string(if_string) {}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, std::vector<SpecialValueHandling> special_handling) : cpp_name(cpp_name), templated(true), template_args(template_args), special_handling(special_handling) {}
 	// DUCKDB_API ScalarFunctionInfo(string cpp_name, bool templated = false, bool if_switch = false, bool default_null = true, bool if_string = false):
     //                         cpp_name(cpp_name), templated(templated), default_null(default_null), if_switch(if_switch), if_string(if_string){}
@@ -151,6 +153,23 @@ public:
 	}
 	DUCKDB_API ScalarFunctionInfo(const ScalarFunctionInfo &other){
 		*this = other;
+	}
+
+	/**
+	 * get the string representation of the function
+	*/
+	DUCKDB_API std::string str(){
+		std::string ret = cpp_name;
+		if(template_args.size() > 0){
+			ret += "<";
+			for(auto &arg : template_args){
+				ret += arg + ", ";
+			}
+			ret = ret.substr(0, ret.size()-2);
+			ret += ">";
+		}
+		if(if_string) ret += "(string)";
+		return ret;
 	}
 };
 
