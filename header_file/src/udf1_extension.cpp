@@ -4,6 +4,7 @@
 #include "functions.hpp"
 #include "numeric.hpp"
 #include "cast.hpp"
+#include "string.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
@@ -25,7 +26,7 @@ namespace duckdb
 		// the declaration / initialization of local variables
 		int32_t val1 = v0.GetValueUnsafe<int32_t>();
 		
-		result = Value(udf::int_to_string(udf::AddOperation<int32_t, int64_t>(val1, 1), tmp_vec));
+		result = Value(udf::int_to_string(duckdb::AddOperator::Operation<int32_t, int32_t, int64_t>(val1, 1), tmp_vec));
 		result.GetTypeMutable() = LogicalType::VARCHAR;
 		return;
 	}
@@ -69,7 +70,7 @@ namespace duckdb
 			name_vector, result, args.size(),
 			[&](string_t name)
 			{
-				return StringVector::AddString(result, "Udf1 " + name.GetString() + " 🐥");
+				return StringVector::AddString(result, "Udf1 " + name.GetString() + " 🐥"+std::to_string(StrLenOperator::Operation<string_t, int64_t>(name.GetString())));
 				;
 			});
 	}

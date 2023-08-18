@@ -85,22 +85,22 @@ void ScalarFunction::NopFunction(DataChunk &input, ExpressionState &state, Vecto
 	result.Reference(input.data[0]);
 }
 
-TranspilerScalarFunction::TranspilerScalarFunction(string name, vector<LogicalType> arguments, LogicalType return_type,
-	                          scalar_function_t function, ScalarFunctionInfo &&function_info, bind_scalar_function_t bind,
-	                          dependency_function_t dependency, function_statistics_t statistics,
-	                          init_local_state_t init_local_state,
-	                          LogicalType varargs, FunctionSideEffects side_effects,
-	                          FunctionNullHandling null_handling)
-	: ScalarFunction(std::move(name), std::move(arguments), std::move(return_type), std::move(function), bind, dependency,
-		statistics, init_local_state, std::move(varargs), side_effects, null_handling), function_info(std::move(function_info)) {}
+// TranspilerScalarFunction::TranspilerScalarFunction(string name, vector<LogicalType> arguments, LogicalType return_type,
+// 	                          scalar_function_t function, ScalarFunctionInfo &&function_info, bind_scalar_function_t bind,
+// 	                          dependency_function_t dependency, function_statistics_t statistics,
+// 	                          init_local_state_t init_local_state,
+// 	                          LogicalType varargs, FunctionSideEffects side_effects,
+// 	                          FunctionNullHandling null_handling)
+// 	: ScalarFunction(std::move(name), std::move(arguments), std::move(return_type), std::move(function), bind, dependency,
+// 		statistics, init_local_state, std::move(varargs), side_effects, null_handling), function_info(std::move(function_info)) {}
 
-TranspilerScalarFunction::TranspilerScalarFunction(vector<LogicalType> arguments, LogicalType return_type, scalar_function_t function, ScalarFunctionInfo &&function_info, 
-	                          bind_scalar_function_t bind,
-	                          dependency_function_t dependency, function_statistics_t statistics,
-	                          init_local_state_t init_local_state,
-	                          LogicalType varargs, FunctionSideEffects side_effects,
-	                          FunctionNullHandling null_handling)
-	: ScalarFunction(std::move(arguments), std::move(return_type), std::move(function), bind, dependency,
-		statistics, init_local_state, std::move(varargs), side_effects, null_handling), function_info(std::move(function_info)) {}
+// TranspilerScalarFunction::TranspilerScalarFunction(vector<LogicalType> arguments, LogicalType return_type, scalar_function_t function, ScalarFunctionInfo &&function_info, 
+// 	                          bind_scalar_function_t bind,
+// 	                          dependency_function_t dependency, function_statistics_t statistics,
+// 	                          init_local_state_t init_local_state,
+// 	                          LogicalType varargs, FunctionSideEffects side_effects,
+// 	                          FunctionNullHandling null_handling)
+// 	: ScalarFunction(std::move(arguments), std::move(return_type), std::move(function), bind, dependency,
+// 		statistics, init_local_state, std::move(varargs), side_effects, null_handling), function_info(std::move(function_info)) {}
 
 } // namespace duckdb
