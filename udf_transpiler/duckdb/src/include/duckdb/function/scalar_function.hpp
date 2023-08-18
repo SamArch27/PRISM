@@ -168,7 +168,7 @@ public:
 			ret = ret.substr(0, ret.size()-2);
 			ret += ">";
 		}
-		if(if_string) ret += "(string)";
+		// if(if_string) ret += "(string)";
 		return ret;
 	}
 };
