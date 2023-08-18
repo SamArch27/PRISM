@@ -81,3 +81,18 @@ struct BitStringLenOperator {
 	}
 };
 }
+
+/**
+ * substr function - done (except substring_grapheme)
+ * Can inline
+ * SubstringUnicodeOp
+*/
+#include "duckdb/function/scalar/string_functions.hpp"
+namespace duckdb {
+struct SubstringUnicodeOp {
+	static string_t Substring(Vector &result, string_t input, int64_t offset, int64_t length) {
+		return SubstringFun::SubstringUnicode(result, input, offset, length);
+	}
+};
+}
+

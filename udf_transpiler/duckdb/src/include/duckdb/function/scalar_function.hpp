@@ -79,7 +79,13 @@ typedef unique_ptr<FunctionData> (*function_format_deserialize_t)(FormatDeserial
 */
 class ScalarFunctionInfo{
 public:
-enum SpecialValueHandling : uint8_t {BinaryNumericDivideWrapper, BinaryZeroIsNullWrapper, BinaryZeroIsNullHugeintWrapper};
+enum SpecialValueHandling : uint8_t 
+				{BinaryNumericDivideWrapper, 
+				BinaryZeroIsNullWrapper, 
+				BinaryZeroIsNullHugeintWrapper, 
+				SubStringAutoLengthWrapper				// auto add the length of the string
+														// as the thrird argument
+				};
 public:
     /**
      * function name in the header file 
@@ -112,8 +118,11 @@ public:
     // vector<LogicalType> return_type;
     DUCKDB_API ScalarFunctionInfo(){}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name) : cpp_name(cpp_name) {}
+	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, bool if_string) : cpp_name(cpp_name), if_string(if_string) {}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args) : cpp_name(cpp_name), templated(true), template_args(template_args) {}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, bool if_string) : cpp_name(cpp_name), templated(true), template_args(template_args), if_string(if_string) {}
+	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<SpecialValueHandling> special_handling) : cpp_name(cpp_name), special_handling(special_handling) {}
+	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<SpecialValueHandling> special_handling, bool if_string) : cpp_name(cpp_name), special_handling(special_handling), if_string(if_string) {}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, std::vector<SpecialValueHandling> special_handling) : cpp_name(cpp_name), templated(true), template_args(template_args), special_handling(special_handling) {}
 	// DUCKDB_API ScalarFunctionInfo(string cpp_name, bool templated = false, bool if_switch = false, bool default_null = true, bool if_string = false):
     //                         cpp_name(cpp_name), templated(templated), default_null(default_null), if_switch(if_switch), if_string(if_string){}
