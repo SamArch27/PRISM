@@ -13,6 +13,7 @@
 #include "duckdb/main/relation/query_relation.hpp"
 #include "logical_operator_printer.hpp"
 #include <iostream>
+#include "logical_operator_code_generator.hpp"
 
 namespace duckdb
 {
@@ -36,8 +37,10 @@ namespace duckdb
 		auto context = con.context.get();
 		context->config.enable_optimizer = false;
 		auto plan = context->ExtractPlan(query);
-		udf::LogicalOperatorPrinter printer;
-		printer.VisitOperator(*plan);
+		// udf::LogicalOperatorPrinter printer;
+		// printer.VisitOperator(*plan);
+		duckdb::LogicalOperatorCodeGenerator generator;
+		generator.VisitOperator(*plan);
 	}
 
 	inline void Udf_transpilerScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
