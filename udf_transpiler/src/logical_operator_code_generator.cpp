@@ -6,6 +6,8 @@
 #include "duckdb/planner/expression.hpp"
 #include "duckdb/planner/expression/bound_function_expression.hpp"
 #include "duckdb/planner/expression/bound_comparison_expression.hpp"
+#include "duckdb/planner/expression/bound_conjunction_expression.hpp"
+#include "duckdb/planner/expression/bound_cast_expression.hpp"
 #define FMT_HEADER_ONLY
 #include "include/fmt/core.h"
 #include "duckdb/common/enums/expression_type.hpp"
@@ -69,6 +71,29 @@ std::string BoundExpressionCodeGenerator::Transpile(BoundComparisonExpression &e
     }
 }
 
+template<>
+std::string BoundExpressionCodeGenerator::Transpile(BoundConjunctionExpression &exp, std::string &insert){
+    ASSERT(exp.children.size() == 2, "Conjunction expression should have 2 children.");
+    switch (exp.GetExpressionType())
+    {
+    case ExpressionType::CONJUNCTION_AND:
+        return fmt::format("({} && {})", Transpile(*exp.children[0], insert), Transpile(*exp.children[1], insert));
+        break;
+    case ExpressionType::CONJUNCTION_OR:
+        return fmt::format("({} || {})", Transpile(*exp.children[0], insert), Transpile(*exp.children[1], insert));
+        break;
+    default:
+        ASSERT(false, "Conjunction expression should be AND or OR.");
+        break;
+    }
+}
+
+// udf_todo
+template <>
+std::string BoundExpressionCodeGenerator::Transpile(BoundCastExpression &exp, std::string &insert){
+    return fmt::format("[CAST {} AS {}]", Transpile(*exp.child, insert), exp.return_type.ToString());
+}
+
 template <>
 std::string BoundExpressionCodeGenerator::Transpile(Expression &exp, std::string &insert){
     switch (exp.GetExpressionClass())
@@ -79,8 +104,14 @@ std::string BoundExpressionCodeGenerator::Transpile(Expression &exp, std::string
     case ExpressionClass::BOUND_COMPARISON:
         return Transpile(exp.Cast<BoundComparisonExpression>(), insert);
         break;
+    case ExpressionClass::BOUND_CONJUNCTION:
+        return Transpile(exp.Cast<BoundConjunctionExpression>(), insert);
+        break;
+    case ExpressionClass::BOUND_CAST:
+        return Transpile(exp.Cast<BoundCastExpression>(), insert);
+        break;
     default:
-        return exp.ToString();
+        return fmt::format("[{}: {}]", exp.ToString(), ExpressionClassToString(exp.GetExpressionClass())) ;
         break;
     }
 }

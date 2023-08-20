@@ -80,14 +80,16 @@ typedef unique_ptr<FunctionData> (*function_format_deserialize_t)(FormatDeserial
 class ScalarFunctionInfo{
 public:
 enum SpecialValueHandling : uint8_t 
-				{BinaryNumericDivideWrapper, 
+			{
+				BinaryNumericDivideWrapper, 
 				BinaryZeroIsNullWrapper, 
 				BinaryZeroIsNullHugeintWrapper, 
 				VectorFrontWrapper,						// insert Vector& result as the first argument to the function
 				VectorBackWrapper,						// append Vector& result as the last argument to the function
-				SubStringAutoLengthWrapper				// auto add the length of the string
+				SubStringAutoLengthWrapper,				// auto add the length of the string
 														// as the thrird argument
-				};
+				ConstantVectorWrapper					// for constant input should only call the function once				
+			};
 public:
     /**
      * function name in the header file 

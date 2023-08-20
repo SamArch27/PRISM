@@ -251,9 +251,9 @@ void ConcatFun::RegisterFunction(BuiltinFunctions &set) {
 
 	ScalarFunctionSet concat_op("||");
 	concat_op.AddFunction(
-	    ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR, ConcatOperator));
-	concat_op.AddFunction(ScalarFunction({LogicalType::BLOB, LogicalType::BLOB}, LogicalType::BLOB, ConcatOperator));
-	concat_op.AddFunction(ListConcatFun::GetFunction());
+	    ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR, ConcatOperator, ScalarFunctionInfo("ConcatOperator", {ScalarFunctionInfo::VectorFrontWrapper, ScalarFunctionInfo::ConstantVectorWrapper})));
+	concat_op.AddFunction(ScalarFunction({LogicalType::BLOB, LogicalType::BLOB}, LogicalType::BLOB, ConcatOperator, ScalarFunctionInfo("ConcatOperator", {ScalarFunctionInfo::VectorFrontWrapper, ScalarFunctionInfo::ConstantVectorWrapper})));
+	concat_op.AddFunction(ListConcatFun::GetFunction()); //udf_todo
 	for (auto &fun : concat_op.functions) {
 		fun.null_handling = FunctionNullHandling::SPECIAL_HANDLING;
 	}

@@ -364,7 +364,7 @@ ScalarFunction AddFun::GetFunction(const LogicalType &left_type, const LogicalTy
 			return function;
 		} else if (left_type.IsIntegral() && left_type.id() != LogicalTypeId::HUGEINT) {
 			ScalarFunctionInfo function_info;
-			function_info.cpp_name = "AddOperatorOverflowCheck";
+			function_info.cpp_name = "AddOperatorOverflowCheck::Operation";
 			GetScalarIntegerFunctionInfoTemplate(left_type.InternalType(), function_info.template_args);
 			return ScalarFunction("+", {left_type, right_type}, left_type,
 			                      GetScalarIntegerFunction<AddOperatorOverflowCheck>(left_type.InternalType()), std::move(function_info), nullptr,

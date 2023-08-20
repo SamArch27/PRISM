@@ -25,12 +25,12 @@ string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool qu
         string lvalue;
         string rvalue;
         parse_assignment(query, lvalue, rvalue);
-        QueryTranspiler query_transpiler(function_info.get(), rvalue, expected_type, config, catalog);
-        result = query_transpiler.run();
+        // QueryTranspiler query_transpiler(function_info.get(), rvalue, expected_type, config, catalog);
+        // result = query_transpiler.run();
     }
     else{
-        QueryTranspiler query_transpiler(function_info.get(), query, expected_type, config, catalog);
-        result = query_transpiler.run();
+        // QueryTranspiler query_transpiler(function_info.get(), query, expected_type, config, catalog);
+        // result = query_transpiler.run();
     }
     cout<<result<<endl;
     return fmt::format("[Unresolved Query: {}]", query.dump());

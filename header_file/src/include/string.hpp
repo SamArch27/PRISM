@@ -311,3 +311,26 @@ struct InstrOperator {
 	}
 };
 }
+
+/**
+ * concat function - support only: || (not concat, concat_ws)
+ * Can inline
+ * 
+*/
+namespace duckdb {
+string_t ConcatOperator(Vector &result, string_t left, string_t right) {
+	auto left_data = left.GetData();
+	auto right_data = right.GetData();
+	auto left_size = left.GetSize();
+	auto right_size = right.GetSize();
+
+	auto target = StringVector::EmptyString(result, left_size + right_size);
+	auto target_data = target.GetDataWriteable();
+	memcpy(target_data, left_data, left_size);
+	memcpy(target_data + left_size, right_data, right_size);
+
+	target.Finalize();
+	return target;
+}
+}
+
