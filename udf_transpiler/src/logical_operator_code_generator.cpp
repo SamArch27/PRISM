@@ -8,6 +8,7 @@
 #include "duckdb/planner/expression/bound_comparison_expression.hpp"
 #include "duckdb/planner/expression/bound_conjunction_expression.hpp"
 #include "duckdb/planner/expression/bound_cast_expression.hpp"
+#include "duckdb/planner/expression/bound_operator_expression.hpp"
 #define FMT_HEADER_ONLY
 #include "include/fmt/core.h"
 #include "duckdb/common/enums/expression_type.hpp"
@@ -92,6 +93,20 @@ std::string BoundExpressionCodeGenerator::Transpile(BoundConjunctionExpression &
 template <>
 std::string BoundExpressionCodeGenerator::Transpile(BoundCastExpression &exp, std::string &insert){
     return fmt::format("[CAST {} AS {}]", Transpile(*exp.child, insert), exp.return_type.ToString());
+}
+
+// udf_todo
+template <>
+std::string BoundExpressionCodeGenerator::Transpile(BoundOperatorExpression &exp, std::string &insert){
+    switch(exp.GetExpressionType()){
+    case ExpressionType::OPERATOR_NOT:
+        ASSERT(exp.children.size() == 1, "NOT operator should have 1 child.");
+        return fmt::format("(!{})", Transpile(*exp.children[0], insert));
+    // case ExpressionType::OPERATOR_IS_NULL:
+    //     have a {}_isnull for all function variables
+    default:
+        return fmt::format("[{}: {}]", exp.ToString(), ExpressionTypeToString(exp.GetExpressionType()));
+    }
 }
 
 template <>
