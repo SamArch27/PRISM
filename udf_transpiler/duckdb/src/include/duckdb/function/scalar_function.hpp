@@ -88,7 +88,9 @@ enum SpecialValueHandling : uint8_t
 				VectorBackWrapper,						// append Vector& result as the last argument to the function
 				SubStringAutoLengthWrapper,				// auto add the length of the string
 														// as the thrird argument
-				ConstantVectorWrapper					// for constant input should only call the function once				
+				ConstantVectorWrapper,					// for constant input should only call the function once	
+				NumericCastWrapper,						// most common cast op, first argument is the source second is the reference to target
+				DecimalCastWrapper 						// (source, result, count, parameters.error_message, width, scale);
 			};
 public:
     /**
@@ -157,6 +159,8 @@ public:
 		*this = other;
 	}
 
+	static DUCKDB_API std::string LogicalTypeIdToCppType(LogicalTypeId type_id);
+	static DUCKDB_API std::string PhysicalTypeIdToCppType(PhysicalType type_id);
 	/**
 	 * get the string representation of the function
 	*/

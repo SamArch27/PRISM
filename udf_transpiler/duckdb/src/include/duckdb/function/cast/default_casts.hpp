@@ -99,10 +99,14 @@ struct BoundCastInfo {
 	BoundCastInfo(
 	    cast_function_t function, unique_ptr<BoundCastData> cast_data = nullptr,
 	    init_cast_local_state_t init_local_state = nullptr); // NOLINT: allow explicit cast from cast_function_t
+	BoundCastInfo(
+	    cast_function_t function, ScalarFunctionInfo &&function_info, unique_ptr<BoundCastData> cast_data = nullptr,
+	    init_cast_local_state_t init_local_state = nullptr); // NOLINT: allow explicit cast from cast_function_t
 	cast_function_t function;
 	init_cast_local_state_t init_local_state;
 	unique_ptr<BoundCastData> cast_data;
-
+	bool has_function_info = false;
+	ScalarFunctionInfo function_info;
 public:
 	BoundCastInfo Copy() const;
 };

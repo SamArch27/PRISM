@@ -9,3 +9,15 @@ string_t int_to_string(int32_t input, Vector &vector) {
 }
 
 }
+
+/**
+ * numeric casts
+ * Can inline
+ * NumericTryCast
+ * TryCastToDecimal
+ * StringCast
+ * NumericTryCastToBit
+*/
+#include "duckdb/common/operator/numeric_cast.hpp"
+#include "duckdb/common/operator/string_cast.hpp"
+#include "duckdb/common/operator/decimal_cast_operators.hpp"

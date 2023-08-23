@@ -16,28 +16,36 @@
 #include "utils.hpp"
 
 namespace duckdb {
-template <>
-std::string BoundExpressionCodeGenerator::Transpile(BoundFunctionExpression &exp, string &insert){
-    if(exp.function.has_scalar_funcition_info){
-        ScalarFunction &function = exp.function;
-        ScalarFunctionInfo &function_info = function.function_info;
-        std::string ret = function_info.cpp_name;
-		if(function_info.template_args.size() > 0){
-			ret += "<";
-			for(auto &arg : function_info.template_args){
-				ret += arg + ", ";
-			}
-			ret = ret.substr(0, ret.size()-2);
-			ret += ">";
-		}
-        ret += "(";
-        std::vector<std::string> args;
-        for(auto &child : exp.children){
-            args.push_back(BoundExpressionCodeGenerator::Transpile(*child, insert));
+std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info, const vector<Expression *> &children, std::string &insert){
+    std::string ret = function_info.cpp_name;
+    if(function_info.template_args.size() > 0){
+        ret += "<";
+        for(auto &arg : function_info.template_args){
+            ret += arg + ", ";
         }
-        ret += vec_join(args, ", ");
-        ret += ")";
-        return ret;
+        ret = ret.substr(0, ret.size()-2);
+        ret += ">";
+    }
+    ret += "(";
+    std::vector<std::string> args;
+    for(auto &child : children){
+        args.push_back(Transpile(*child, insert));
+    }
+    ret += vec_join(args, ", ");
+    ret += ")";
+    return ret;
+}
+
+template <>
+std::string BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp, string &insert){
+    if(exp.function.has_scalar_funcition_info){
+        // ScalarFunction &function = exp.function;
+        const ScalarFunctionInfo &function_info = exp.function.function_info;
+        vector<Expression *> children(exp.children.size());
+        for(size_t i = 0; i < exp.children.size(); i++){
+            children[i] = exp.children[i].get();
+        }
+        return CodeGenScalarFunctionInfo(function_info, children, insert);
     }
     else{
         throw Exception(fmt::format("Function {} does not support transpilation yet.", exp.function.name));
@@ -45,7 +53,7 @@ std::string BoundExpressionCodeGenerator::Transpile(BoundFunctionExpression &exp
 }
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(BoundComparisonExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundComparisonExpression &exp, std::string &insert){
     switch (exp.GetExpressionType())
     {
     case ExpressionType::COMPARE_EQUAL:
@@ -73,7 +81,7 @@ std::string BoundExpressionCodeGenerator::Transpile(BoundComparisonExpression &e
 }
 
 template<>
-std::string BoundExpressionCodeGenerator::Transpile(BoundConjunctionExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp, std::string &insert){
     ASSERT(exp.children.size() == 2, "Conjunction expression should have 2 children.");
     switch (exp.GetExpressionType())
     {
@@ -91,13 +99,16 @@ std::string BoundExpressionCodeGenerator::Transpile(BoundConjunctionExpression &
 
 // udf_todo
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(BoundCastExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp, std::string &insert){
+    if(exp.bound_cast.has_function_info){
+        return CodeGenScalarFunctionInfo(exp.bound_cast.function_info, {exp.child.get()}, insert);
+    }
     return fmt::format("[CAST {} AS {}]", Transpile(*exp.child, insert), exp.return_type.ToString());
 }
 
 // udf_todo
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(BoundOperatorExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp, std::string &insert){
     switch(exp.GetExpressionType()){
     case ExpressionType::OPERATOR_NOT:
         ASSERT(exp.children.size() == 1, "NOT operator should have 1 child.");
@@ -110,7 +121,7 @@ std::string BoundExpressionCodeGenerator::Transpile(BoundOperatorExpression &exp
 }
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(Expression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp, std::string &insert){
     switch (exp.GetExpressionClass())
     {
     case ExpressionClass::BOUND_FUNCTION:

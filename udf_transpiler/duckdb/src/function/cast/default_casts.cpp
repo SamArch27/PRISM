@@ -23,6 +23,15 @@ BoundCastInfo::BoundCastInfo(cast_function_t function_p, unique_ptr<BoundCastDat
     : function(function_p), init_local_state(init_local_state_p), cast_data(std::move(cast_data_p)) {
 }
 
+BoundCastInfo::BoundCastInfo(
+	    cast_function_t function, ScalarFunctionInfo &&function_info, unique_ptr<BoundCastData> cast_data,
+	    init_cast_local_state_t init_local_state)
+	: function(function), function_info(std::move(function_info)), init_local_state(init_local_state),
+	  cast_data(std::move(cast_data)){
+	has_function_info = true;
+}
+	
+
 BoundCastInfo BoundCastInfo::Copy() const {
 	return BoundCastInfo(function, cast_data ? cast_data->Copy() : nullptr, init_local_state);
 }
