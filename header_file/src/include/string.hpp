@@ -85,7 +85,7 @@ struct BitStringLenOperator {
 
 /**
  * substr function - done (except substring_grapheme)
- * Can inline
+ * Cannot inline
  * SubstringUnicodeOp
 */
 // #include "duckdb/function/scalar/string_functions.hpp"

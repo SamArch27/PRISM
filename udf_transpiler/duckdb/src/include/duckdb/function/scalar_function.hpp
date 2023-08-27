@@ -90,7 +90,9 @@ enum SpecialValueHandling : uint8_t
 														// as the thrird argument
 				ConstantVectorWrapper,					// for constant input should only call the function once	
 				NumericCastWrapper,						// most common cast op, first argument is the source second is the reference to target
-				DecimalCastWrapper 						// (source, result, count, parameters.error_message, width, scale);
+				DecimalCastWrapper, 					// (source, result, error_message, width, scale);
+				ErrorCastWrapper,						// (source, result, error_message, data->strict = false)
+				DecimalVectorBackWrapper				// (source, width, scale, vector);
 			};
 public:
     /**

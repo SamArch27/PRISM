@@ -2,17 +2,17 @@
 
 using namespace duckdb;
 
-namespace udf{
+// namespace udf{
 
-string_t int_to_string(int32_t input, Vector &vector) {
-	return NumericHelper::FormatSigned<int32_t, uint32_t>(input, vector);
-}
+// string_t int_to_string(int32_t input, Vector &vector) {
+// 	return NumericHelper::FormatSigned<int32_t, uint32_t>(input, vector);
+// }
 
-}
+// }
 
 /**
  * numeric casts
- * Can inline
+ * Cannot inline
  * NumericTryCast
  * TryCastToDecimal
  * StringCast
@@ -21,3 +21,22 @@ string_t int_to_string(int32_t input, Vector &vector) {
 #include "duckdb/common/operator/numeric_cast.hpp"
 #include "duckdb/common/operator/string_cast.hpp"
 #include "duckdb/common/operator/decimal_cast_operators.hpp"
+
+/**
+ * decimal casts
+ * Cannot inline
+ * TryCastFromDecimal
+ * StringCastFromDecimalOperator
+*/
+#include "duckdb/common/operator/decimal_cast_operators.hpp"
+
+/**
+ * string casts
+ * Cannot inline
+ * TryCastErrorMessage
+ * TryCastToTimestampNS
+ * TryCastToTimestampSec
+ * TryCastToTimestampMS
+ * TryCast
+*/
+#include "duckdb/common/operator/cast_operators.hpp"

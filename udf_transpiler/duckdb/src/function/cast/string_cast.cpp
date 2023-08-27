@@ -69,6 +69,7 @@ bool StringEnumCast(Vector &source, Vector &result, idx_t count, CastParameters 
 static BoundCastInfo VectorStringCastNumericSwitch(BindCastInput &input, const LogicalType &source,
                                                    const LogicalType &target) {
 	// now switch on the result type
+	// udf_todo: what type is a enum?
 	switch (target.id()) {
 	case LogicalTypeId::ENUM: {
 		switch (target.InternalType()) {
@@ -83,33 +84,33 @@ static BoundCastInfo VectorStringCastNumericSwitch(BindCastInput &input, const L
 		}
 	}
 	case LogicalTypeId::BOOLEAN:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, bool, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, bool, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "bool"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::TINYINT:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, int8_t, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, int8_t, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "int8_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::SMALLINT:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, int16_t, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, int16_t, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "int16_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::INTEGER:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, int32_t, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, int32_t, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "int32_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::BIGINT:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, int64_t, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, int64_t, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "int64_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::UTINYINT:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, uint8_t, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, uint8_t, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "uint8_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::USMALLINT:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, uint16_t, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, uint16_t, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "uint16_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::UINTEGER:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, uint32_t, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, uint32_t, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "uint32_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::UBIGINT:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, uint64_t, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, uint64_t, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "uint64_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::HUGEINT:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, hugeint_t, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, hugeint_t, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "hugeint_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::FLOAT:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, float, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, float, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "float"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::DOUBLE:
-		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, double, duckdb::TryCast>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastStrictLoop<string_t, double, duckdb::TryCast>, ScalarFunctionInfo("TryCast::Operation", {"string_t", "double"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::INTERVAL:
-		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, interval_t, duckdb::TryCastErrorMessage>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, interval_t, duckdb::TryCastErrorMessage>, ScalarFunctionInfo("TryCastErrorMessage::Operation", {"string_t", "interval_t"}, {ScalarFunctionInfo::ErrorCastWrapper}));
 	case LogicalTypeId::DECIMAL:
-		return BoundCastInfo(&VectorCastHelpers::ToDecimalCast<string_t>);
+		return BoundCastInfo(&VectorCastHelpers::ToDecimalCast<string_t>, ScalarFunctionInfo("TryCastToDecimal::Operation", {"string_t", ScalarFunctionInfo::PhysicalTypeIdToCppType(target.InternalType())}, {ScalarFunctionInfo::DecimalCastWrapper}));
 	default:
 		return DefaultCasts::TryVectorNullCast;
 	}
@@ -365,22 +366,23 @@ BoundCastInfo DefaultCasts::StringCastSwitch(BindCastInput &input, const Logical
                                              const LogicalType &target) {
 	switch (target.id()) {
 	case LogicalTypeId::DATE:
-		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, date_t, duckdb::TryCastErrorMessage>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, date_t, duckdb::TryCastErrorMessage>, ScalarFunctionInfo("TryCastErrorMessage::Operation", {"string_t", "date_t"}, {ScalarFunctionInfo::ErrorCastWrapper}));
 	case LogicalTypeId::TIME:
 	case LogicalTypeId::TIME_TZ:
-		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, dtime_t, duckdb::TryCastErrorMessage>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, dtime_t, duckdb::TryCastErrorMessage>, ScalarFunctionInfo("TryCastErrorMessage::Operation", {"string_t", "dtime_t"}, {ScalarFunctionInfo::ErrorCastWrapper}));
 	case LogicalTypeId::TIMESTAMP:
 	case LogicalTypeId::TIMESTAMP_TZ:
-		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, timestamp_t, duckdb::TryCastErrorMessage>);
+		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, timestamp_t, duckdb::TryCastErrorMessage>, ScalarFunctionInfo("TryCastErrorMessage::Operation", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::ErrorCastWrapper}));
 	case LogicalTypeId::TIMESTAMP_NS:
 		return BoundCastInfo(
-		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampNS>);
+		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampNS>, ScalarFunctionInfo("TryCastToTimestampNS", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::TIMESTAMP_SEC:
 		return BoundCastInfo(
-		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampSec>);
+		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampSec>, ScalarFunctionInfo("TryCastToTimestampSec", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::TIMESTAMP_MS:
 		return BoundCastInfo(
-		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampMS>);
+		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampMS>, ScalarFunctionInfo("TryCastToTimestampMS", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
+	// udf_todo
 	case LogicalTypeId::BLOB:
 		return BoundCastInfo(&VectorCastHelpers::TryCastStringLoop<string_t, string_t, duckdb::TryCastToBlob>);
 	case LogicalTypeId::BIT:

@@ -51,6 +51,7 @@ struct VectorTryCastOperator {
 	}
 };
 
+// udf_todo what is the difference between VectorTryCastStrictOperator, VectorTryCastErrorOperator
 template <class OP>
 struct VectorTryCastStrictOperator {
 	template <class INPUT_TYPE, class RESULT_TYPE>
