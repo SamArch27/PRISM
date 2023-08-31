@@ -16,6 +16,26 @@
 #include "utils.hpp"
 
 namespace duckdb {
+void BoundExpressionCodeGenerator::SpecialCaseHandler(const ScalarFunctionInfo &function_info, const vector<Expression *> &children, std::string &insert, std::vector<std::string> &args){
+    for(auto special_case : function_info.special_handling){
+        switch (special_case)
+        {
+        case ScalarFunctionInfo::BinaryNumericDivideWrapper:
+            // udf_todo
+            break;
+        case ScalarFunctionInfo::BinaryZeroIsNullWrapper:
+            // udf_todo
+            break;
+        case ScalarFunctionInfo::BinaryZeroIsNullHugeintWrapper:
+            // udf_todo
+            break;
+        default:
+            break;
+        }
+    }
+    return;
+}
+
 std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info, const vector<Expression *> &children, std::string &insert){
     std::string ret = function_info.cpp_name;
     if(function_info.template_args.size() > 0){
@@ -31,6 +51,7 @@ std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(const Scalar
     for(auto &child : children){
         args.push_back(Transpile(*child, insert));
     }
+    SpecialCaseHandler(function_info, children, insert, args);
     ret += vec_join(args, ", ");
     ret += ")";
     return ret;

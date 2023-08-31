@@ -12,6 +12,7 @@ public:
         return "Not implemented yet!";
     }
 private:
+    static void SpecialCaseHandler(const ScalarFunctionInfo &function_info, const vector<Expression *> &children, std::string &insert, std::vector<std::string> &args);
     static std::string CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info, const vector<Expression *> &children, std::string &insert);
 };
 
