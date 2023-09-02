@@ -1,5 +1,5 @@
-#pragma once
-#include <string>
+#ifndef UTILS
+#define UTILS
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -13,13 +13,14 @@
 #include <yaml-cpp/yaml.h>
 using namespace std;
 
-#define ASSERT(condition, message) \
-    do { \
-        if (! (condition)) { \
-            std::cerr << "Assertion `" #condition "` failed in " << __FILE__ \
-                      << " line " << __LINE__ << ": " << message << std::endl; \
-            std::exit(EXIT_FAILURE); \
-        } \
+#define ASSERT(condition, message)                                                                                   \
+    do                                                                                                               \
+    {                                                                                                                \
+        if (!(condition))                                                                                            \
+        {                                                                                                            \
+            std::cerr << "Assertion failed: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
+            std::terminate();                                                                                        \
+        }                                                                                                            \
     } while (false)
 
 #define ERROR(message)                                                                                   \
@@ -29,17 +30,7 @@ using namespace std;
         std::terminate();                                                                                        \
     } while (false)
 
-template <typename T>
-std::string vec_join(std::vector<T> &vec, std::string sep){
-    std::string result = "";
-    for(auto &item : vec){
-        result += std::to_string(item) + sep;
-    }
-    return result.substr(0, result.size() - sep.size());
-}
-
-std::string vec_join(std::vector<std::string> &vec, std::string sep);
-
+string vec_join(vector<string> &vec, const string &del);
 void remove_spaces(std::string &str);
 
 static unordered_map<string, string> alias_to_duckdb_type = {{"UNKNOWN", "UNKNOWN"}, {"BIGINT", "BIGINT"}, {"INT8", "BIGINT"}, {"LONG", "BIGINT"}, {"BIT", "BIT"}, {"BITSTRING", "BIT"}, {"BOOLEAN", "BOOLEAN"}, {"BOOL", "BOOLEAN"}, {"LOGICAL", "BOOLEAN"}, {"BLOB", "BLOB"}, {"BYTEA", "BLOB"}, {"BINARY", "BLOB"}, {"VARBINARY", "BLOB"}, {"DATE", "DATE"}, {"DOUBLE", "DOUBLE"}, {"FLOAT8", "DOUBLE"}, {"NUMERIC", "DOUBLE"}, {"DECIMAL", "DOUBLE"}, {"HUGEINT", "HUGEINT"}, {"INTEGER", "INTEGER"}, {"INT", "INTEGER"}, {"INT4", "INTEGER"}, {"SIGNED", "INTEGER"}, {"INTERVAL", "INTERVAL"}, {"REAL", "REAL"}, {"FLOAT4", "REAL"}, {"FLOAT", "REAL"}, {"SMALLINT", "SMALLINT"}, {"INT2", "SMALLINT"}, {"SHORT", "SMALLINT"}, {"TIME", "TIME"}, {"TIMESTAMP", "TIMESTAMP"}, {"DATETIME", "TIMESTAMP"}, {"TINYINT", "TINYINT"}, {"INT1", "TINYINT"}, {"UBIGINT", "UBIGINT"}, {"UINTEGER", "UINTEGER"}, {"USMALLINT", "USMALLINT"}, {"UTINYINT", "UTINYINT"}, {"UUID", "UUID"}, {"VARCHAR", "VARCHAR"}, {"CHAR", "VARCHAR"}, {"BPCHAR", "VARCHAR"}, {"TEXT", "VARCHAR"}, {"STRING", "VARCHAR"}};
@@ -143,14 +134,14 @@ public:
 class YAMLConfig
 {
 public:
-    YAML::Node query;
-    YAML::Node function;
-    YAML::Node control;
-    YAMLConfig();
+    YAML::Node query = YAML::LoadFile("../query.yaml");
+    YAML::Node function = YAML::LoadFile("../function.yaml");
+    YAML::Node control = YAML::LoadFile("../control.yaml");
 };
 
 bool is_const_or_var(string &expr, FunctionInfo &funtion_info, string &res);
 
 
+#endif
 
 

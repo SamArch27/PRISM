@@ -1,12 +1,11 @@
 #include "utils.hpp"
-#include <yaml-cpp/yaml.h>
 
-std::string vec_join(std::vector<std::string> &vec, std::string sep){
-    std::string result = "";
-    for(auto &item : vec){
-        result += item + sep;
-    }
-    return result.substr(0, result.size() - sep.size());
+string vec_join(vector<string> &vec, const string &del){
+    return vec.empty() ? "" : /* leave early if there are no items in the list */
+            std::accumulate( /* otherwise, accumulate */
+                ++vec.begin(), vec.end(), /* the range 2nd to after-last */
+                *vec.begin(), /* and start accumulating with the first item */
+                [&](auto &&a, auto &&b) -> auto& { a += del; a += b; return a; });
 }
 
 void remove_spaces(std::string& str) {
@@ -42,7 +41,7 @@ string UDF_Type::resolve_type(string type_name, const string &udf_str){
     {
         if (udf_str.size() == 0)
         {
-            throw std::runtime_error("UDF string is empty");
+            ERROR("UDF string is empty");
         }
         int type_start = type_name.find('#');
         // int type_end = type_name.find('#', type_start);
@@ -73,7 +72,7 @@ string UDF_Type::resolve_type(string type_name, const string &udf_str){
     }
     else
     {
-        throw runtime_error(fmt::format("Unknown type: {}", type_name));
+        ERROR(fmt::format("Unknown type: {}", type_name));
     }
 }
 
@@ -98,7 +97,7 @@ string UDF_Type::get_decimal_int_type(int width, int scale){
     else if (width <= 38)
         return "duckdb::hugeint_t";
     else
-        throw std::runtime_error("Width larger than 38.");
+        ERROR("Width larger than 38.");
 }
 
 string UDF_Type::get_cpp_type()
@@ -128,12 +127,6 @@ string UDF_Type::create_duckdb_value(const string &ret_name, const string &cpp_v
         return fmt::format("{0} = Value({1});\n{0}.GetTypeMutable() = LogicalType::{2}", ret_name, cpp_value, duckdb_type);
     }
     else{
-        throw std::runtime_error(fmt::format("Cannot create duckdb value from type {}", duckdb_type));
+        ERROR(fmt::format("Cannot create duckdb value from type {}", duckdb_type));
     }
-}
-
-YAMLConfig::YAMLConfig(){
-    query = YAML::LoadFile("templates/query.yaml");
-    function = YAML::LoadFile("templates/function.yaml");
-    control = YAML::LoadFile("templates/control.yaml");
 }

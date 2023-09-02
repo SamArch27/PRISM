@@ -33,7 +33,6 @@
 #   EXPORT "${DUCKDB_EXPORT_SET}"
 #   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
 #   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
-
 cmake_minimum_required(VERSION 3.24.2)
 set(TARGET_NAME udf_transpiler)
 
@@ -75,6 +74,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/yaml-cpp/includ
 # the json formatter lib
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/json)
 
+# pretty print lib
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/pretty-print)
+
 # boost lib
 # # set(BOOST_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/boost_1_82_0/)
 # set(Boost_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/boost_1_82_0/)
@@ -101,9 +103,12 @@ add_library(${EXTENSION_NAME} STATIC ${all_SRCS})
 
 # target_include_directories(${EXTENSION_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
 add_dependencies(${EXTENSION_NAME} pg_parser)
+# add_dependencies(${EXTENSION_NAME} yaml-cpp)
 target_link_libraries(${EXTENSION_NAME} PRIVATE ${PG_PARSER_ROOT}/libpg_query.a ${TRANSPILER_OBJECT_FILES})
 set(PARAMETERS "-warnings")
-build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${all_SRCS} ${PG_PARSER_ROOT}/libpg_query.a ${TRANSPILER_OBJECT_FILES})
+build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${all_SRCS} ${PG_PARSER_ROOT}/libpg_query.a)
+
+# file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/templates DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/templates)
 
 install(
   TARGETS ${EXTENSION_NAME}

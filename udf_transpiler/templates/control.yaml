@@ -1,0 +1,38 @@
+simple: |
+  while (true){{
+    {body}
+  }}
+
+while: |
+  while ({condition}){{
+    {body}
+  }}
+
+for: |- 
+  for (int {name} = {start}; {name} <= {end}; {name} += {step}){{
+    {body}
+  }}
+
+
+revfor: |- 
+  for (int {name} = {start}; {name} >= {end}; {name} -= {step}){{
+    {body}
+  }}
+
+
+if_block: |-
+  if({condition}) {{
+    {then_body}
+  }}
+  {elseifs}
+  {else}
+
+else_if: |-
+  else if ({condition}) {{
+    {then_body}
+  }}
+
+else: |-
+  else {{
+    {else_body}
+  }}

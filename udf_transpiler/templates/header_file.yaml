@@ -1,0 +1,54 @@
+# template for registering header file function
+# sql name:
+#   - C++ function name
+#   - templated
+#   - default_null
+#   - if_switch
+#   - if_string
+#   - options
+#     - return_type1:
+#       - input_type1
+#       - input_type2
+#     - return_type2:
+#       - input_type1
+#       - input_type2
+# 
+
+:::
+  - cast
+  - false
+  - true
+  - true
+  - true
+  - options:
+    - varchar:
+      - int
+
+add:
+  - addOperator
+  - true
+  - true
+  - false
+  - false
+  - options:
+    - int:
+      - int
+      - int
+    - bigint:
+      - bigint
+      - bigint
+
++:
+  - addOperator
+  - true
+  - true
+  - false
+  - false
+  - options:
+    - int:
+      - int
+      - int
+    - bigint:
+      - bigint
+      - bigint
+

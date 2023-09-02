@@ -1,13 +1,13 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
 // #include <stdlib.h>
 // #include <ctype.h>
 #include <stdio.h>
-#include "duckdb.hpp"
-// #include "duckdb/function/cast/cast_function_set.hpp"
+// #include "duckdb.hpp"
 #include <unistd.h>
 #include "utils.hpp"
 #include "trans.hpp"
@@ -74,12 +74,12 @@ int main(int argc, char const *argv[])
     std::ostringstream buffer;
     buffer << t.rdbuf();
     if(buffer.str().empty()){
-        throw std::runtime_error(fmt::format("Input file is empty or does not exist: {}", i_file));
+        ERROR(fmt::format("Input file is empty or does not exist: {}", i_file));
     }
-
-    duckdb::DuckDB db;
     YAMLConfig config;
-    Transpiler transpiler(buffer.str(), &config);
+    Catalog catalog;
+    Catalog::Print(catalog);
+    Transpiler transpiler(buffer.str(), &config, &catalog);
     // std::vector<std::string> ret = transpile_plpgsql_udf_str(buffer.str());
     std::vector<std::string> ret = transpiler.run();
     std::cout << ret[0] << std::endl;

@@ -4,7 +4,7 @@ using json = nlohmann::json;
 /**
  * @brief Parse an assignment query. May raise exception if wrong.
 */
-void Transpiler::parse_assignment(string &query, string &lvalue, string &rvalue){
+void Transpiler::parse_assignment(const string &query, string &lvalue, string &rvalue){
     std::regex assign_pattern("\\:?\\=", std::regex_constants::icase);
     std::smatch equal_match;
     // std::cout << tmp_string << '\n';
@@ -16,11 +16,23 @@ void Transpiler::parse_assignment(string &query, string &lvalue, string &rvalue)
 // todo
 string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool query_is_assignment = false){
     ASSERT(query.is_string(), "Query statement should be a string.");
+    // cout<<query<<endl;
     // todo substitute variable
     // todo query is assignment
+    string result;
     if(query_is_assignment){
-
+        ASSERT(expected_type == NULL, "In assignment, expected_type should be NULL.");
+        string lvalue;
+        string rvalue;
+        parse_assignment(query, lvalue, rvalue);
+        // QueryTranspiler query_transpiler(function_info.get(), rvalue, expected_type, config, catalog);
+        // result = query_transpiler.run();
     }
+    else{
+        // QueryTranspiler query_transpiler(function_info.get(), query, expected_type, config, catalog);
+        // result = query_transpiler.run();
+    }
+    cout<<result<<endl;
     return fmt::format("[Unresolved Query: {}]", query.dump());
     // return query;
 }
@@ -30,7 +42,7 @@ string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool quer
         return translate_query(expr["query"], expected_type, query_is_assignment);
     }
     else{
-        throw std::runtime_error(fmt::format("Unsupport PLpgSQL_expr: {}", expr));
+        ERROR(fmt::format("Unsupport PLpgSQL_expr: {}", expr));
     }
     return "";
 }
@@ -200,7 +212,7 @@ string Transpiler::translate_body(json &body, UDF_Type *expected_type){
         else if(stmt.contains("PLpgSQL_stmt_exit"))
             output += translate_exitcont_stmt(stmt["PLpgSQL_stmt_exit"]);
         else
-            throw std::runtime_error(fmt::format("Unknown statement type: {}", stmt));
+            ERROR(fmt::format("Unknown statement type: {}", stmt));
     }
     return output;
 }
@@ -346,12 +358,14 @@ vector<string> Transpiler::run(){
 
     PgQueryPlpgsqlParseResult result;
     result = pg_query_parse_plpgsql(udf_str.c_str());
+    
+
     if (result.error)
     {
         printf("error: %s at %d\n", result.error->message, result.error->cursorpos);
-        throw std::runtime_error(fmt::format("Error when parsing the plpgsql: {}", result.error->message));
+        ERROR(fmt::format("Error when parsing the plpgsql: {}", result.error->message));
     }
-    // printf("%s\n", result.plpgsql_funcs);
+    printf("%s\n", result.plpgsql_funcs);
     json ast = json::parse(result.plpgsql_funcs);
     ASSERT(return_types.size() >= ast.size(), "Return type not specified for all functions");
     ASSERT(func_names.size() >= ast.size(), "Function name not specified for all functions");
