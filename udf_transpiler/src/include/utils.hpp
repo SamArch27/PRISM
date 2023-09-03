@@ -113,14 +113,19 @@ public:
     string func_name;
     UDF_Type func_return_type;
     int tmp_var_count = 0;
+    /**
+     * string functions needs special treatment when invoking
+     * preparation should happen in the caller
+    */
+    int string_function_count = 0;
     vector<string> func_args_vec;
     unordered_map<string, VarInfo> func_args;
     unordered_map<string, VarInfo> func_vars;
     /**
-     * 
+     * key of this overwrite key in func_vars
     */
     unordered_map<string, string> tmp_var_substitutes;
-    // temp_var_subs
+    
     string new_variable(){
         tmp_var_count += 1;
         return "tmpvar" + std::to_string(tmp_var_count);

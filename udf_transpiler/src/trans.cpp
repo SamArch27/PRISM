@@ -312,20 +312,20 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
         // count++;
         check_null.push_back(name + "_null");
     }
-    string output = fmt::format(fmt::runtime(config->function["fshell2"].Scalar()), \
-                                            fmt::arg("function_name", function_info->func_name), \
-                                            fmt::arg("function_args", function_args), \
-                                            fmt::arg("arg_indexes", arg_indexes), \
-                                            fmt::arg("subfunc_args", subfunc_args));
-    // std::cout<<output<<std::endl;
-    cc.global_functions.push_back(output);
-    
+
     cc.global_functions.push_back(fmt::format(fmt::runtime(config->function["fbodyshell"].Scalar()), \
                                                 fmt::arg("function_name", function_info->func_name), \
                                                 fmt::arg("fbody_args", fbody_args), \
                                                 fmt::arg("check_null", vec_join(check_null, " or ")), \
                                                 fmt::arg("vars_init", vars_init), \
                                                 fmt::arg("action", translate_action(ast["action"]))));
+
+    cc.global_functions.push_back(fmt::format(fmt::runtime(config->function["fshell2"].Scalar()), \
+                                            fmt::arg("function_name", function_info->func_name), \
+                                            fmt::arg("function_args", function_args), \
+                                            fmt::arg("arg_indexes", arg_indexes), \
+                                            fmt::arg("subfunc_args", subfunc_args)));
+
     // string decl = fmt::format(fmt::runtime(config->function["func_dec"].Scalar()), \
     //                                         fmt::arg("function_name", function_info->func_name), \
     //                                         fmt::arg("function_args", args_str), \
@@ -336,7 +336,6 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
     //                                         fmt::arg("function_args", args_str), \
     //                                         fmt::arg("initializations", ""));                                        
     vector<string> ret;
-    ret.push_back(output);
     return ret;                                   
 }
 
@@ -383,10 +382,10 @@ vector<string> Transpiler::run(){
     ASSERT(return_types.size() >= ast.size(), "Return type not specified for all functions");
     ASSERT(func_names.size() >= ast.size(), "Function name not specified for all functions");
     // cc = std::make_shared<CodeContainer>();
-    std::string code = fmt::format(fmt::runtime(config->query["macro2"].Scalar()),\
-                                                fmt::arg("db_name", "db"),\
-                                                fmt::arg("vector_size", 2048));
-    cc.global_macros.push_back(code);
+    // std::string code = fmt::format(fmt::runtime(config->query["macro2"].Scalar()),\
+    //                                             fmt::arg("db_name", "db"),\
+    //                                             fmt::arg("vector_size", 2048));
+    // cc.global_macros.push_back(code);
     cc.query_macro = true;
     for(size_t i=0;i<ast.size();i++){
         if(ast[i].contains("PLpgSQL_function")){

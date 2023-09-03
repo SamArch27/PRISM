@@ -9,6 +9,8 @@
 #include "duckdb/planner/expression/bound_conjunction_expression.hpp"
 #include "duckdb/planner/expression/bound_cast_expression.hpp"
 #include "duckdb/planner/expression/bound_operator_expression.hpp"
+#include "duckdb/planner/expression/bound_constant_expression.hpp"
+#include "duckdb/planner/expression/bound_reference_expression.hpp"
 #define FMT_HEADER_ONLY
 #include "include/fmt/core.h"
 #include "duckdb/common/enums/expression_type.hpp"
@@ -142,6 +144,19 @@ std::string BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpressio
 }
 
 template <>
+std::string BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp, std::string &insert){
+    if(exp.value.type().IsNumeric() or exp.value.type() == LogicalType::BOOLEAN){
+        return exp.value.ToString();
+    }
+    return fmt::format("\"{}\"", exp.value.ToString());
+}
+
+template <>
+std::string BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp, std::string &insert){
+    return exp.GetName();
+}
+
+template <>
 std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp, std::string &insert){
     switch (exp.GetExpressionClass())
     {
@@ -156,6 +171,15 @@ std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp, std::
         break;
     case ExpressionClass::BOUND_CAST:
         return Transpile(exp.Cast<BoundCastExpression>(), insert);
+        break;
+    case ExpressionClass::BOUND_OPERATOR:
+        return Transpile(exp.Cast<BoundOperatorExpression>(), insert);
+        break;
+    case ExpressionClass::BOUND_CONSTANT:
+        return Transpile(exp.Cast<BoundConstantExpression>(), insert);
+        break;
+    case ExpressionClass::BOUND_REF:
+        return Transpile(exp.Cast<BoundReferenceExpression>(), insert);
         break;
     default:
         return fmt::format("[{}: {}]", exp.ToString(), ExpressionClassToString(exp.GetExpressionClass())) ;
@@ -190,11 +214,11 @@ std::string LogicalOperatorCodeGenerator::run(Connection &con, const std::string
     // auto query_res = con.Query()
     auto context = con.context.get();
     context->config.enable_optimizer = false;
-    cout<<query<<endl;
+    // cout<<query<<endl;
     auto plan = context->ExtractPlan(query+" from tmp1");
     VisitOperator(*plan);
     con.Query("drop table tmp1");
-    cout<<"query end"<<endl;
+    // cout<<"query end"<<endl;
     return res;
 }
 } // namespace duckdb
