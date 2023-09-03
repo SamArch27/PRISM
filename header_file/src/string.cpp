@@ -12,7 +12,7 @@
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 using namespace duckdb;
 
-inline void isListDistinct_body(const Value &v0, bool list_null, const Value &v1, bool delim_null, Value &result, bool &result_null)
+inline void isListDistinct_body(const Value &v0, bool list_null, const Value &v1, bool delim_null, Vector &tmp_vec0, Vector &tmp_vec1, Vector &tmp_vec2, Vector &tmp_vec3, Vector &tmp_vec4, Vector &tmp_vec5, Vector &tmp_vec6, Vector &tmp_vec7, Value &result, bool &result_null)
 {
     if (list_null or delim_null)
     {
@@ -25,19 +25,19 @@ inline void isListDistinct_body(const Value &v0, bool list_null, const Value &v1
     string_t part;
     int32_t pos;
 
-    ConcatOperator(TrimOperator<true, false>::Operation<string_t, string_t>(TrimOperator<false, true>::Operation<string_t, string_t>(list)), delim);
-    InstrOperator::Operation<string_t, string_t, int64_t>(list, delim);
+    list = ConcatOperator(TrimOperator<true, false>::Operation<string_t, string_t>(tmp_vec1, TrimOperator<false, true>::Operation<string_t, string_t>(tmp_vec0, list)), delim, tmp_vec2);
+    pos = InstrOperator::Operation<string_t, string_t, int64_t>(list, delim);
     while (GreaterThan::Operation(pos, 0))
     {
-        TrimOperator<true, false>::Operation<string_t, string_t>(TrimOperator<false, true>::Operation<string_t, string_t>(LeftScalarFunction<LeftRightUnicode>(list, NumericTryCast::Operation<int32_t, int64_t>(pos))));
-        SubstringUnicodeOp::Substring(list, NumericTryCast::Operation<int32_t, int64_t>(AddOperatorOverflowCheck::Operation<int32_t, int32_t, int32_t>(pos, 1)), StringLengthOperator::Operation<string_t, int64_t>(list));
+        part = TrimOperator<true, false>::Operation<string_t, string_t>(tmp_vec5, TrimOperator<false, true>::Operation<string_t, string_t>(tmp_vec4, LeftScalarFunction<LeftRightUnicode>(list, NumericTryCast::Operation<int32_t, int64_t>(pos), tmp_vec3)));
+        list = SubstringUnicodeOp::Substring(list, NumericTryCast::Operation<int32_t, int64_t>(AddOperatorOverflowCheck::Operation<int32_t, int32_t, int32_t>(pos, 1)), StringLengthOperator::Operation<string_t, int64_t>(list), tmp_vec6, tmp_vec7);
         if (NotEquals::Operation(InstrOperator::Operation<string_t, string_t, int64_t>(list, part), NumericTryCast::Operation<int32_t, int64_t>(0)))
         {
             result = Value::BOOLEAN(TryCast::Operation<string_t, bool>("f"));
             return;
         }
 
-        InstrOperator::Operation<string_t, string_t, int64_t>(list, delim);
+        pos = InstrOperator::Operation<string_t, string_t, int64_t>(list, delim);
     }
     result = Value::BOOLEAN(TryCast::Operation<string_t, bool>("t"));
     return;
@@ -57,6 +57,10 @@ void isListDistinct(DataChunk &args, ExpressionState &state, Vector &result)
     UnifiedVectorFormat delim_data;
     delim.ToUnifiedFormat(count, delim_data);
 
+    DataChunk tmp_chunk;
+    vector<LogicalType> tmp_types(8, LogicalType::VARCHAR);
+    tmp_chunk.Initialize(*context, tmp_types);
+
     for (int base_idx = 0; base_idx < count; base_idx++)
     {
         auto list_index = list_data.sel->get_index(base_idx);
@@ -64,7 +68,7 @@ void isListDistinct(DataChunk &args, ExpressionState &state, Vector &result)
 
         Value temp_result;
         bool temp_result_null = false;
-        isListDistinct_body(list.GetValue(list_index), !list_data.validity.RowIsValid(list_index), delim.GetValue(delim_index), !delim_data.validity.RowIsValid(delim_index), temp_result, temp_result_null);
+        isListDistinct_body(list.GetValue(list_index), !list_data.validity.RowIsValid(list_index), delim.GetValue(delim_index), !delim_data.validity.RowIsValid(delim_index), tmp_chunk.data[0], tmp_chunk.data[1], tmp_chunk.data[2], tmp_chunk.data[3], tmp_chunk.data[4], tmp_chunk.data[5], tmp_chunk.data[6], tmp_chunk.data[7], temp_result, temp_result_null);
         if (temp_result_null)
         {
             FlatVector::SetNull(result, base_idx, true);

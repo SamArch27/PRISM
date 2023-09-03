@@ -35,16 +35,22 @@ using namespace std;
         std::cerr << "Exception: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
         throw exception();                                                                                      \
     } while (false)
+
 template <typename T>
 std::string vec_join(std::vector<T> &vec, std::string sep){
-    std::string result = "";
-    for(auto &item : vec){
-        result += std::to_string(item) + sep;
-    }
-    return result.substr(0, result.size() - sep.size());
+    ERROR("vec_join not implemented for this type");
 }
 
+template <>
 std::string vec_join(std::vector<std::string> &vec, std::string sep);
+
+template <typename T>
+std::string list_join(std::list<T> &any_list, std::string sep){
+    ERROR("list_join not implemented for this type");
+}
+
+template <>
+std::string list_join(std::list<std::string> &any_list, std::string sep);
 
 void remove_spaces(std::string &str);
 
@@ -113,11 +119,6 @@ public:
     string func_name;
     UDF_Type func_return_type;
     int tmp_var_count = 0;
-    /**
-     * string functions needs special treatment when invoking
-     * preparation should happen in the caller
-    */
-    int string_function_count = 0;
     vector<string> func_args_vec;
     unordered_map<string, VarInfo> func_args;
     unordered_map<string, VarInfo> func_vars;
@@ -125,6 +126,12 @@ public:
      * key of this overwrite key in func_vars
     */
     unordered_map<string, string> tmp_var_substitutes;
+
+    /**
+     * string functions needs special treatment when invoking
+     * preparation should happen in the caller
+    */
+    int string_function_count = 0;
     
     string new_variable(){
         tmp_var_count += 1;

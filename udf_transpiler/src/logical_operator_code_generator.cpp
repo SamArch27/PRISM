@@ -18,7 +18,11 @@
 #include "utils.hpp"
 
 namespace duckdb {
-void BoundExpressionCodeGenerator::SpecialCaseHandler(const ScalarFunctionInfo &function_info, const vector<Expression *> &children, std::string &insert, std::vector<std::string> &args){
+
+/**
+ * currently only support vector front and back
+*/
+void BoundExpressionCodeGenerator::SpecialCaseHandler(const ScalarFunctionInfo &function_info, const std::vector<Expression *> &children, CodeInsertionPoint &insert, std::list<std::string> &args){
     for(auto special_case : function_info.special_handling){
         switch (special_case)
         {
@@ -31,14 +35,23 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(const ScalarFunctionInfo &
         case ScalarFunctionInfo::BinaryZeroIsNullHugeintWrapper:
             // udf_todo
             break;
+        case ScalarFunctionInfo::VectorBackWrapper:
+            // udf_todo
+            args.push_front(insert.new_vector());
+            break;
+        case ScalarFunctionInfo::VectorFrontWrapper:
+            // udf_todo
+            args.push_back(insert.new_vector());
+            break;
         default:
             break;
         }
     }
+
     return;
 }
 
-std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info, const vector<Expression *> &children, std::string &insert){
+std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info, const std::vector<Expression *> &children, CodeInsertionPoint &insert){
     std::string ret = function_info.cpp_name;
     if(function_info.template_args.size() > 0){
         ret += "<";
@@ -49,22 +62,22 @@ std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(const Scalar
         ret += ">";
     }
     ret += "(";
-    std::vector<std::string> args;
+    std::list<std::string> args;
     for(auto &child : children){
         args.push_back(Transpile(*child, insert));
     }
     SpecialCaseHandler(function_info, children, insert, args);
-    ret += vec_join(args, ", ");
+    ret += list_join(args, ", ");
     ret += ")";
     return ret;
 }
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp, string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp, CodeInsertionPoint &insert){
     if(exp.function.has_scalar_funcition_info){
         // ScalarFunction &function = exp.function;
         const ScalarFunctionInfo &function_info = exp.function.function_info;
-        vector<Expression *> children(exp.children.size());
+        std::vector<Expression *> children(exp.children.size());
         for(size_t i = 0; i < exp.children.size(); i++){
             children[i] = exp.children[i].get();
         }
@@ -76,7 +89,7 @@ std::string BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpressio
 }
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const BoundComparisonExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundComparisonExpression &exp, CodeInsertionPoint &insert){
     switch (exp.GetExpressionType())
     {
     case ExpressionType::COMPARE_EQUAL:
@@ -104,7 +117,7 @@ std::string BoundExpressionCodeGenerator::Transpile(const BoundComparisonExpress
 }
 
 template<>
-std::string BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp, CodeInsertionPoint &insert){
     ASSERT(exp.children.size() == 2, "Conjunction expression should have 2 children.");
     switch (exp.GetExpressionType())
     {
@@ -122,7 +135,7 @@ std::string BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpres
 
 // udf_todo
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp, CodeInsertionPoint &insert){
     if(exp.bound_cast.has_function_info){
         return CodeGenScalarFunctionInfo(exp.bound_cast.function_info, {exp.child.get()}, insert);
     }
@@ -131,7 +144,7 @@ std::string BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &e
 
 // udf_todo
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp, CodeInsertionPoint &insert){
     switch(exp.GetExpressionType()){
     case ExpressionType::OPERATOR_NOT:
         ASSERT(exp.children.size() == 1, "NOT operator should have 1 child.");
@@ -144,7 +157,7 @@ std::string BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpressio
 }
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp, CodeInsertionPoint &insert){
     if(exp.value.type().IsNumeric() or exp.value.type() == LogicalType::BOOLEAN){
         return exp.value.ToString();
     }
@@ -152,12 +165,12 @@ std::string BoundExpressionCodeGenerator::Transpile(const BoundConstantExpressio
 }
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp, CodeInsertionPoint &insert){
     return exp.GetName();
 }
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp, std::string &insert){
+std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp, CodeInsertionPoint &insert){
     switch (exp.GetExpressionClass())
     {
     case ExpressionClass::BOUND_FUNCTION:
@@ -188,18 +201,28 @@ std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp, std::
 }
 
 /**
+ * not used
+*/
+void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
+    int tmp;
+    CodeInsertionPoint insert(tmp);
+    res = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
+    return;
+}
+
+/**
  * traverse the logical operator tree and generate the code into member res
  *
 */
-void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
+
+void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op, CodeInsertionPoint &insert) {
     ASSERT(op.expressions.size() == 1, "Expression of the root operator should be 1.");
-    std::string insert;
     res = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
     // std::cout<<ret<<std::endl;
     return;
 }
 
-std::string LogicalOperatorCodeGenerator::run(Connection &con, const std::string &query, const std::vector<pair<const std::string &, const VarInfo &>> &vars){
+std::string LogicalOperatorCodeGenerator::run(Connection &con, const std::string &query, const std::vector<pair<const std::string &, const VarInfo &>> &vars, CodeInsertionPoint &insert){
     std::string create_stmt = "create table tmp1 (";
     for(auto &var : vars){
         create_stmt += var.first + " " + var.second.type.duckdb_type + ", ";
@@ -216,7 +239,7 @@ std::string LogicalOperatorCodeGenerator::run(Connection &con, const std::string
     context->config.enable_optimizer = false;
     // cout<<query<<endl;
     auto plan = context->ExtractPlan(query+" from tmp1");
-    VisitOperator(*plan);
+    VisitOperator(*plan, insert);
     con.Query("drop table tmp1");
     // cout<<"query end"<<endl;
     return res;

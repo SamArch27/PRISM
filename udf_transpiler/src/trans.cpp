@@ -1,5 +1,5 @@
 #include "trans.hpp"
-#include "logical_operator_code_generator.hpp"
+// #include "logical_operator_code_generator.hpp"
 using namespace std;
 using json = nlohmann::json;
 
@@ -16,7 +16,7 @@ void Transpiler::parse_assignment(const string &query, string &lvalue, string &r
 }
 
 // todo
-string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool query_is_assignment = false){
+string Transpiler::translate_query(json &query, duckdb::CodeInsertionPoint &insert, UDF_Type *expected_type, bool query_is_assignment = false){
     ASSERT(query.is_string(), "Query statement should be a string.");
     // cout<<query<<endl;
     // todo substitute variable
@@ -30,25 +30,27 @@ string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool qu
         
         // QueryTranspiler query_transpiler(function_info.get(), rvalue, expected_type, config, catalog);
         // result = query_transpiler.run();
-        
+        // duckdb::CodeInsertionPoint insert(function_info->string_function_count);
         duckdb::LogicalOperatorCodeGenerator code_generator;
-        result = code_generator.run(connection, "select " + rvalue, function_info->get_vars());
+        result += fmt::format("{} = ", lvalue);
+        result += code_generator.run(connection, "select " + rvalue, function_info->get_vars(), insert);
     }
     else{
         // QueryTranspiler query_transpiler(function_info.get(), query, expected_type, config, catalog);
         // result = query_transpiler.run();
+        // duckdb::CodeInsertionPoint insert(function_info->string_function_count);
         duckdb::LogicalOperatorCodeGenerator code_generator;
         // string quer
-        result = code_generator.run(connection, "select " + query.get<string>(), function_info->get_vars());
+        result = code_generator.run(connection, "select " + query.get<string>(), function_info->get_vars(), insert);
     }
     // cout<<result<<endl;
     // return fmt::format("[Unresolved Query: {}]", query.dump());
     return result;
 }
 
-string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool query_is_assignment = false){
+string Transpiler::translate_expr(json &expr, duckdb::CodeInsertionPoint &insert, UDF_Type *expected_type, bool query_is_assignment = false){
     if(expr.contains("query") and expr.size() == 1){
-        return translate_query(expr["query"], expected_type, query_is_assignment);
+        return translate_query(expr["query"], insert, expected_type, query_is_assignment);
     }
     else{
         EXCEPTION(fmt::format("Unsupport PLpgSQL_expr: {}", expr.dump()));
@@ -61,28 +63,33 @@ string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool quer
 */
 string Transpiler::translate_assign_stmt(json &assign){
     ASSERT(assign["expr"].contains("PLpgSQL_expr"), "Assignment must be in form of expression.");
-    return translate_expr(assign["expr"]["PLpgSQL_expr"], NULL, true) + ";\n";
+    duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+    auto res = translate_expr(assign["expr"]["PLpgSQL_expr"], insert, NULL, true);
+    return insert.to_string() + res + ";\n";
 }
 
 string Transpiler::translate_return_stmt(json &stmt){
     ASSERT(stmt.size() == 2, "Return_stmt should only have lineno and expr.");
     ASSERT(stmt["expr"].contains("PLpgSQL_expr"), "Return_stmt expression should have PLpgSQL_expr.");
+    duckdb::CodeInsertionPoint insert(function_info->string_function_count);
     string ret = fmt::format("{};\nreturn;\n", function_info->func_return_type.create_duckdb_value(\
                             config->function["return_name"].Scalar(),\
-                            translate_expr(stmt["expr"]["PLpgSQL_expr"], &function_info->func_return_type)));
-    return ret;
+                            translate_expr(stmt["expr"]["PLpgSQL_expr"], insert, &function_info->func_return_type)));
+    return insert.to_string() + ret;
 }
 
-string Transpiler::translate_cond_stmt(json &cond_stmt){
+string Transpiler::translate_cond_stmt(json &cond_stmt, duckdb::CodeInsertionPoint &insert){
     ASSERT(cond_stmt.contains("PLpgSQL_expr"), "cond stmt should contain PLpgSQL_expr.");
     string tmp = "BOOL";
     UDF_Type cond_type(tmp);
-    return translate_expr(cond_stmt["PLpgSQL_expr"], &cond_type);
+    auto res = translate_expr(cond_stmt["PLpgSQL_expr"], insert, &cond_type);
+    return res;
 }
 
 string Transpiler::translate_if_stmt(json &if_stmt){
     ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
-    string cond_expr = translate_cond_stmt(if_stmt["cond"]);
+    duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+    string cond_expr = translate_cond_stmt(if_stmt["cond"], insert);
     string then_body = "";
     string elseifs = "";
     string _else = "";
@@ -103,7 +110,7 @@ string Transpiler::translate_if_stmt(json &if_stmt){
                 elseif_then_body = "";
             }
             elseifs += fmt::format(fmt::runtime(config->control["else_if"].Scalar()), \
-                                    fmt::arg("condition", translate_cond_stmt(elseif["cond"])), \
+                                    fmt::arg("condition", translate_cond_stmt(elseif["cond"], insert)), \
                                     fmt::arg("then_body", elseif_then_body));
             elseifs += "\n";
 
@@ -114,11 +121,11 @@ string Transpiler::translate_if_stmt(json &if_stmt){
                             fmt::arg("else_body", translate_body(if_stmt["else_body"])));
         _else += "\n";                                        
     }
-    return fmt::format(fmt::runtime(config->control["if_block"].Scalar()), \
-                        fmt::arg("condition", cond_expr), \
-                        fmt::arg("then_body", then_body), \
-                        fmt::arg("elseifs", elseifs), \
-                        fmt::arg("else", _else));
+    return insert.to_string() + fmt::format(fmt::runtime(config->control["if_block"].Scalar()), \
+                                        fmt::arg("condition", cond_expr), \
+                                        fmt::arg("then_body", then_body), \
+                                        fmt::arg("elseifs", elseifs), \
+                                        fmt::arg("else", _else));
 }
 
 /**
@@ -153,19 +160,20 @@ string Transpiler::translate_for_stmt(json &for_stmt){
     
     UDF_Type tmp_int_type(for_var_type, udf_str);
     string step_size = "1";
+    duckdb::CodeInsertionPoint insert(function_info->string_function_count);
     if(for_stmt.contains("step")){
-        step_size = translate_expr(for_stmt["step"]["PLpgSQL_expr"], &tmp_int_type, false);
+        step_size = translate_expr(for_stmt["step"]["PLpgSQL_expr"], insert, &tmp_int_type, false);
     }
     // todo: uncomment when trans_expr is done
     // ASSERT(stoi(step_size) > 0, "Step size should be positive.");
-    string start = translate_expr(for_stmt["lower"]["PLpgSQL_expr"], &tmp_int_type, false);
-    string end = translate_expr(for_stmt["upper"]["PLpgSQL_expr"], &tmp_int_type, false);
-    string output = fmt::format(fmt::runtime(config->control[is_reverse ? "revfor" : "for"].Scalar()), \
-                                fmt::arg("body", translate_body(for_stmt["body"])), \
-                                fmt::arg("start", start), \
-                                fmt::arg("end", end), \
-                                fmt::arg("name", tmp_var_name), \
-                                fmt::arg("step", step_size));
+    string start = translate_expr(for_stmt["lower"]["PLpgSQL_expr"], insert, &tmp_int_type, false);
+    string end = translate_expr(for_stmt["upper"]["PLpgSQL_expr"], insert, &tmp_int_type, false);
+    string output = insert.to_string() + fmt::format(fmt::runtime(config->control[is_reverse ? "revfor" : "for"].Scalar()), \
+                                                    fmt::arg("body", translate_body(for_stmt["body"])), \
+                                                    fmt::arg("start", start), \
+                                                    fmt::arg("end", end), \
+                                                    fmt::arg("name", tmp_var_name), \
+                                                    fmt::arg("step", step_size));
     // clean all temporary variables                       
     function_info->func_vars.erase(tmp_var_name);
     if(prev_sub.compare("") == 0){
@@ -179,10 +187,11 @@ string Transpiler::translate_for_stmt(json &for_stmt){
 
 string Transpiler::translate_while_stmt(json &while_stmt){
     string body = translate_body(while_stmt["body"]);
-    string condition = translate_cond_stmt(while_stmt["cond"]);
-    return fmt::format(fmt::runtime(config->control["while"].Scalar()), \
-                        fmt::arg("body", body), \
-                        fmt::arg("condition", condition));
+    duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+    string condition = translate_cond_stmt(while_stmt["cond"], insert);
+    return insert.to_string() + fmt::format(fmt::runtime(config->control["while"].Scalar()), \
+                                            fmt::arg("body", body), \
+                                            fmt::arg("condition", condition));
 }
 
 string Transpiler::translate_exitcont_stmt(json &stmt){
@@ -207,9 +216,9 @@ string Transpiler::translate_body(json &body, UDF_Type *expected_type){
             output += translate_if_stmt(stmt["PLpgSQL_stmt_if"]);
         else if (stmt.contains("PLpgSQL_stmt_return"))
             output += translate_return_stmt(stmt["PLpgSQL_stmt_return"]);
-        else if (stmt.contains("PLpgSQL_expr"))
-            output += translate_expr(stmt["PLpgSQL_expr"], \
-                                     expected_type, false);
+        // else if (stmt.contains("PLpgSQL_expr"))
+        //     output += translate_expr(stmt["PLpgSQL_expr"], \
+        //                              expected_type, false);
         else if(stmt.contains("PLpgSQL_stmt_assign"))
             output += translate_assign_stmt(stmt["PLpgSQL_stmt_assign"]);
         else if(stmt.contains("PLpgSQL_stmt_loop"))
@@ -266,8 +275,9 @@ std::string Transpiler::get_function_vars(json &datums, string &udf_str){
         }
         else{
             if(var.contains("default_val")){
-                string query_result = translate_expr(var["default_val"]["PLpgSQL_expr"], &var_info.type, false);
-                vars_init += fmt::format("{} {} = {};\n", var_info.type.get_cpp_type(), name, query_result);
+                duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+                string query_result = translate_expr(var["default_val"]["PLpgSQL_expr"], insert, &var_info.type, false);
+                vars_init += insert.to_string() + fmt::format("{} {} = {};\n", var_info.type.get_cpp_type(), name, query_result);
                 var_info.init = true;
                 function_info->func_vars[name] = var_info;
             }   
@@ -316,9 +326,11 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
 
     string vector_create = "";
     if(function_info->string_function_count > 0){
+        vector_create = fmt::format(fmt::runtime(config->function["vector_create"].Scalar()), \
+                                    fmt::arg("vector_count", function_info->string_function_count));
         for(int i=0;i<function_info->string_function_count;i++){
-            vector_create += fmt::format("Vector &{}", );
-            vector_create += "\n";
+            subfunc_args += fmt::format("tmp_chunk.data[{}], ", i);
+            fbody_args += fmt::format("Vector &tmp_vec{}, ", i);
         }
     }
 
@@ -333,6 +345,7 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
                                             fmt::arg("function_name", function_info->func_name), \
                                             fmt::arg("function_args", function_args), \
                                             fmt::arg("arg_indexes", arg_indexes), \
+                                            fmt::arg("vector_create", vector_create), \
                                             fmt::arg("subfunc_args", subfunc_args)));
 
     // string decl = fmt::format(fmt::runtime(config->function["func_dec"].Scalar()), \
