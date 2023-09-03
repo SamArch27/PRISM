@@ -28,6 +28,7 @@ fshell2: |-
 
     // the extraction of function arguments
     {function_args}
+    {vector_create}
 
     for (int base_idx = 0; base_idx < count; base_idx++) {{
       {arg_indexes}
@@ -44,6 +45,11 @@ fshell2: |-
 
     result.Verify(count);
   }}
+
+vector_create: |-
+  DataChunk tmp_chunk;
+  vector<LogicalType> tmp_types({vector_count}, LogicalType::VARCHAR);
+  tmp_chunk.Initialize(*context, tmp_types);
 
 fargs2: |-
     auto &{var_name} = args.data[{i}];

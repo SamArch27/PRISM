@@ -293,6 +293,7 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
     string subfunc_args = "";
     string fbody_args = "";
     vector<string> check_null;
+    auto actual_body = translate_action(ast["action"]);
     // int count = 0;
     for(auto &name : function_info->func_args_vec){
         function_args += fmt::format(fmt::runtime(config->function["fargs2"].Scalar()), \
@@ -313,12 +314,20 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
         check_null.push_back(name + "_null");
     }
 
+    string vector_create = "";
+    if(function_info->string_function_count > 0){
+        for(int i=0;i<function_info->string_function_count;i++){
+            vector_create += fmt::format("Vector &{}", );
+            vector_create += "\n";
+        }
+    }
+
     cc.global_functions.push_back(fmt::format(fmt::runtime(config->function["fbodyshell"].Scalar()), \
                                                 fmt::arg("function_name", function_info->func_name), \
                                                 fmt::arg("fbody_args", fbody_args), \
                                                 fmt::arg("check_null", vec_join(check_null, " or ")), \
                                                 fmt::arg("vars_init", vars_init), \
-                                                fmt::arg("action", translate_action(ast["action"]))));
+                                                fmt::arg("action", actual_body)));
 
     cc.global_functions.push_back(fmt::format(fmt::runtime(config->function["fshell2"].Scalar()), \
                                             fmt::arg("function_name", function_info->func_name), \
@@ -398,9 +407,9 @@ vector<string> Transpiler::run(){
         }
     }
     pg_query_free_plpgsql_parse_result(result);
-    // pg_query_free_parse_result(result);
-    // Optional, this ensures all memory is freed upon program exit (useful when running Valgrind)
-    pg_query_exit();
+    // Optional, this ensures all memory is freed upon program exit (useful when running Valgrind) 
+    // (should not be used here since this is a recurring call)
+    // pg_query_exit();
     vector<string> ret;
     // ret.push_back("This is the udf C++.");
     ret.push_back(vec_join(cc.global_macros, "\n")+"\n"+vec_join(cc.global_functions, "\n"));
