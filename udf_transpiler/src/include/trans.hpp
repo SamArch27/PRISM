@@ -1,4 +1,5 @@
 #pragma once
+#include "duckdb/main/connection.hpp"
 #include <vector>
 #include <iostream>
 #include <regex>
@@ -17,8 +18,8 @@ class Transpiler
 {
 public:
     // Transpiler();
-    Transpiler(string &&udf_str, YAMLConfig *config) : 
-        udf_str(udf_str), config(config){};
+    Transpiler(string &&udf_str, YAMLConfig *config, duckdb::Connection &connection) : 
+        udf_str(udf_str), config(config), connection(connection){};
     vector<string> run();
 
 private:
@@ -26,6 +27,7 @@ private:
     std::unique_ptr<FunctionInfo> function_info;
     string udf_str;
     YAMLConfig *config;
+    duckdb::Connection &connection;             /** connection to duckdb, used by code gen*/
     // Catalog *catalog;
 
 private:

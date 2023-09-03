@@ -1,6 +1,7 @@
 #pragma once
 #include "duckdb/planner/logical_operator.hpp"
 #include "duckdb/function/scalar_function.hpp"
+#include "duckdb/main/connection.hpp"
 #include "utils.hpp"
 
 namespace duckdb
@@ -18,8 +19,11 @@ private:
 
 class LogicalOperatorCodeGenerator : public LogicalOperatorVisitor
 {
+private:
+    std::string res;
 public:
     void VisitOperator(duckdb::LogicalOperator &op) override;
+    std::string run(Connection &con, const std::string &query, const std::vector<pair<const std::string &, const VarInfo &>> &vars);
 };
 
 template <>

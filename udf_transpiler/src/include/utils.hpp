@@ -29,6 +29,12 @@ using namespace std;
         std::terminate();                                                                                        \
     } while (false)
 
+#define EXCEPTION(message)                                                                                   \
+    do                                                                                                               \
+    {                                                                                                                \
+        std::cerr << "Exception: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
+        throw exception();                                                                                      \
+    } while (false)
 template <typename T>
 std::string vec_join(std::vector<T> &vec, std::string sep){
     std::string result = "";
@@ -126,7 +132,7 @@ public:
 
     VarInfo &get_var_info(const string &var_name){
         if(func_vars.find(var_name) != func_vars.end()){
-            if(tmp_var_substitutes.contains(var_name)){
+            if(tmp_var_substitutes.count(var_name)){
                 return func_vars[tmp_var_substitutes[var_name]];
             }
             return func_vars[var_name];
@@ -138,6 +144,21 @@ public:
             ERROR(fmt::format("Variable {} not found.", var_name));
         }
     }
+
+    vector<pair<const string &, const VarInfo &>> get_vars(){
+        vector<pair<const string &, const VarInfo &>> ret;
+        for(auto &var : func_vars){
+            if(tmp_var_substitutes.count(var.first)) continue;
+            // cout<<var.first<<" "<<var.second.type.duckdb_type<<endl;
+            ret.push_back({var.first, var.second});
+        }
+        for(auto &var : func_args){
+            // cout<<var.first<<" "<<var.second.type.duckdb_type<<endl;
+            ret.push_back({var.first, var.second});
+        }
+        return ret;
+    }
+
 };
 
 class YAMLConfig

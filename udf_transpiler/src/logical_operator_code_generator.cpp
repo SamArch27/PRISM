@@ -163,10 +163,38 @@ std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp, std::
     }
 }
 
+/**
+ * traverse the logical operator tree and generate the code into member res
+ *
+*/
 void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
     ASSERT(op.expressions.size() == 1, "Expression of the root operator should be 1.");
     std::string insert;
-    std::string ret = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
-    std::cout<<ret<<std::endl;
+    res = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
+    // std::cout<<ret<<std::endl;
+    return;
+}
+
+std::string LogicalOperatorCodeGenerator::run(Connection &con, const std::string &query, const std::vector<pair<const std::string &, const VarInfo &>> &vars){
+    std::string create_stmt = "create table tmp1 (";
+    for(auto &var : vars){
+        create_stmt += var.first + " " + var.second.type.duckdb_type + ", ";
+    }
+    create_stmt = create_stmt.substr(0, create_stmt.size()-2);
+    create_stmt += ")";
+    // cout<<create_stmt<<endl;
+    auto create_res = con.Query(create_stmt);
+    if(create_res->HasError()){
+        EXCEPTION(create_res->GetError());
+    }
+    // auto query_res = con.Query()
+    auto context = con.context.get();
+    context->config.enable_optimizer = false;
+    cout<<query<<endl;
+    auto plan = context->ExtractPlan(query+" from tmp1");
+    VisitOperator(*plan);
+    con.Query("drop table tmp1");
+    cout<<"query end"<<endl;
+    return res;
 }
 } // namespace duckdb

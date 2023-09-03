@@ -11,7 +11,7 @@
 #include "duckdb/planner/binder.hpp"
 #include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
 #include "duckdb/main/relation/query_relation.hpp"
-#include "logical_operator_printer.hpp"
+// #include "logical_operator_code_generator.hpp"
 #include <iostream>
 #include <fstream>
 #include <stdio.h>
@@ -72,7 +72,8 @@ namespace duckdb
 			return "select 'Transpilation Failed.';";
 		}
 		YAMLConfig config;
-		Transpiler transpiler(buffer.str(), &config);
+		Connection con(*db_instance);
+		Transpiler transpiler(buffer.str(), &config, con);
 		// std::vector<std::string> ret = transpile_plpgsql_udf_str(buffer.str());
 		std::vector<std::string> ret = transpiler.run();
 		cout<<ret[0]<<endl;

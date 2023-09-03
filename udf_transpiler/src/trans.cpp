@@ -1,4 +1,6 @@
 #include "trans.hpp"
+#include "logical_operator_code_generator.hpp"
+using namespace std;
 using json = nlohmann::json;
 
 /**
@@ -25,16 +27,23 @@ string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool qu
         string lvalue;
         string rvalue;
         parse_assignment(query, lvalue, rvalue);
+        
         // QueryTranspiler query_transpiler(function_info.get(), rvalue, expected_type, config, catalog);
         // result = query_transpiler.run();
+        
+        duckdb::LogicalOperatorCodeGenerator code_generator;
+        result = code_generator.run(connection, "select " + rvalue, function_info->get_vars());
     }
     else{
         // QueryTranspiler query_transpiler(function_info.get(), query, expected_type, config, catalog);
         // result = query_transpiler.run();
+        duckdb::LogicalOperatorCodeGenerator code_generator;
+        // string quer
+        result = code_generator.run(connection, "select " + query.get<string>(), function_info->get_vars());
     }
-    cout<<result<<endl;
-    return fmt::format("[Unresolved Query: {}]", query.dump());
-    // return query;
+    // cout<<result<<endl;
+    // return fmt::format("[Unresolved Query: {}]", query.dump());
+    return result;
 }
 
 string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool query_is_assignment = false){
@@ -42,7 +51,7 @@ string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool quer
         return translate_query(expr["query"], expected_type, query_is_assignment);
     }
     else{
-        ERROR(fmt::format("Unsupport PLpgSQL_expr: {}", expr));
+        EXCEPTION(fmt::format("Unsupport PLpgSQL_expr: {}", expr.dump()));
     }
     return "";
 }
@@ -67,7 +76,7 @@ string Transpiler::translate_return_stmt(json &stmt){
 string Transpiler::translate_cond_stmt(json &cond_stmt){
     ASSERT(cond_stmt.contains("PLpgSQL_expr"), "cond stmt should contain PLpgSQL_expr.");
     string tmp = "BOOL";
-    UDF_Type cond_type(tmp, udf_str);
+    UDF_Type cond_type(tmp);
     return translate_expr(cond_stmt["PLpgSQL_expr"], &cond_type);
 }
 
@@ -271,6 +280,9 @@ std::string Transpiler::get_function_vars(json &datums, string &udf_str){
     return vars_init;
 }
 
+/**
+ * return of this function is not used
+*/
 vector<string> Transpiler::translate_function(json &ast, string &udf_str){
     string vars_init = get_function_vars(ast["datums"], udf_str);
     // for(auto i : function_info->func_args){
@@ -305,7 +317,8 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
                                             fmt::arg("function_args", function_args), \
                                             fmt::arg("arg_indexes", arg_indexes), \
                                             fmt::arg("subfunc_args", subfunc_args));
-    std::cout<<output<<std::endl;
+    // std::cout<<output<<std::endl;
+    cc.global_functions.push_back(output);
     
     cc.global_functions.push_back(fmt::format(fmt::runtime(config->function["fbodyshell"].Scalar()), \
                                                 fmt::arg("function_name", function_info->func_name), \
@@ -365,7 +378,7 @@ vector<string> Transpiler::run(){
         printf("error: %s at %d\n", result.error->message, result.error->cursorpos);
         ERROR(fmt::format("Error when parsing the plpgsql: {}", result.error->message));
     }
-    printf("%s\n", result.plpgsql_funcs);
+    // printf("%s\n", result.plpgsql_funcs);
     json ast = json::parse(result.plpgsql_funcs);
     ASSERT(return_types.size() >= ast.size(), "Return type not specified for all functions");
     ASSERT(func_names.size() >= ast.size(), "Function name not specified for all functions");
