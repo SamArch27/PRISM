@@ -353,11 +353,16 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
     //                                         fmt::arg("function_args", args_str), \
     //                                         fmt::arg("initializations", ""));
 
-    // string fcreate = fmt::format(fmt::runtime(config->function["fcreate"].Scalar()), \
-    //                                         fmt::arg("duck_ret_type", function_info->func_return_type.get_duckdb_type()), \
-    //                                         fmt::arg("function_args", args_str), \
-    //                                         fmt::arg("initializations", ""));                                        
+    vector<string> args_logical_types;
+    for(auto &arg : function_info->func_args_vec){
+        args_logical_types.push_back(function_info->func_args[arg].type.get_duckdb_type());
+    }
+    string fcreate = fmt::format(fmt::runtime(config->function["fcreate"].Scalar()), \
+                                            fmt::arg("function_name", function_info->func_name), \
+                                            fmt::arg("return_logical_type", function_info->func_return_type.get_duckdb_type()), \
+                                            fmt::arg("args_logical_types", vec_join(args_logical_types, ", ")));                                        
     vector<string> ret;
+    ret.push_back(fcreate);
     return ret;                                   
 }
 
@@ -409,14 +414,14 @@ vector<string> Transpiler::run(){
     //                                             fmt::arg("vector_size", 2048));
     // cc.global_macros.push_back(code);
     cc.query_macro = true;
+    vector<string> function_regs;
     for(size_t i=0;i<ast.size();i++){
         if(ast[i].contains("PLpgSQL_function")){
             function_info = std::make_unique<FunctionInfo>();
             function_info->func_name = func_names[i];
             function_info->func_return_type = UDF_Type(return_types[i], udf_str);
             vector<string> tmp_ret = translate_function(ast[i]["PLpgSQL_function"], udf_str);
-            // std::cout<<function_info->func_return_type.duckdb_type<<std::endl;
-
+            function_regs.push_back(tmp_ret[0]);
         }
     }
     pg_query_free_plpgsql_parse_result(result);
@@ -426,7 +431,7 @@ vector<string> Transpiler::run(){
     vector<string> ret;
     // ret.push_back("This is the udf C++.");
     ret.push_back(vec_join(cc.global_macros, "\n")+"\n"+vec_join(cc.global_functions, "\n"));
-    ret.push_back("This is the udf register.");
-    ret.push_back("This is the declaration.");
+    ret.push_back("============ This is the udf registers. =========");
+    ret.push_back(vec_join(function_regs, "\n"));
     return ret;
 }

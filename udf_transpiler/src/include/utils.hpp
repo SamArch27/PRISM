@@ -79,7 +79,7 @@ public:
 
     string get_duckdb_type()
     {
-        return "duckdb::LogicalType::" + duckdb_type;
+        return "LogicalType::" + duckdb_type;
     }
 
     string get_cpp_type();
