@@ -29,7 +29,7 @@ using namespace duckdb;
 template <typename S, typename T, typename op>
 inline T NumericCastHelper(S input) {
     T output;
-    op::Operation<T, S>(input, output);
+    op::template Operation<T, S>(input, output);
     return output;
 }
 
