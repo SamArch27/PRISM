@@ -248,7 +248,7 @@ std::string LogicalOperatorCodeGenerator::run(Connection &con, const std::string
     }
     // auto query_res = con.Query()
     auto context = con.context.get();
-    // context->config.enable_optimizer = false;
+    context->config.enable_optimizer = false;
     // cout<<query<<endl;
     auto plan = context->ExtractPlan(query+" from tmp1");
     VisitOperator(*plan, insert);

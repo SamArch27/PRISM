@@ -150,7 +150,7 @@ namespace duckdb
 		double spending2 = v1.GetValueUnsafe<double>();
 		double increase;
 
-		if (true)
+		if (LessThan::Operation(spending1, spending2))
 		{
 			increase = -1;
 		}
@@ -210,10 +210,10 @@ namespace duckdb
 		int32_t numsalesfromweb = v2.GetValueUnsafe<int32_t>();
 		string_t maxChannel;
 
-		if (true)
+		if (GreaterThan::Operation(numsalesfromstore, numsalesfromcatalog))
 		{
 			maxChannel = "Store";
-			if (true)
+			if (GreaterThan::Operation(numsalesfromweb, numsalesfromstore))
 			{
 				maxChannel = "Web";
 			}
@@ -222,7 +222,7 @@ namespace duckdb
 		else
 		{
 			maxChannel = "Catalog";
-			if (true)
+			if (GreaterThan::Operation(numsalesfromweb, numsalesfromcatalog))
 			{
 				maxChannel = "Web";
 			}
@@ -282,27 +282,27 @@ namespace duckdb
 		int32_t incomeband = v0.GetValueUnsafe<int32_t>();
 		string_t cLevel;
 
-		if (true)
+		if ((GreaterThanEquals::Operation(incomeband, 0) && LessThanEquals::Operation(incomeband, 3)))
 		{
 			cLevel = "low";
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(incomeband, 4) && LessThanEquals::Operation(incomeband, 7)))
 		{
 			cLevel = "lowerMiddle";
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(incomeband, 8) && LessThanEquals::Operation(incomeband, 11)))
 		{
 			cLevel = "upperMiddle";
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(incomeband, 12) && LessThanEquals::Operation(incomeband, 16)))
 		{
 			cLevel = "high";
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(incomeband, 17) && LessThanEquals::Operation(incomeband, 20)))
 		{
 			cLevel = "affluent";
 		}
@@ -353,21 +353,21 @@ namespace duckdb
 		int32_t numstore = v1.GetValueUnsafe<int32_t>();
 		int32_t numcat = v2.GetValueUnsafe<int32_t>();
 
-		if (true)
+		if ((GreaterThanEquals::Operation(numweb, numstore) && GreaterThanEquals::Operation(numweb, numcat)))
 		{
 			result = Value("web");
 			result.GetTypeMutable() = LogicalType::VARCHAR;
 			return;
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(numstore, numweb) && GreaterThanEquals::Operation(numstore, numcat)))
 		{
 			result = Value("store");
 			result.GetTypeMutable() = LogicalType::VARCHAR;
 			return;
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(numcat, numstore) && GreaterThanEquals::Operation(numcat, numweb)))
 		{
 			result = Value("Catalog");
 			result.GetTypeMutable() = LogicalType::VARCHAR;
@@ -431,15 +431,15 @@ namespace duckdb
 		double numcat = v2.GetValueUnsafe<double>();
 		string_t retValue;
 
-		if (true)
+		if ((GreaterThanEquals::Operation(numweb, numstore) && GreaterThanEquals::Operation(numweb, numcat)))
 		{
 			retValue = "web";
 		}
-		else if (true)
+		else if ((GreaterThanEquals::Operation(numstore, numweb) && GreaterThanEquals::Operation(numstore, numcat)))
 		{
 			retValue = "store";
 		}
-		else if (true)
+		else if ((GreaterThanEquals::Operation(numcat, numstore) && GreaterThanEquals::Operation(numcat, numweb)))
 		{
 			retValue = "Catalog";
 		}
@@ -468,7 +468,6 @@ namespace duckdb
 		numstore.ToUnifiedFormat(count, numstore_data);
 		auto &numcat = args.data[2];
 		auto numcat_type = numcat.GetVectorType();
-
 		UnifiedVectorFormat numcat_data;
 		numcat.ToUnifiedFormat(count, numcat_data);
 
@@ -506,7 +505,7 @@ namespace duckdb
 		int32_t cnt2 = v2.GetValueUnsafe<int32_t>();
 		string_t man;
 
-		if (true)
+		if ((GreaterThan::Operation(cnt1, 0) && GreaterThan::Operation(cnt2, 0)))
 		{
 			man = m;
 		}
@@ -569,7 +568,7 @@ namespace duckdb
 		// the declaration / initialization of local variables
 		double netprofit = v0.GetValueUnsafe<double>();
 
-		if (true)
+		if (GreaterThan::Operation(netprofit, NumericCastHelper<int32_t, double, NumericTryCast>(0)))
 		{
 			result = Value::INTEGER(1);
 			return;
@@ -623,21 +622,21 @@ namespace duckdb
 		// the declaration / initialization of local variables
 		int32_t numstates = v0.GetValueUnsafe<int32_t>();
 
-		if (true)
+		if (GreaterThanEquals::Operation(numstates, 4))
 		{
 			result = Value("highly correlated");
 			result.GetTypeMutable() = LogicalType::VARCHAR;
 			return;
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(numstates, 2) && LessThanEquals::Operation(numstates, 3)))
 		{
 			result = Value("somewhat correlated");
 			result.GetTypeMutable() = LogicalType::VARCHAR;
 			return;
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(numstates, 0) && LessThanEquals::Operation(numstates, 1)))
 		{
 			result = Value("no correlation");
 			result.GetTypeMutable() = LogicalType::VARCHAR;
@@ -688,21 +687,21 @@ namespace duckdb
 		// the declaration / initialization of local variables
 		int32_t numstates = v0.GetValueUnsafe<int32_t>();
 
-		if (true)
+		if (GreaterThanEquals::Operation(numstates, 4))
 		{
 			result = Value("highly correlated");
 			result.GetTypeMutable() = LogicalType::VARCHAR;
 			return;
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(numstates, 2) && LessThanEquals::Operation(numstates, 3)))
 		{
 			result = Value("somewhat correlated");
 			result.GetTypeMutable() = LogicalType::VARCHAR;
 			return;
 		}
 
-		if (true)
+		if ((GreaterThanEquals::Operation(numstates, 0) && LessThanEquals::Operation(numstates, 1)))
 		{
 			result = Value("no correlation");
 			result.GetTypeMutable() = LogicalType::VARCHAR;
