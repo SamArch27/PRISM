@@ -375,13 +375,13 @@ BoundCastInfo DefaultCasts::StringCastSwitch(BindCastInput &input, const Logical
 		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, timestamp_t, duckdb::TryCastErrorMessage>, ScalarFunctionInfo("TryCastErrorMessage::Operation", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::ErrorCastWrapper}));
 	case LogicalTypeId::TIMESTAMP_NS:
 		return BoundCastInfo(
-		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampNS>, ScalarFunctionInfo("TryCastToTimestampNS", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
+		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampNS>, ScalarFunctionInfo("TryCastToTimestampNS::Operation", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::TIMESTAMP_SEC:
 		return BoundCastInfo(
-		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampSec>, ScalarFunctionInfo("TryCastToTimestampSec", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
+		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampSec>, ScalarFunctionInfo("TryCastToTimestampSec::Operation", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::TIMESTAMP_MS:
 		return BoundCastInfo(
-		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampMS>, ScalarFunctionInfo("TryCastToTimestampMS", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
+		    &VectorCastHelpers::TryCastStrictLoop<string_t, timestamp_t, duckdb::TryCastToTimestampMS>, ScalarFunctionInfo("TryCastToTimestampMS::Operation", {"string_t", "timestamp_t"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	// udf_todo
 	case LogicalTypeId::BLOB:
 		return BoundCastInfo(&VectorCastHelpers::TryCastStringLoop<string_t, string_t, duckdb::TryCastToBlob>);

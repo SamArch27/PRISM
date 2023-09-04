@@ -106,7 +106,7 @@ add_dependencies(${EXTENSION_NAME} pg_parser)
 # add_dependencies(${EXTENSION_NAME} yaml-cpp)
 target_link_libraries(${EXTENSION_NAME} PRIVATE ${PG_PARSER_ROOT}/libpg_query.a ${TRANSPILER_OBJECT_FILES})
 set(PARAMETERS "-warnings")
-build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${all_SRCS} ${PG_PARSER_ROOT}/libpg_query.a)
+build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${all_SRCS})
 
 # file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/templates DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/templates)
 

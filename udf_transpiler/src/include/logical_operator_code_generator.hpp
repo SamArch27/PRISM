@@ -32,7 +32,7 @@ public:
         return "Not implemented yet!";
     }
 private:
-    static void SpecialCaseHandler(const ScalarFunctionInfo &function_info, const std::vector<Expression *> &children, CodeInsertionPoint &insert, std::list<std::string> &args);
+    static void SpecialCaseHandler(const ScalarFunctionInfo &function_info, string &function_name, std::vector<std::string> &template_args, const std::vector<Expression *> &children, CodeInsertionPoint &insert, std::list<std::string> &args);
     static std::string CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info, const std::vector<Expression *> &children, CodeInsertionPoint &insert);
 };
 

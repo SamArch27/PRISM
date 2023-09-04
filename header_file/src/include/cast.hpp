@@ -23,6 +23,19 @@ using namespace duckdb;
 #include "duckdb/common/operator/decimal_cast_operators.hpp"
 
 /**
+ * A helper function to expose target from a typical numeric cast
+ * can accept operator: NumericTryCast, TryCast, etc
+*/
+template <typename S, typename T, typename op>
+inline T NumericCastHelper(S input) {
+    T output;
+    op::Operation<T, S>(input, output);
+    return output;
+}
+
+// udf_todo
+
+/**
  * decimal casts
  * Cannot inline
  * TryCastFromDecimal

@@ -19,10 +19,14 @@
 
 namespace duckdb {
 
+string get_struct_name(const string &struct_operation){
+    return struct_operation.substr(0, struct_operation.find("::"));
+}
+
 /**
  * currently only support vector front and back
 */
-void BoundExpressionCodeGenerator::SpecialCaseHandler(const ScalarFunctionInfo &function_info, const std::vector<Expression *> &children, CodeInsertionPoint &insert, std::list<std::string> &args){
+void BoundExpressionCodeGenerator::SpecialCaseHandler(const ScalarFunctionInfo &function_info, string &function_name, std::vector<std::string> &template_args, const std::vector<Expression *> &children, CodeInsertionPoint &insert, std::list<std::string> &args){
     for(auto special_case : function_info.special_handling){
         switch (special_case)
         {
@@ -36,12 +40,16 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(const ScalarFunctionInfo &
             // udf_todo
             break;
         case ScalarFunctionInfo::VectorBackWrapper:
-            // udf_todo
-            args.push_front(insert.new_vector());
+            args.push_back(insert.new_vector());
             break;
         case ScalarFunctionInfo::VectorFrontWrapper:
+            args.push_front(insert.new_vector());
+            break;
+        case ScalarFunctionInfo::NumericCastWrapper:
             // udf_todo
-            args.push_back(insert.new_vector());
+            // insert.lines.push_back(fmt::format("auto {} = {};", args.back(), args.back()));
+            function_name = "NumericCastHelper";
+            template_args.push_back(get_struct_name(function_info.cpp_name));
             break;
         default:
             break;
@@ -52,21 +60,25 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(const ScalarFunctionInfo &
 }
 
 std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info, const std::vector<Expression *> &children, CodeInsertionPoint &insert){
+    std::list<std::string> args;
+    for(auto &child : children){
+        args.push_back(Transpile(*child, insert));
+    }
+    auto template_args = function_info.template_args;
     std::string ret = function_info.cpp_name;
-    if(function_info.template_args.size() > 0){
+    // change the meta info for special cases
+    SpecialCaseHandler(function_info, ret, template_args, children, insert, args);
+
+    // should only use the argument of the SpecialCaseHandler function, no more
+    if(template_args.size() > 0){
         ret += "<";
-        for(auto &arg : function_info.template_args){
+        for(auto &arg : template_args){
             ret += arg + ", ";
         }
         ret = ret.substr(0, ret.size()-2);
         ret += ">";
     }
     ret += "(";
-    std::list<std::string> args;
-    for(auto &child : children){
-        args.push_back(Transpile(*child, insert));
-    }
-    SpecialCaseHandler(function_info, children, insert, args);
     ret += list_join(args, ", ");
     ret += ")";
     return ret;
@@ -236,7 +248,7 @@ std::string LogicalOperatorCodeGenerator::run(Connection &con, const std::string
     }
     // auto query_res = con.Query()
     auto context = con.context.get();
-    context->config.enable_optimizer = false;
+    // context->config.enable_optimizer = false;
     // cout<<query<<endl;
     auto plan = context->ExtractPlan(query+" from tmp1");
     VisitOperator(*plan, insert);

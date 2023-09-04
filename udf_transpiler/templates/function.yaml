@@ -39,7 +39,7 @@ fshell2: |-
         FlatVector::SetNull(result, base_idx, true);
       }}
       else {{
-        result.SetValue(base_idx, temp_result);
+        result.SetValue(base_idx, std::move(temp_result));
       }}
     }}
 
@@ -102,3 +102,6 @@ func_dec: |-
 
 fcreate: |-
   con->CreateVectorizedFunction("{func_name}", {{{duck_arg_types}}}, {duck_ret_type}, &{func_name});
+
+numeric_cast_wrapper: |-
+  

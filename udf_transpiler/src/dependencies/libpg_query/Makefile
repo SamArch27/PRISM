@@ -23,9 +23,9 @@ ifeq ($(shell uname -s), Darwin)
 	SOLIB = lib$(TARGET).dylib
 	SONAME = lib$(TARGET).$(SO_VERSION).dylib
 	SOLIBVER = lib$(TARGET).$(SO_VERSION).$(VERSION_PATCH).dylib
-	SOFLAG = -install_name -target x86_64-darwin
-	override CFLAGS += -target x86_64-darwin
-	CXXFLAGS += -target x86_64-darwin
+	SOFLAG = -install_name -target arm64-darwin
+	override CFLAGS += -target arm64-darwin
+	CXXFLAGS += -target arm64-darwin
 else
 	SOLIB = lib$(TARGET).so
 	SONAME = $(SOLIB).$(SO_VERSION)

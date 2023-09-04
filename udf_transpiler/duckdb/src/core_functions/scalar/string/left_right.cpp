@@ -53,12 +53,12 @@ static void LeftFunction(DataChunk &args, ExpressionState &state, Vector &result
 
 ScalarFunction LeftFun::GetFunction() {
 	return ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                      LeftFunction<LeftRightUnicode>, ScalarFunctionInfo("LeftScalarFunction<LeftRightUnicode>", {ScalarFunctionInfo::VectorFrontWrapper}));
+	                      LeftFunction<LeftRightUnicode>, ScalarFunctionInfo("LeftScalarFunction<LeftRightUnicode>", {ScalarFunctionInfo::VectorFrontWrapper}, true));
 }
 
 ScalarFunction LeftGraphemeFun::GetFunction() {
 	return ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                      LeftFunction<LeftRightGrapheme>, ScalarFunctionInfo("LeftScalarFunction<LeftRightGrapheme>", {ScalarFunctionInfo::VectorFrontWrapper}));
+	                      LeftFunction<LeftRightGrapheme>, ScalarFunctionInfo("LeftScalarFunction<LeftRightGrapheme>", {ScalarFunctionInfo::VectorFrontWrapper}, true));
 }
 
 template <class OP>
@@ -89,12 +89,12 @@ static void RightFunction(DataChunk &args, ExpressionState &state, Vector &resul
 
 ScalarFunction RightFun::GetFunction() {
 	return ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                      RightFunction<LeftRightUnicode>, ScalarFunctionInfo("RightScalarFunction<LeftRightUnicode>", {ScalarFunctionInfo::VectorBackWrapper}));
+	                      RightFunction<LeftRightUnicode>, ScalarFunctionInfo("RightScalarFunction<LeftRightUnicode>", {ScalarFunctionInfo::VectorBackWrapper}, true));
 }
 
 ScalarFunction RightGraphemeFun::GetFunction() {
 	return ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                      RightFunction<LeftRightGrapheme>, ScalarFunctionInfo("RightScalarFunction<LeftRightGrapheme>", {ScalarFunctionInfo::VectorBackWrapper}));
+	                      RightFunction<LeftRightGrapheme>, ScalarFunctionInfo("RightScalarFunction<LeftRightGrapheme>", {ScalarFunctionInfo::VectorBackWrapper}, true));
 }
 
 } // namespace duckdb
