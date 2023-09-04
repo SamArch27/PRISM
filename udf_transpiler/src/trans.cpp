@@ -69,6 +69,7 @@ string Transpiler::translate_assign_stmt(json &assign){
 }
 
 string Transpiler::translate_return_stmt(json &stmt){
+    // cout<<stmt.dump()<<endl;
     ASSERT(stmt.size() == 2, "Return_stmt should only have lineno and expr.");
     ASSERT(stmt["expr"].contains("PLpgSQL_expr"), "Return_stmt expression should have PLpgSQL_expr.");
     duckdb::CodeInsertionPoint insert(function_info->string_function_count);
