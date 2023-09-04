@@ -131,7 +131,7 @@ ScalarFunctionSet TrimFun::GetFunctions() {
 						ScalarFunctionInfo("TrimOperator<true, true>::Operation", {"string_t", "string_t"}, {ScalarFunctionInfo::VectorBackWrapper})));
 
 	trim.AddFunction(ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                BinaryTrimFunction<true, true>, ScalarFunctionInfo("BinaryTrimOperator<true, true>", {ScalarFunctionInfo::VectorBackWrapper}, true)));
+	                                BinaryTrimFunction<true, true>, ScalarFunctionInfo("BinaryTrimOperator<true, true>", {ScalarFunctionInfo::VectorBackWrapper}, true, true)));
 	return trim;
 }
 
@@ -139,7 +139,7 @@ ScalarFunctionSet LtrimFun::GetFunctions() {
 	ScalarFunctionSet ltrim;
 	ltrim.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, UnaryTrimFunction<true, false>, ScalarFunctionInfo("TrimOperator<true, false>::Operation", {"string_t", "string_t"}, {ScalarFunctionInfo::VectorBackWrapper})));
 	ltrim.AddFunction(ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                 BinaryTrimFunction<true, false>, ScalarFunctionInfo("BinaryTrimOperator<true, false>", {ScalarFunctionInfo::VectorBackWrapper}, true)));
+	                                 BinaryTrimFunction<true, false>, ScalarFunctionInfo("BinaryTrimOperator<true, false>", {ScalarFunctionInfo::VectorBackWrapper}, true, true)));
 	return ltrim;
 }
 
@@ -148,7 +148,7 @@ ScalarFunctionSet RtrimFun::GetFunctions() {
 	rtrim.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, UnaryTrimFunction<false, true>, ScalarFunctionInfo("TrimOperator<false, true>::Operation", {"string_t", "string_t"}, {ScalarFunctionInfo::VectorBackWrapper})));
 
 	rtrim.AddFunction(ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                 BinaryTrimFunction<false, true>, ScalarFunctionInfo("BinaryTrimOperator<false, true>", {ScalarFunctionInfo::VectorBackWrapper}, true)));
+	                                 BinaryTrimFunction<false, true>, ScalarFunctionInfo("BinaryTrimOperator<false, true>", {ScalarFunctionInfo::VectorBackWrapper}, true, true)));
 	return rtrim;
 }
 

@@ -53,12 +53,12 @@ static void LeftFunction(DataChunk &args, ExpressionState &state, Vector &result
 
 ScalarFunction LeftFun::GetFunction() {
 	return ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                      LeftFunction<LeftRightUnicode>, ScalarFunctionInfo("LeftScalarFunction<LeftRightUnicode>", {ScalarFunctionInfo::VectorFrontWrapper}, true));
+	                      LeftFunction<LeftRightUnicode>, ScalarFunctionInfo("LeftScalarFunction<LeftRightUnicode>", {ScalarFunctionInfo::VectorFrontWrapper}, true, true));
 }
 
 ScalarFunction LeftGraphemeFun::GetFunction() {
 	return ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                      LeftFunction<LeftRightGrapheme>, ScalarFunctionInfo("LeftScalarFunction<LeftRightGrapheme>", {ScalarFunctionInfo::VectorFrontWrapper}, true));
+	                      LeftFunction<LeftRightGrapheme>, ScalarFunctionInfo("LeftScalarFunction<LeftRightGrapheme>", {ScalarFunctionInfo::VectorFrontWrapper}, true, true));
 }
 
 template <class OP>
@@ -89,12 +89,12 @@ static void RightFunction(DataChunk &args, ExpressionState &state, Vector &resul
 
 ScalarFunction RightFun::GetFunction() {
 	return ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                      RightFunction<LeftRightUnicode>, ScalarFunctionInfo("RightScalarFunction<LeftRightUnicode>", {ScalarFunctionInfo::VectorBackWrapper}, true));
+	                      RightFunction<LeftRightUnicode>, ScalarFunctionInfo("RightScalarFunction<LeftRightUnicode>", {ScalarFunctionInfo::VectorBackWrapper}, true, true));
 }
 
 ScalarFunction RightGraphemeFun::GetFunction() {
 	return ScalarFunction({LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                      RightFunction<LeftRightGrapheme>, ScalarFunctionInfo("RightScalarFunction<LeftRightGrapheme>", {ScalarFunctionInfo::VectorBackWrapper}, true));
+	                      RightFunction<LeftRightGrapheme>, ScalarFunctionInfo("RightScalarFunction<LeftRightGrapheme>", {ScalarFunctionInfo::VectorBackWrapper}, true, true));
 }
 
 } // namespace duckdb
