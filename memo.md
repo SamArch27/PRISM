@@ -37,3 +37,6 @@ understand the whole thing
 import the local variables to the catalog
 reconstruct from the physical plan
 must base on duckdb's source code
+
+
+libpgquery macos arm or x86 switch

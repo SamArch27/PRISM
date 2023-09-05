@@ -184,6 +184,8 @@ public:
 
 bool is_const_or_var(string &expr, FunctionInfo &funtion_info, string &res);
 
+std::string get_var_name(const std::string &var_name);
+
 
 
 

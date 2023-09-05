@@ -32,7 +32,7 @@ string Transpiler::translate_query(json &query, duckdb::CodeInsertionPoint &inse
         // result = query_transpiler.run();
         // duckdb::CodeInsertionPoint insert(function_info->string_function_count);
         duckdb::LogicalOperatorCodeGenerator code_generator;
-        result += fmt::format("{} = ", lvalue);
+        result += fmt::format("{} = ", get_var_name(lvalue));
         result += code_generator.run(connection, "select " + rvalue, function_info->get_vars(), insert);
     }
     else{
@@ -254,11 +254,12 @@ std::string Transpiler::get_function_vars(json &datums, string &udf_str){
     std::string vars_init;
     ASSERT(datums.is_array(), "Datums is not an array.");
     bool scanning_func_args = true;
+    cout<<datums.dump()<<endl;
     for(size_t i=0;i<datums.size();i++){
         auto &datum = datums[i];
         ASSERT(datum.contains("PLpgSQL_var"), "Datum does not contain PLpgSQL_var.");
         auto var = datum["PLpgSQL_var"];
-        string name = var["refname"];
+        string name = get_var_name(var["refname"]);
         if(strcmp(name.c_str(), "found") == 0){
             scanning_func_args = false;
             continue;

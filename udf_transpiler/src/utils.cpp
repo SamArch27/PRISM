@@ -147,3 +147,12 @@ YAMLConfig::YAMLConfig(){
     function = YAML::LoadFile("templates/function.yaml");
     control = YAML::LoadFile("templates/control.yaml");
 }
+
+/**
+ * lowerize variable names
+*/
+std::string get_var_name(const std::string &var_name){
+    std::string result = var_name;
+    std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+    return result;
+}

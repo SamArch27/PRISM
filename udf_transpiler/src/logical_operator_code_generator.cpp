@@ -178,7 +178,7 @@ std::string BoundExpressionCodeGenerator::Transpile(const BoundConstantExpressio
 
 template <>
 std::string BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp, CodeInsertionPoint &insert){
-    return exp.GetName();
+    return get_var_name(exp.GetName());
 }
 
 template <>
