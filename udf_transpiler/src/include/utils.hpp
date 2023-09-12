@@ -59,34 +59,31 @@ static unordered_map<string, string> duckdb_to_cpp_type = {{"BOOLEAN", "bool"}, 
 
 class UDF_Type
 {
-public:
+private:
+    static constexpr int DEFAULT_WIDTH = 18;
+    static constexpr int DEFAULT_SCALE = 3;
+    // used for decimal
+    int width;
+    int scale;
     string duckdb_type;
-
-    static string resolve_type(string type_name, const string &udf_str);
     static void get_decimal_width_scale(string &duckdb_type, int &width, int &scale);
     static string get_decimal_int_type(int width, int scale);
+    void resolve_type(string type_name, const string &udf_str);
 
+public:
     UDF_Type(){};
-
     UDF_Type(const string &type_name){
-        duckdb_type = UDF_Type::resolve_type(type_name, "");
+        resolve_type(type_name, "");
     }
-
     UDF_Type(const string &type_name, const string &udf_str)
     {
-        duckdb_type = UDF_Type::resolve_type(type_name, udf_str);
+        resolve_type(type_name, udf_str);
     }
-
-    string get_duckdb_type()
-    {
-        return "LogicalType::" + duckdb_type;
-    }
-
-    string get_cpp_type();
-    
+    const string get_duckdb_type() const;
+    const string get_duckdb_logical_type() const;
+    const string get_cpp_type() const;
     string create_duckdb_value(const string &ret_name, const string &cpp_value);
-
-    bool is_unknown()
+    bool is_unknown() const
     {
         return strcmp(duckdb_type.c_str(), "UNKNOWN") == 0;
     }

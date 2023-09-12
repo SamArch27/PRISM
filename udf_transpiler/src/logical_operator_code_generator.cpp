@@ -96,7 +96,13 @@ std::string BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpressio
         return CodeGenScalarFunctionInfo(function_info, children, insert);
     }
     else{
-        throw Exception(fmt::format("Function {} does not support transpilation yet.", exp.function.name));
+        std::list<std::string> args;
+        for(auto &child : exp.children){
+            args.push_back(Transpile(*child, insert));
+        }
+        // ERROR(fmt::format("Function {} does not support transpilation yet.", exp.function.name));
+        return fmt::format("[{}({})->{}]", exp.GetName(), list_join(args, ", "), exp.return_type.ToString());
+        // throw Exception();
     }
 }
 
@@ -237,7 +243,7 @@ void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op, Co
 std::string LogicalOperatorCodeGenerator::run(Connection &con, const std::string &query, const std::vector<pair<const std::string &, const VarInfo &>> &vars, CodeInsertionPoint &insert){
     std::string create_stmt = "create table tmp1 (";
     for(auto &var : vars){
-        create_stmt += var.first + " " + var.second.type.duckdb_type + ", ";
+        create_stmt += var.first + " " + var.second.type.get_duckdb_type() + ", ";
     }
     create_stmt = create_stmt.substr(0, create_stmt.size()-2);
     create_stmt += ")";

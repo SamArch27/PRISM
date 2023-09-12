@@ -15,12 +15,8 @@ void Transpiler::parse_assignment(const string &query, string &lvalue, string &r
     rvalue = equal_match.suffix();
 }
 
-// todo
 string Transpiler::translate_query(json &query, duckdb::CodeInsertionPoint &insert, UDF_Type *expected_type, bool query_is_assignment = false){
     ASSERT(query.is_string(), "Query statement should be a string.");
-    // cout<<query<<endl;
-    // todo substitute variable
-    // todo query is assignment
     string result;
     if(query_is_assignment){
         ASSERT(expected_type == NULL, "In assignment, expected_type should be NULL.");
@@ -254,7 +250,7 @@ std::string Transpiler::get_function_vars(json &datums, string &udf_str){
     std::string vars_init;
     ASSERT(datums.is_array(), "Datums is not an array.");
     bool scanning_func_args = true;
-    cout<<datums.dump()<<endl;
+    // cout<<datums.dump()<<endl;
     for(size_t i=0;i<datums.size();i++){
         auto &datum = datums[i];
         ASSERT(datum.contains("PLpgSQL_var"), "Datum does not contain PLpgSQL_var.");
@@ -357,11 +353,11 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
 
     vector<string> args_logical_types;
     for(auto &arg : function_info->func_args_vec){
-        args_logical_types.push_back(function_info->func_args[arg].type.get_duckdb_type());
+        args_logical_types.push_back(function_info->func_args[arg].type.get_duckdb_logical_type());
     }
     string fcreate = fmt::format(fmt::runtime(config->function["fcreate"].Scalar()), \
                                             fmt::arg("function_name", function_info->func_name), \
-                                            fmt::arg("return_logical_type", function_info->func_return_type.get_duckdb_type()), \
+                                            fmt::arg("return_logical_type", function_info->func_return_type.get_duckdb_logical_type()), \
                                             fmt::arg("args_logical_types", vec_join(args_logical_types, ", ")));                                        
     vector<string> ret;
     ret.push_back(fcreate);
