@@ -51,6 +51,13 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(const ScalarFunctionInfo &
             function_name = "NumericCastHelper";
             template_args.push_back(get_struct_name(function_info.cpp_name));
             break;
+        case ScalarFunctionInfo::DecimalCastWrapper:
+            ASSERT(function_info.width_scale != std::make_pair(0,0), "DecimalCastWrapper should have width_scale set.");
+            function_name = "DecimalCastHelper";
+            template_args.push_back(get_struct_name(function_info.cpp_name));
+            args.push_back(std::to_string(function_info.width_scale.first));
+            args.push_back(std::to_string(function_info.width_scale.second));
+            break;
         default:
             break;
         }

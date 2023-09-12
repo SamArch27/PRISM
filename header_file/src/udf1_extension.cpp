@@ -157,7 +157,7 @@ namespace duckdb
 
 		else
 		{
-			increase = [(spending1 - spending2)(spending1, spending2)->DECIMAL(18, 3)];
+			increase = DecimalSubtractOverflowCheck::Operation<int64_t, int64_t, int64_t>(spending1, spending2);
 		}
 		result = Value::DECIMAL(increase, 18, 3);
 		return;
@@ -568,7 +568,7 @@ namespace duckdb
 		// the declaration / initialization of local variables
 		int64_t netprofit = v0.GetValueUnsafe<int64_t>();
 
-		if (GreaterThan::Operation(netprofit, TryCastToDecimal::Operation<int32_t, int64_t>(0)))
+		if (GreaterThan::Operation(netprofit, DecimalCastHelper<int32_t, int64_t, TryCastToDecimal>(0, 15, 2)))
 		{
 			result = Value::INTEGER(1);
 			return;
@@ -769,7 +769,7 @@ namespace duckdb
 															 LogicalType::BOOLEAN, isListDistinct);
 		ExtensionUtil::RegisterFunction(instance, isListDistinct_scalar_function);
 
-		auto udf12_scalar_function = ScalarFunction("udf12", {LogicalType::DOUBLE, LogicalType::DOUBLE}, LogicalType::DOUBLE, udf12);
+		auto udf12_scalar_function = ScalarFunction("udf12", {LogicalType::DECIMAL(18, 3), LogicalType::DECIMAL(18, 3)}, LogicalType::DECIMAL(18, 3), udf12);
 		ExtensionUtil::RegisterFunction(instance, udf12_scalar_function);
 		auto udf13_scalar_function = ScalarFunction("udf13", {LogicalType::INTEGER, LogicalType::INTEGER, LogicalType::INTEGER}, LogicalType::VARCHAR, udf13);
 		ExtensionUtil::RegisterFunction(instance, udf13_scalar_function);
@@ -777,11 +777,11 @@ namespace duckdb
 		ExtensionUtil::RegisterFunction(instance, udf15_scalar_function);
 		auto udf17_scalar_function = ScalarFunction("udf17", {LogicalType::INTEGER, LogicalType::INTEGER, LogicalType::INTEGER}, LogicalType::VARCHAR, udf17);
 		ExtensionUtil::RegisterFunction(instance, udf17_scalar_function);
-		auto udf18_scalar_function = ScalarFunction("udf18", {LogicalType::DOUBLE, LogicalType::DOUBLE, LogicalType::DOUBLE}, LogicalType::VARCHAR, udf18);
+		auto udf18_scalar_function = ScalarFunction("udf18", {LogicalType::DECIMAL(18, 3), LogicalType::DECIMAL(18, 3), LogicalType::DECIMAL(18, 3)}, LogicalType::VARCHAR, udf18);
 		ExtensionUtil::RegisterFunction(instance, udf18_scalar_function);
 		auto udf20b_scalar_function = ScalarFunction("udf20b", {LogicalType::VARCHAR, LogicalType::INTEGER, LogicalType::INTEGER}, LogicalType::VARCHAR, udf20b);
 		ExtensionUtil::RegisterFunction(instance, udf20b_scalar_function);
-		auto udf7_scalar_function = ScalarFunction("udf7", {LogicalType::DOUBLE}, LogicalType::INTEGER, udf7);
+		auto udf7_scalar_function = ScalarFunction("udf7", {LogicalType::DECIMAL(15, 2)}, LogicalType::INTEGER, udf7);
 		ExtensionUtil::RegisterFunction(instance, udf7_scalar_function);
 		auto udf9a_scalar_function = ScalarFunction("udf9a", {LogicalType::INTEGER}, LogicalType::VARCHAR, udf9a);
 		ExtensionUtil::RegisterFunction(instance, udf9a_scalar_function);

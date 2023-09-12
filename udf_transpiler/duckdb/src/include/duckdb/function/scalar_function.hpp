@@ -118,6 +118,10 @@ public:
 	 * if the function is a string function (not used)
 	*/
     bool if_string = false;
+	/**
+	 * additional parameters for the decimal casts to use
+	*/
+	std::pair<int, int> width_scale = {0, 0};
     /**
      * length of input_type should be the same as return_type because they are 
      * one to one mapping
@@ -126,12 +130,16 @@ public:
     // vector<LogicalType> return_type;
     DUCKDB_API ScalarFunctionInfo(){}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name) : cpp_name(cpp_name) {}
-	// DUCKDB_API ScalarFunctionInfo(std::string cpp_name, bool if_string) : cpp_name(cpp_name), if_string(if_string) {}
 	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args) : cpp_name(cpp_name), templated(true), template_args(template_args) {}
 	// DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, b) : cpp_name(cpp_name), templated(true), template_args(template_args), if_string(if_string) {}
-	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<SpecialValueHandling> special_handling, bool place_holder, bool place_holder2) : cpp_name(cpp_name), special_handling(special_handling) {}
+	// DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<SpecialValueHandling> special_handling, bool place_holder, bool place_holder2) : cpp_name(cpp_name), special_handling(special_handling) {}
 	// DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<SpecialValueHandling> special_handling, bool if_string) : cpp_name(cpp_name), special_handling(special_handling), if_string(if_string) {}
-	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, std::vector<SpecialValueHandling> special_handling) : cpp_name(cpp_name), templated(true), template_args(template_args), special_handling(special_handling) {}
+	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, std::vector<SpecialValueHandling> special_handling) : cpp_name(cpp_name), template_args(template_args), special_handling(special_handling) {
+		if(template_args.size() > 0) templated = true;
+	}
+	DUCKDB_API ScalarFunctionInfo(std::string cpp_name, std::vector<std::string> template_args, std::vector<SpecialValueHandling> special_handling, std::pair<int, int> width_scale) : cpp_name(cpp_name), template_args(template_args), special_handling(special_handling), width_scale(width_scale) {
+		if(template_args.size() > 0) templated = true;
+	}
 	// DUCKDB_API ScalarFunctionInfo(string cpp_name, bool templated = false, bool if_switch = false, bool default_null = true, bool if_string = false):
     //                         cpp_name(cpp_name), templated(templated), default_null(default_null), if_switch(if_switch), if_string(if_string){}
 	DUCKDB_API ScalarFunctionInfo &operator=(const ScalarFunctionInfo &other) {
@@ -142,6 +150,7 @@ public:
 		special_handling = other.special_handling;
 		if_switch = other.if_switch;
 		if_string = other.if_string;
+		width_scale = other.width_scale;
 		return *this;
 	}
 	DUCKDB_API ScalarFunctionInfo &operator=(ScalarFunctionInfo &&other) {
@@ -152,6 +161,7 @@ public:
 		special_handling = std::move(other.special_handling);
 		if_switch = other.if_switch;
 		if_string = other.if_string;
+		width_scale = other.width_scale;
 		return *this;
 	}
 	DUCKDB_API ScalarFunctionInfo(ScalarFunctionInfo &&other){

@@ -34,7 +34,7 @@ static BoundCastInfo InternalNumericCastSwitch(const LogicalType &source, const 
 	case LogicalTypeId::DOUBLE:
 		return BoundCastInfo(&VectorCastHelpers::TryCastLoop<SRC, double, duckdb::NumericTryCast>, ScalarFunctionInfo("NumericTryCast::Operation", {ScalarFunctionInfo::LogicalTypeIdToCppType(source.id()), "double"}, {ScalarFunctionInfo::NumericCastWrapper}));
 	case LogicalTypeId::DECIMAL:
-		return BoundCastInfo(&VectorCastHelpers::ToDecimalCast<SRC>, ScalarFunctionInfo("TryCastToDecimal::Operation", {ScalarFunctionInfo::LogicalTypeIdToCppType(source.id()), ScalarFunctionInfo::PhysicalTypeIdToCppType(target.InternalType())}, {ScalarFunctionInfo::DecimalCastWrapper}));
+		return BoundCastInfo(&VectorCastHelpers::ToDecimalCast<SRC>, ScalarFunctionInfo("TryCastToDecimal::Operation", {ScalarFunctionInfo::LogicalTypeIdToCppType(source.id()), ScalarFunctionInfo::PhysicalTypeIdToCppType(target.InternalType())}, {ScalarFunctionInfo::DecimalCastWrapper}, {DecimalType::GetWidth(target), DecimalType::GetScale(target)}));
 	case LogicalTypeId::VARCHAR:
 		return BoundCastInfo(&VectorCastHelpers::StringCast<SRC, duckdb::StringCast>, ScalarFunctionInfo("StringCast::Operation", {ScalarFunctionInfo::LogicalTypeIdToCppType(source.id())}, {ScalarFunctionInfo::VectorBackWrapper}));
 	case LogicalTypeId::BIT:

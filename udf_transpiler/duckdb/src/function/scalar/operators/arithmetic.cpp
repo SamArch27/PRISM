@@ -643,7 +643,7 @@ ScalarFunction SubtractFun::GetFunction(const LogicalType &left_type, const Logi
 	if (left_type.IsNumeric() && left_type.id() == right_type.id()) {
 		if (left_type.id() == LogicalTypeId::DECIMAL) {
 			auto function =
-			    ScalarFunction("-", {left_type, right_type}, left_type, nullptr,
+			    ScalarFunction("-", {left_type, right_type}, left_type, nullptr, ScalarFunctionInfo(),
 			                   BindDecimalAddSubtract<SubtractOperator, DecimalSubtractOverflowCheck, true>);
 			function.serialize = SerializeDecimalArithmetic;
 			function.deserialize = DeserializeDecimalArithmetic<SubtractOperator, DecimalSubtractOverflowCheck>;

@@ -110,7 +110,7 @@ static BoundCastInfo VectorStringCastNumericSwitch(BindCastInput &input, const L
 	case LogicalTypeId::INTERVAL:
 		return BoundCastInfo(&VectorCastHelpers::TryCastErrorLoop<string_t, interval_t, duckdb::TryCastErrorMessage>, ScalarFunctionInfo("TryCastErrorMessage::Operation", {"string_t", "interval_t"}, {ScalarFunctionInfo::ErrorCastWrapper}));
 	case LogicalTypeId::DECIMAL:
-		return BoundCastInfo(&VectorCastHelpers::ToDecimalCast<string_t>, ScalarFunctionInfo("TryCastToDecimal::Operation", {"string_t", ScalarFunctionInfo::PhysicalTypeIdToCppType(target.InternalType())}, {ScalarFunctionInfo::DecimalCastWrapper}));
+		return BoundCastInfo(&VectorCastHelpers::ToDecimalCast<string_t>, ScalarFunctionInfo("TryCastToDecimal::Operation", {"string_t", ScalarFunctionInfo::PhysicalTypeIdToCppType(target.InternalType())}, {ScalarFunctionInfo::DecimalCastWrapper}, {DecimalType::GetWidth(target), DecimalType::GetScale(target)}));
 	default:
 		return DefaultCasts::TryVectorNullCast;
 	}

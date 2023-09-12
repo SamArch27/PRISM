@@ -33,6 +33,21 @@ inline T NumericCastHelper(S input) {
     return output;
 }
 
+/**
+ * A helper function to expose target from a decimal cast
+ * can accept operator: TryCastToDecimal
+*/
+template <typename S, typename T, typename op>
+inline T DecimalCastHelper(S input, int width, int scale) {
+    T output;
+    std::string error_message;
+    op::template Operation<S, T>(input, output, &error_message, width, scale);
+    if(!error_message.empty()){
+        throw std::runtime_error(error_message);
+    }
+    return output;
+}
+
 // udf_todo
 
 /**
