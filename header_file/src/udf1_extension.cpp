@@ -146,9 +146,9 @@ namespace duckdb
 			return;
 		}
 		// the declaration / initialization of local variables
-		double spending1 = v0.GetValueUnsafe<double>();
-		double spending2 = v1.GetValueUnsafe<double>();
-		double increase;
+		int64_t spending1 = v0.GetValueUnsafe<int64_t>();
+		int64_t spending2 = v1.GetValueUnsafe<int64_t>();
+		int64_t increase;
 
 		if (LessThan::Operation(spending1, spending2))
 		{
@@ -157,9 +157,9 @@ namespace duckdb
 
 		else
 		{
-			increase = SubtractOperator::Operation<double, double, double>(spending1, spending2);
+			increase = [(spending1 - spending2)(spending1, spending2)->DECIMAL(18, 3)];
 		}
-		result = Value::DOUBLE(increase);
+		result = Value::DECIMAL(increase, 18, 3);
 		return;
 	}
 	void udf12(DataChunk &args, ExpressionState &state, Vector &result)
@@ -208,26 +208,26 @@ namespace duckdb
 		int32_t numsalesfromstore = v0.GetValueUnsafe<int32_t>();
 		int32_t numsalesfromcatalog = v1.GetValueUnsafe<int32_t>();
 		int32_t numsalesfromweb = v2.GetValueUnsafe<int32_t>();
-		string_t maxChannel;
+		string_t maxchannel;
 
 		if (GreaterThan::Operation(numsalesfromstore, numsalesfromcatalog))
 		{
-			maxChannel = "Store";
+			maxchannel = "Store";
 			if (GreaterThan::Operation(numsalesfromweb, numsalesfromstore))
 			{
-				maxChannel = "Web";
+				maxchannel = "Web";
 			}
 		}
 
 		else
 		{
-			maxChannel = "Catalog";
+			maxchannel = "Catalog";
 			if (GreaterThan::Operation(numsalesfromweb, numsalesfromcatalog))
 			{
-				maxChannel = "Web";
+				maxchannel = "Web";
 			}
 		}
-		result = Value(maxChannel);
+		result = Value(maxchannel);
 		result.GetTypeMutable() = LogicalType::VARCHAR;
 		return;
 	}
@@ -280,34 +280,34 @@ namespace duckdb
 		}
 		// the declaration / initialization of local variables
 		int32_t incomeband = v0.GetValueUnsafe<int32_t>();
-		string_t cLevel;
+		string_t clevel;
 
 		if ((GreaterThanEquals::Operation(incomeband, 0) && LessThanEquals::Operation(incomeband, 3)))
 		{
-			cLevel = "low";
+			clevel = "low";
 		}
 
 		if ((GreaterThanEquals::Operation(incomeband, 4) && LessThanEquals::Operation(incomeband, 7)))
 		{
-			cLevel = "lowerMiddle";
+			clevel = "lowerMiddle";
 		}
 
 		if ((GreaterThanEquals::Operation(incomeband, 8) && LessThanEquals::Operation(incomeband, 11)))
 		{
-			cLevel = "upperMiddle";
+			clevel = "upperMiddle";
 		}
 
 		if ((GreaterThanEquals::Operation(incomeband, 12) && LessThanEquals::Operation(incomeband, 16)))
 		{
-			cLevel = "high";
+			clevel = "high";
 		}
 
 		if ((GreaterThanEquals::Operation(incomeband, 17) && LessThanEquals::Operation(incomeband, 20)))
 		{
-			cLevel = "affluent";
+			clevel = "affluent";
 		}
 
-		result = Value(cLevel);
+		result = Value(clevel);
 		result.GetTypeMutable() = LogicalType::VARCHAR;
 		return;
 	}
@@ -426,29 +426,29 @@ namespace duckdb
 			return;
 		}
 		// the declaration / initialization of local variables
-		double numweb = v0.GetValueUnsafe<double>();
-		double numstore = v1.GetValueUnsafe<double>();
-		double numcat = v2.GetValueUnsafe<double>();
-		string_t retValue;
+		int64_t numweb = v0.GetValueUnsafe<int64_t>();
+		int64_t numstore = v1.GetValueUnsafe<int64_t>();
+		int64_t numcat = v2.GetValueUnsafe<int64_t>();
+		string_t retvalue;
 
 		if ((GreaterThanEquals::Operation(numweb, numstore) && GreaterThanEquals::Operation(numweb, numcat)))
 		{
-			retValue = "web";
+			retvalue = "web";
 		}
 		else if ((GreaterThanEquals::Operation(numstore, numweb) && GreaterThanEquals::Operation(numstore, numcat)))
 		{
-			retValue = "store";
+			retvalue = "store";
 		}
 		else if ((GreaterThanEquals::Operation(numcat, numstore) && GreaterThanEquals::Operation(numcat, numweb)))
 		{
-			retValue = "Catalog";
+			retvalue = "Catalog";
 		}
 
 		else
 		{
-			retValue = "Logical error";
+			retvalue = "Logical error";
 		}
-		result = Value(retValue);
+		result = Value(retvalue);
 		result.GetTypeMutable() = LogicalType::VARCHAR;
 		return;
 	}
@@ -566,9 +566,9 @@ namespace duckdb
 			return;
 		}
 		// the declaration / initialization of local variables
-		double netprofit = v0.GetValueUnsafe<double>();
+		int64_t netprofit = v0.GetValueUnsafe<int64_t>();
 
-		if (GreaterThan::Operation(netprofit, NumericCastHelper<int32_t, double, NumericTryCast>(0)))
+		if (GreaterThan::Operation(netprofit, TryCastToDecimal::Operation<int32_t, int64_t>(0)))
 		{
 			result = Value::INTEGER(1);
 			return;

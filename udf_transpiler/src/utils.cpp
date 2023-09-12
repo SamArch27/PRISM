@@ -57,9 +57,10 @@ void UDF_Type::resolve_type(string type_name, const string &udf_str){
         int type_start = type_name.find('#');
         type_start = std::stoi(type_name.substr(type_start + 1));
         // map varchar() as varchar
-        std::regex type_pattern("(\\w+(\\(\\d+, ?\\d+\\))?)", std::regex_constants::icase);
+        std::regex type_pattern("(\\w+ *(\\((\\d+, *)?\\d+\\))?)", std::regex_constants::icase);
         std::smatch tmp_types;
         std::regex_search(udf_str.begin() + type_start, udf_str.end(), tmp_types, type_pattern);
+        ASSERT(tmp_types.size() == 4, "Argument type format is wrong.");
         string real_type_name = tmp_types[0];
         return resolve_type(real_type_name, udf_str);
     }
@@ -75,16 +76,20 @@ void UDF_Type::resolve_type(string type_name, const string &udf_str){
         return;
     }
     else if(type_name.starts_with("VARCHAR")){
-        return resolve_type("VARCHAR", udf_str);
+        duckdb_type = "VARCHAR";
+        return;
     }
-    if (alias_to_duckdb_type.count(type_name))
-    {
-        duckdb_type = alias_to_duckdb_type.at(type_name);
+    else{
+        if (alias_to_duckdb_type.count(type_name))
+        {
+            duckdb_type = alias_to_duckdb_type.at(type_name);
+        }
+        else
+        {
+            ERROR(fmt::format("Unknown type: {}", type_name));
+        } 
     }
-    else
-    {
-        ERROR(fmt::format("Unknown type: {}", type_name));
-    }
+    
 }
 
 void UDF_Type::get_decimal_width_scale(string &duckdb_type, int &width, int &scale){

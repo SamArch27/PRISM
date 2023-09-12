@@ -40,3 +40,5 @@ must base on duckdb's source code
 
 
 libpgquery macos arm or x86 switch
+
+implicit cast on assignment

@@ -371,10 +371,11 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str){
 vector<string> Transpiler::run(){
     // collect the function return types
     std::vector<std::string> return_types;
-    std::regex return_pattern("RETURNS\\s+(\\w+(\\(\\d+, ?\\d+\\))?)", std::regex_constants::icase);
+    std::regex return_pattern("RETURNS\\s+(\\w+ *(\\((\\d+, *)?\\d+\\))?)", std::regex_constants::icase);
     std::smatch tmp_types;
     std::string tmp_string = udf_str;
     while(std::regex_search(tmp_string, tmp_types, return_pattern)){
+        ASSERT(tmp_types.size() == 4, "Return type format is wrong.");
         return_types.push_back(tmp_types[1]);
         tmp_string = tmp_types.suffix();
     }
