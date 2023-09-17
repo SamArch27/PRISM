@@ -13,7 +13,7 @@
 
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 
-duckdb::DuckDB *db_instance = NULL;
+// duckdb::DuckDB *db_instance = NULL;
 std::unique_ptr<Connection> con;
 ClientContext *context = NULL;
 
@@ -757,6 +757,8 @@ namespace duckdb
 
 	static void LoadInternal(DatabaseInstance &instance)
 	{
+		con = make_uniq<Connection>(instance);
+		context = con->context.get();
 		auto udf1_scalar_function = ScalarFunction("udf1", {LogicalType::VARCHAR},
 												   LogicalType::VARCHAR, Udf1ScalarFun);
 		ExtensionUtil::RegisterFunction(instance, udf1_scalar_function);
@@ -791,12 +793,6 @@ namespace duckdb
 
 	void Udf1Extension::Load(DuckDB &db)
 	{
-		// this->db = &db;
-		// this->con = std::make_unique<Connection>(db);
-		// this->context = con->context.get();
-		db_instance = &db;
-		con = make_uniq<Connection>(db);
-		context = con->context.get();
 		LoadInternal(*db.instance);
 	}
 	std::string Udf1Extension::Name()

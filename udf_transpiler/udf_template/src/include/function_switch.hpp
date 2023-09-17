@@ -1,0 +1,4 @@
+class FunctionSwitch{
+public:
+
+}
