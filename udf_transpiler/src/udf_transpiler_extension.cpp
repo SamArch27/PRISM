@@ -15,51 +15,15 @@
 #include <iostream>
 #include <fstream>
 #include <stdio.h>
+// #include <unistd.h>
+#include <filesystem>
 #include "utils.hpp"
 #include "trans.hpp"
+#include "file.hpp"
 
 namespace duckdb
 {
     duckdb::DuckDB *db_instance;
-
-	// /**
-	//  * just play around duckdb
-	// */
-	// void test(std::string query){
-	// 	// make a new connection to avoid deadlocks
-	// 	Connection con(*db_instance);
-	// 	string error;
-	// 	// duckdb::unique_ptr<duckdb::SQLStatement> statement = QueryRelation::ParseStatement(*con.context, "select 1*1", error);
-	// 	// if(error.size() > 0){
-	// 	// 	std::cerr<<error<<std::endl;
-	// 	// }
-	// 	// auto binder = Binder::CreateBinder(*con.context);
-	// 	// auto result = binder->Bind(*statement);
-	// 	// D_ASSERT(result.names.size() == result.types.size());
-
-	// 	auto context = con.context.get();
-	// 	context->config.enable_optimizer = false;
-	// 	auto plan = context->ExtractPlan(query);
-	// 	// udf::LogicalOperatorPrinter printer;
-	// 	// printer.VisitOperator(*plan);
-	// 	duckdb::LogicalOperatorCodeGenerator generator;
-	// 	generator.VisitOperator(*plan);
-	// }
-
-	// inline void Udf_transpilerScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
-	// {	
-	// 	// test();
-	// 	auto &name_vector = args.data[0];
-	// 	UnaryExecutor::Execute<string_t, string_t>(
-	// 		name_vector, result, args.size(),
-	// 		[&](string_t name)
-	// 		{
-	// 			test(name.GetString());
-    //             // std::cout<<duckdb::CastFunctionSet::Get(*db_instance->instance).ImplicitCastCost(duckdb::LogicalType::INTEGER, duckdb::LogicalType::VARCHAR)<<std::endl;
-	// 			return StringVector::AddString(result, "Transpilation Done.");
-	// 			;
-	// 		});
-	// }
 
 	inline string Udf_transpilerPragmaFun(ClientContext &context, const FunctionParameters &parameters)
 	{	
@@ -68,19 +32,24 @@ namespace duckdb
 		std::ostringstream buffer;
 		buffer << t.rdbuf();
 		if(buffer.str().empty()){
-			cout<<fmt::format("Input file is empty or does not exist: {}", file_name)<<endl;
-			return "select 'Transpilation Failed.';";
+			std::string err = "Input file is empty or does not exist: {}" + file_name;
+			return "select '" + err + "' as 'Transpilation Failed.';";
 		}
 		YAMLConfig config;
 		Connection con(*db_instance);
 		Transpiler transpiler(buffer.str(), &config, con);
 		// std::vector<std::string> ret = transpile_plpgsql_udf_str(buffer.str());
 		std::vector<std::string> ret = transpiler.run();
-		cout<<ret[0]<<endl;
-		cout<<ret[1]<<endl;
-		cout<<ret[2]<<endl;
-		// test(name.GetString());
-		// std::cout<<duckdb::CastFunctionSet::Get(*db_instance->instance).ImplicitCastCost(duckdb::LogicalType::INTEGER, duckdb::LogicalType::VARCHAR)<<std::endl;
+		// cout<<ret[0]<<endl;
+		// cout<<ret[1]<<endl;
+		cout<<"Transpiling the UDF..."<<endl;
+		insert_def_and_reg(ret[0], ret[1]);
+		// compile the template
+		cout<<"Compiling the UDF..."<<endl;
+		compile_udf();
+		// load the compiled library
+		cout<<"Installing and loading the UDF..."<<endl;
+		load_udf(con);
 		return "select '' as 'Transpilation Done.';";
 	}
 

@@ -430,7 +430,7 @@ vector<string> Transpiler::run(){
     vector<string> ret;
     // ret.push_back("This is the udf C++.");
     ret.push_back(vec_join(cc.global_macros, "\n")+"\n"+vec_join(cc.global_functions, "\n"));
-    ret.push_back("============ This is the udf registers. =========");
-    ret.push_back(vec_join(function_regs, "\n"));
+    // ret.push_back("============ This is the udf registers. =========");
+    ret.push_back(vec_join(function_regs, "\n") + "\n");
     return ret;
 }
