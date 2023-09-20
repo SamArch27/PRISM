@@ -24,6 +24,7 @@
 namespace duckdb
 {
     duckdb::DuckDB *db_instance;
+	int udf_count = 0;
 
 	inline string Udf_transpilerPragmaFun(ClientContext &context, const FunctionParameters &parameters)
 	{	
@@ -32,7 +33,7 @@ namespace duckdb
 		std::ostringstream buffer;
 		buffer << t.rdbuf();
 		if(buffer.str().empty()){
-			std::string err = "Input file is empty or does not exist: {}" + file_name;
+			std::string err = "Input file is empty or does not exist: " + file_name;
 			return "select '" + err + "' as 'Transpilation Failed.';";
 		}
 		YAMLConfig config;
@@ -43,13 +44,27 @@ namespace duckdb
 		// cout<<ret[0]<<endl;
 		// cout<<ret[1]<<endl;
 		cout<<"Transpiling the UDF..."<<endl;
-		insert_def_and_reg(ret[0], ret[1]);
+		insert_def_and_reg(ret[0], ret[1], ++udf_count);
 		// compile the template
 		cout<<"Compiling the UDF..."<<endl;
-		compile_udf();
+		compile_udf(udf_count);
 		// load the compiled library
 		cout<<"Installing and loading the UDF..."<<endl;
-		load_udf(con);
+		load_udf(con, udf_count);
+		return "select '' as 'Transpilation Done.';";
+	}
+
+	/**
+	 * rebuild and load the last udf set
+	*/
+	inline string Udf_BuilderPragmaFun(ClientContext &context, const FunctionParameters &parameters)
+	{	
+		cout<<"Compiling the UDF..."<<endl;
+		compile_udf(udf_count);
+		// load the compiled library
+		cout<<"Installing and loading the UDF..."<<endl;
+		Connection con(*db_instance);
+		load_udf(con, udf_count);
 		return "select '' as 'Transpilation Done.';";
 	}
 
@@ -61,6 +76,8 @@ namespace duckdb
 		
 		auto udf_transpiler_pragma_function = PragmaFunction::PragmaCall("transpile", Udf_transpilerPragmaFun, {LogicalType::VARCHAR});
 		ExtensionUtil::RegisterFunction(instance, udf_transpiler_pragma_function);
+		auto udf_builder_pragma_function = PragmaFunction::PragmaCall("build", Udf_BuilderPragmaFun, {});
+		ExtensionUtil::RegisterFunction(instance, udf_builder_pragma_function);
 		// auto itos_scalar_function = ScalarFunction("itos", {LogicalType::INTEGER},
 		// 													 LogicalType::VARCHAR, itos);
 		// ExtensionUtil::RegisterFunction(instance, itos_scalar_function);

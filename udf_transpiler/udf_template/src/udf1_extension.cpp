@@ -92,7 +92,7 @@ namespace duckdb
 
 /* ==== Unique identifier to indicate insertion point start: 04rj39jds934 ==== */
 
-inline void udf12_body(const Value& v0, bool spending1_null, const Value& v1, bool spending2_null, Value& result, bool& result_null) {
+inline void udf_sam_body(const Value& v0, bool spending1_null, const Value& v1, bool spending2_null, Value& result, bool& result_null) {
   if (spending1_null or spending2_null)
   {
     result_null = true;
@@ -116,7 +116,7 @@ result = Value::DECIMAL(increase, 18, 3);
 return;
 
 }
-void udf12(DataChunk &args, ExpressionState &state, Vector &result) {
+void udf_sam(DataChunk &args, ExpressionState &state, Vector &result) {
   const int count = args.size();
   result.SetVectorType(VectorType::FLAT_VECTOR);
 
@@ -138,7 +138,7 @@ auto spending2_index = spending2_data.sel->get_index(base_idx);
 
     Value temp_result;
     bool  temp_result_null = false;
-    udf12_body(spending1.GetValue(spending1_index), !spending1_data.validity.RowIsValid(spending1_index), spending2.GetValue(spending2_index), !spending2_data.validity.RowIsValid(spending2_index), temp_result, temp_result_null);
+    udf_sam_body(spending1.GetValue(spending1_index), !spending1_data.validity.RowIsValid(spending1_index), spending2.GetValue(spending2_index), !spending2_data.validity.RowIsValid(spending2_index), temp_result, temp_result_null);
     if (temp_result_null) {
       FlatVector::SetNull(result, base_idx, true);
     }
@@ -686,12 +686,12 @@ numstates.ToUnifiedFormat(count, numstates_data);
 	{
 		con = make_uniq<Connection>(instance);
 		context = con->context.get();
-		auto isListDistinct_scalar_function = ScalarFunction("isListDistinct", {LogicalType::VARCHAR, LogicalType::VARCHAR},
-															 LogicalType::BOOLEAN, isListDistinct);
-		ExtensionUtil::RegisterFunction(instance, isListDistinct_scalar_function);
+		// auto isListDistinct_scalar_function = ScalarFunction("isListDistinct", {LogicalType::VARCHAR, LogicalType::VARCHAR},
+		// 													 LogicalType::BOOLEAN, isListDistinct);
+		// ExtensionUtil::RegisterFunction(instance, isListDistinct_scalar_function);
 /* ==== Unique identifier to indicate register insertion point start: 04rj39jds934 ==== */
-auto udf12_scalar_function = ScalarFunction("udf12", {LogicalType::DECIMAL(18, 3), LogicalType::DECIMAL(18, 3)}, LogicalType::DECIMAL(18, 3), udf12);
-ExtensionUtil::RegisterFunction(instance, udf12_scalar_function);
+auto udf_sam_scalar_function = ScalarFunction("udf_sam", {LogicalType::DECIMAL(18, 3), LogicalType::DECIMAL(18, 3)}, LogicalType::DECIMAL(18, 3), udf_sam);
+ExtensionUtil::RegisterFunction(instance, udf_sam_scalar_function);
 auto udf13_scalar_function = ScalarFunction("udf13", {LogicalType::INTEGER, LogicalType::INTEGER, LogicalType::INTEGER}, LogicalType::VARCHAR, udf13);
 ExtensionUtil::RegisterFunction(instance, udf13_scalar_function);
 auto udf15_scalar_function = ScalarFunction("udf15", {LogicalType::INTEGER}, LogicalType::VARCHAR, udf15);
@@ -717,20 +717,24 @@ ExtensionUtil::RegisterFunction(instance, udf9b_scalar_function);
 	}
 	std::string Udf1Extension::Name()
 	{
-		return "udf1";
+/* ==== Unique identifier to indicate change required start: 9340jfsa034 ==== */
+		return "udf2";
+/* ==== Unique identifier to indicate change required end: 9340jfsa034 ==== */
 	}
 
 } // namespace duckdb
 
 extern "C"
 {
-
-	DUCKDB_EXTENSION_API void udf1_init(duckdb::DatabaseInstance &db)
+/* ==== Unique identifier to indicate change required start: 9340jfsa034 ==== */
+	DUCKDB_EXTENSION_API void udf2_init(duckdb::DatabaseInstance &db)
+/* ==== Unique identifier to indicate change required end: 9340jfsa034 ==== */
 	{
 		LoadInternal(db);
 	}
-
-	DUCKDB_EXTENSION_API const char *udf1_version()
+/* ==== Unique identifier to indicate change required start: 9340jfsa034 ==== */
+	DUCKDB_EXTENSION_API const char *udf2_version()
+/* ==== Unique identifier to indicate change required end: 9340jfsa034 ==== */
 	{
 		return duckdb::DuckDB::LibraryVersion();
 	}
