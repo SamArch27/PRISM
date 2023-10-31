@@ -718,7 +718,7 @@ ExtensionUtil::RegisterFunction(instance, udf9b_scalar_function);
 	std::string Udf1Extension::Name()
 	{
 /* ==== Unique identifier to indicate change required start: 9340jfsa034 ==== */
-		return "udf2";
+		return "udf1";
 /* ==== Unique identifier to indicate change required end: 9340jfsa034 ==== */
 	}
 
@@ -727,13 +727,13 @@ ExtensionUtil::RegisterFunction(instance, udf9b_scalar_function);
 extern "C"
 {
 /* ==== Unique identifier to indicate change required start: 9340jfsa034 ==== */
-	DUCKDB_EXTENSION_API void udf2_init(duckdb::DatabaseInstance &db)
+	DUCKDB_EXTENSION_API void udf1_init(duckdb::DatabaseInstance &db)
 /* ==== Unique identifier to indicate change required end: 9340jfsa034 ==== */
 	{
 		LoadInternal(db);
 	}
 /* ==== Unique identifier to indicate change required start: 9340jfsa034 ==== */
-	DUCKDB_EXTENSION_API const char *udf2_version()
+	DUCKDB_EXTENSION_API const char *udf1_version()
 /* ==== Unique identifier to indicate change required end: 9340jfsa034 ==== */
 	{
 		return duckdb::DuckDB::LibraryVersion();

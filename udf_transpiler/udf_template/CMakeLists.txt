@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.12)
 
 # will be changed in each call of pragma transpile
-set(TARGET_NAME udf2)
+set(TARGET_NAME udf1)
 
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 project(${TARGET_NAME})
