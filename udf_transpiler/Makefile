@@ -32,6 +32,7 @@ pull:
 clean:
 	rm -rf build
 	rm -rf testext
+	rm -rf udf1
 	cd duckdb && make clean
 
 # Main build
@@ -40,13 +41,14 @@ debug:
 	cmake $(GENERATOR) $(FORCE_COLOR) $(EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Debug ${BUILD_FLAGS} -S ./duckdb/ -B build/debug && \
 	cmake --build build/debug --config Debug
 
-UDF_UDF1_EXTENSION_FLAGS=-DDUCKDB_EXTENSION_NAMES="udf1" -DDUCKDB_EXTENSION_UDF1_PATH="$(PROJ_DIR)udf_template" -DDUCKDB_EXTENSION_UDF1_INCLUDE_PATH="$(PROJ_DIR)udf_template/src/include"
-udf1:
-	mkdir -p build/udfs && \
-	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF1_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs && \
+UDF_UDF1_EXTENSION_FLAGS=-DDUCKDB_EXTENSION_NAMES="udf1" -DDUCKDB_EXTENSION_UDF1_PATH="$(PROJ_DIR)udf1" -DDUCKDB_EXTENSION_UDF1_INCLUDE_PATH="$(PROJ_DIR)udf1/src/include"
+udfs:
+	mkdir -p build/udfs
+	cp -r udf_template udf1
+	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF1_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
 	cmake --build build/udfs --config Release
 
-release: udf1
+release: udfs
 	mkdir -p build/release && \
 	cmake $(GENERATOR) $(FORCE_COLOR) $(EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release ${BUILD_FLAGS} -S ./duckdb/ -B build/release && \
 	cmake --build build/release --config Release

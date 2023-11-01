@@ -1,5 +1,6 @@
 #include "utils.hpp"
 #include <yaml-cpp/yaml.h>
+#include <filesystem>
 
 template <>
 std::string vec_join(std::vector<std::string> &vec, std::string sep){
@@ -161,9 +162,12 @@ string UDF_Type::create_duckdb_value(const string &ret_name, const string &cpp_v
 }
 
 YAMLConfig::YAMLConfig(){
-    query = YAML::LoadFile("templates/query.yaml");
-    function = YAML::LoadFile("templates/function.yaml");
-    control = YAML::LoadFile("templates/control.yaml");
+    std::string filePath(__FILE__); // Get the path of the current source file
+    std::filesystem::path path(filePath);
+    std::string current_dir = path.parent_path().string();
+    query = YAML::LoadFile(current_dir+"/../templates/query.yaml");
+    function = YAML::LoadFile(current_dir+"/../templates/function.yaml");
+    control = YAML::LoadFile(current_dir+"/../templates/control.yaml");
 }
 
 /**

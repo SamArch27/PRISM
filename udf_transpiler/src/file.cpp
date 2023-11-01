@@ -14,12 +14,34 @@
 #include <array>
 using namespace std;
 
-std::string filePath(__FILE__); // Get the path of the current source file
-std::filesystem::path path(filePath);
-std::string current_dir = path.parent_path().string();
+static std::string filePath(__FILE__); // Get the path of the current source file
+static std::filesystem::path path(filePath);
+static std::string current_dir = path.parent_path().string();
+
+std::string exec(const char* cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+
+void create_dir_from_dir(const string & new_dir, const string & template_dir){
+    // remove the old directory in new_dir
+    string cmd = "rm -rf " + new_dir;
+    cout<<exec(cmd.c_str())<<endl;
+    cmd = "cp -r " + template_dir + " " + new_dir;
+    cout<<exec(cmd.c_str())<<endl;
+}
 
 void insert_def_and_reg(const string & defs, const string & regs, int udf_count){
-    string template_file = current_dir + "/../udf_template/src/udf1_extension.cpp";
+    create_dir_from_dir(current_dir + "/" + UDF_EXTENSION_OUTPUT_DIR, current_dir + "/" + UDF_EXTENSION_TEMPLATE_DIR);
+    string template_file = current_dir + "/" + UDF_EXTENSION_OUTPUT_DIR + "src/udf1_extension.cpp";
     // change the udf1_extension.cpp file
     std::ifstream t(template_file);
     std::ostringstream buffer;
@@ -78,7 +100,7 @@ void insert_def_and_reg(const string & defs, const string & regs, int udf_count)
     out.close();
 
     // change the CMakelists.txt file
-    template_file = current_dir + "/../udf_template/CMakeLists.txt";
+    template_file = current_dir + "/" + UDF_EXTENSION_OUTPUT_DIR + "CMakeLists.txt";
     t = std::ifstream(template_file);
     buffer = std::ostringstream();
     buffer << t.rdbuf();
@@ -95,21 +117,8 @@ void insert_def_and_reg(const string & defs, const string & regs, int udf_count)
     out2.close();
 }
 
-std::string exec(const char* cmd) {
-    std::array<char, 128> buffer;
-    std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-    if (!pipe) {
-        throw std::runtime_error("popen() failed!");
-    }
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        result += buffer.data();
-    }
-    return result;
-}
-
 void compile_udf(int udf_count){
-    string cmd = "cd " + current_dir + "/../" + ";make udf1";
+    string cmd = "cd " + current_dir + "/" + UDF_EXTENSION_OUTPUT_DIR + "../" + ";make udfs";
     cout<<exec(cmd.c_str())<<endl;
 }
 
