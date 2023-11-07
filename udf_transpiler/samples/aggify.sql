@@ -1,0 +1,7 @@
+CREATE OR REPLACE FUNCTION f_update(order_key BIGINT)
+    RETURNS BIGINT AS
+$$
+BEGIN
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql;

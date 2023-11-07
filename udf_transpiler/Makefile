@@ -49,7 +49,7 @@ udfs:
 	cmake --build build/udfs --config Release
 
 release: udfs
-	mkdir -p build/release && \
+	mkdir -p build/release
 	cmake $(GENERATOR) $(FORCE_COLOR) $(EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release ${BUILD_FLAGS} -S ./duckdb/ -B build/release && \
 	cmake --build build/release --config Release
 
