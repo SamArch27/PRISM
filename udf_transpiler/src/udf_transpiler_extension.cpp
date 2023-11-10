@@ -94,6 +94,17 @@ namespace duckdb
 		return "select '' as 'Building and linking Done.';";
 	}
 
+	inline string Udaf_BuilderPragmaFun(ClientContext &context, const FunctionParameters &parameters)
+	{	
+		cout<<"Compiling the UDAF..."<<endl;
+		compile_udaf(udf_count);
+		// load the compiled library
+		cout<<"Installing and loading the UDF..."<<endl;
+		Connection con(*db_instance);
+		load_udaf(con, udf_count);
+		return "select '' as 'Building and linking Done.';";
+	}
+
 	static void LoadInternal(DatabaseInstance &instance)
 	{
 		// auto udf_transpiler_scalar_function = ScalarFunction("udf_transpiler", {LogicalType::VARCHAR},
@@ -106,6 +117,8 @@ namespace duckdb
 		ExtensionUtil::RegisterFunction(instance, udf_codegen_pragma_function);
 		auto udf_builder_pragma_function = PragmaFunction::PragmaCall("build", Udf_BuilderPragmaFun, {});
 		ExtensionUtil::RegisterFunction(instance, udf_builder_pragma_function);
+		auto udaf_builder_pragma_function = PragmaFunction::PragmaCall("build_agg", Udaf_BuilderPragmaFun, {});
+		ExtensionUtil::RegisterFunction(instance, udaf_builder_pragma_function);
 		// auto itos_scalar_function = ScalarFunction("itos", {LogicalType::INTEGER},
 		// 													 LogicalType::VARCHAR, itos);
 		// ExtensionUtil::RegisterFunction(instance, itos_scalar_function);

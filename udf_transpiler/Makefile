@@ -18,7 +18,7 @@ ifeq ($(GEN),ninja)
 	FORCE_COLOR=-DFORCE_COLORED_OUTPUT=1
 endif
 
-BUILD_FLAGS=-DEXTENSION_STATIC_BUILD=1 -DBUILD_TPCH_EXTENSION=1 -DBUILD_PARQUET_EXTENSION=1 ${OSX_BUILD_UNIVERSAL_FLAG} ${STATIC_LIBCPP}
+BUILD_FLAGS=-DEXTENSION_STATIC_BUILD=1 -DBUILD_TPCH_EXTENSION=1 -DBUILD_PARQUET_EXTENSION=1 -DBUILD_EXTENSIONS='tpch' ${OSX_BUILD_UNIVERSAL_FLAG} ${STATIC_LIBCPP}
 
 CLIENT_FLAGS :=
 
@@ -48,7 +48,15 @@ udfs:
 	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF1_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
 	cmake --build build/udfs --config Release
 
-release: udfs
+UDF_UDF_AGG_EXTENSION_FLAGS=-DDUCKDB_EXTENSION_NAMES="udf_agg" -DDUCKDB_EXTENSION_UDF_AGG_PATH="$(PROJ_DIR)udf_agg" -DDUCKDB_EXTENSION_UDF_AGG_INCLUDE_PATH="$(PROJ_DIR)udf_agg/src/include"
+udafs:
+	mkdir -p build/udfs
+	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF_AGG_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
+	cmake --build build/udfs --config Release
+
+
+release:
+	- make udfs
 	mkdir -p build/release
 	cmake $(GENERATOR) $(FORCE_COLOR) $(EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release ${BUILD_FLAGS} -S ./duckdb/ -B build/release && \
 	cmake --build build/release --config Release
@@ -102,3 +110,6 @@ format:
 
 update:
 	git submodule update --remote --merge
+
+test:
+	./udf_transpiler/build/release/duckdb -unsigned

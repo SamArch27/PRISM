@@ -118,13 +118,34 @@ void insert_def_and_reg(const string & defs, const string & regs, int udf_count)
 }
 
 void compile_udf(int udf_count){
-    string cmd = "cd " + current_dir + "/" + UDF_EXTENSION_OUTPUT_DIR + "../" + ";make udfs";
+    string cmd = "cd " + current_dir + "/../" + ";make udfs";
+    cout<<exec(cmd.c_str())<<endl;
+}
+
+void compile_udaf(int udf_count){
+    string cmd = "cd " + current_dir + "/../" + ";make udafs";
+    cout<<cmd<<endl;
     cout<<exec(cmd.c_str())<<endl;
 }
 
 void load_udf(duckdb::Connection &connection, int udf_count){
     std::string install = "install '" + current_dir + "/../build/udfs/extension/udf1/" + "udf" + std::to_string(udf_count) + ".duckdb_extension'";
     std::string load = "load '" + current_dir + "/../build/udfs/extension/udf1/" + "udf" + std::to_string(udf_count) + ".duckdb_extension'";
+    cout<<"Running: "<<install<<endl;
+    auto res = connection.Query(install);
+    if(res->HasError()){
+        EXCEPTION(res->GetError());
+    }
+    cout<<"Running: "<<load<<endl;
+    res = connection.Query(load);
+    if(res->HasError()){
+        EXCEPTION(res->GetError());
+    }
+}
+
+void load_udaf(duckdb::Connection &connection, int udf_count){
+    std::string install = "install '" + current_dir + "/../build/udfs/extension/udf_agg/" + "udf_agg.duckdb_extension'";
+    std::string load = "load '" + current_dir + "/../build/udfs/extension/udf_agg/" + "udf_agg.duckdb_extension'";
     cout<<"Running: "<<install<<endl;
     auto res = connection.Query(install);
     if(res->HasError()){

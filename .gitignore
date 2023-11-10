@@ -15,3 +15,4 @@ testext
 test/python/__pycache__/
 .Rhistory
 
+*.duckdb

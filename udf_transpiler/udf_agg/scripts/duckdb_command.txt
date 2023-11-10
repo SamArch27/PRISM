@@ -1,0 +1,23 @@
+call dbgen(sf=1);
+pragma build_agg;
+set threads to 1;
+CREATE MACRO OrdersByCustomerWithCustomAgg(cust_key) AS 
+(SELECT "val_1" AS "result" FROM 
+    LATERAL 
+    (SELECT
+        (SELECT ordersbycustomeraggregate("orders"."o_orderkey") AS "count" FROM 
+            orders AS "orders" WHERE "orders"."o_custkey" = "cust_key") AS "val_1") AS "let0"("val_1"));
+
+create macro PromoRevenueWithCustomAgg(partkey) AS
+(SELECT "revenue_1" AS "result"
+    FROM LATERAL
+         (SELECT (SELECT promo_revenue_agg("lineitem"."l_extendedprice"::BIGINT, 
+                          "lineitem"."l_discount"::BIGINT) AS "row"
+                  FROM lineitem AS "lineitem"
+                  WHERE "lineitem"."l_partkey" = "partkey") AS "revenue_1"
+         ) AS "let0"("revenue_1"));
+
+
+
+SELECT c_custkey, OrdersByCustomerWithCustomAgg(c_custkey) FROM customer order by *;
+SELECT P_PARTKEY, PromoRevenueWithCustomAgg(P_PARTKEY) FROM part WHERE P_TYPE LIKE 'PROMO%%';

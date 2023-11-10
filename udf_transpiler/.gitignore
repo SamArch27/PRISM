@@ -7,4 +7,4 @@ testext
 test/python/__pycache__/
 .Rhistory
 udf*/
-!udf_template/
+!udf_*/
