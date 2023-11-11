@@ -100,6 +100,12 @@ inline string ProfilePragmaFun(ClientContext &context, const FunctionParameters 
   buffer2 << t2.rdbuf();
   if(buffer2.str().empty()){
     std::string err = "Input file is empty or does not exist: " + file_name;
+    // replace ' with `
+    for(int i = 0; i < err.size(); i++){
+      if(err[i] == '\''){
+        err[i] = '`';
+      }
+    }
     return "select '" + err + "' as 'Workload Failed.';";
   }
   std::cout<<"Doing workloads"<<std::endl;

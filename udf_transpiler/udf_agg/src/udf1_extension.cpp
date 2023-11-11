@@ -129,48 +129,44 @@ namespace duckdb
 
 	struct CustomAggOperation
 	{
-		// static idx_t StateSize() {
-		//   return sizeof(AggState);
-		// }
-
 		template <class STATE>
 		static void Initialize(STATE &state)
 		{
-			state = 0;
+			state.isInitialized = false;
 			// state.count = 0;
 		}
 
-		template <class INPUT_TYPE, class STATE, class OP>
-		static void ConstantOperation(STATE &state, const INPUT_TYPE &input, AggregateUnaryInput &unary_input, idx_t count)
+		template <class INPUT_TYPE1, class INPUT_TYPE2, class STATE, class OP>
+		static void ConstantOperation(STATE &state, const INPUT_TYPE1 &input1, const INPUT_TYPE2 &input2, AggregateBinaryInput &tmp, idx_t count)
 		{
 			for (idx_t i = 0; i < count; i++)
 			{
-				Operation<INPUT_TYPE, STATE, OP>(state, input, unary_input);
+				Operation<INPUT_TYPE1, INPUT_TYPE2, STATE, OP>(state, input1, input2, tmp);
 			}
 			// state.count += count;
 		}
 
-		template <class INPUT_TYPE, class STATE, class OP>
-		static void Operation(STATE &state, const INPUT_TYPE &input, AggregateUnaryInput &unary_input)
+		template <class INPUT_TYPE1, class INPUT_TYPE2, class STATE, class OP>
+		static void Operation(STATE &state, const INPUT_TYPE1 &input1, const INPUT_TYPE2 &input2, AggregateBinaryInput &)
 		{
-			state++;
+			if(state.isInitialized == false){
+				state.isInitialized = true;
+				state.count = input2;
+			}
+			state.count ++;
 		}
-
-		// template <class STATE>
-		// static void Operation(STATE &state)
-		// {
-		// 	if(state.isInitialized == false){
-		// 		state.isInitialized = true;
-		// 		state.count = 0;
-		// 	}
-		// 	state.count++;
-		// }
 
 		template <class TARGET_TYPE, class STATE>
 		static void Finalize(STATE &state, TARGET_TYPE &target, AggregateFinalizeData &finalize_data)
 		{
 			// std::cout<<"finalize called"<<std::endl;
-			target = state;
+			if (state.isInitialized == false)
+			{
+				// finalize_data.ReturnNull();
+				target = 0;
+				return;
+			}
+			target = state.count;
 		}
 
 		static bool IgnoreNull()
@@ -212,15 +208,15 @@ namespace duckdb
 			state.count++;
 		}
 
-		// template <class STATE>
-		// static void Operation(STATE &state)
-		// {
-		// 	if(state.isInitialized == false){
-		// 		state.isInitialized = true;
-		// 		state.count = 0;
-		// 	}
-		// 	state.count++;
-		// }
+		template <class STATE, class OP>
+		static void Combine(const STATE &source, STATE &target, AggregateInputData &) {
+			if (source.isInitialized == false) {
+				target.count = 0;
+			}
+			else{
+				target.count += source.count;
+			}
+		}
 
 		template <class TARGET_TYPE, class STATE>
 		static void Finalize(STATE &state, TARGET_TYPE &target, AggregateFinalizeData &finalize_data)
@@ -479,18 +475,18 @@ namespace duckdb
 		// 													 LogicalType::BOOLEAN, isListDistinct);
 		// ExtensionUtil::RegisterFunction(instance, isListDistinct_scalar_function);
 		/* ==== Unique identifier to indicate register insertion point start: 04rj39jds934 ==== */
-		auto ordersbycustomeraggregate = UnaryBaseAggregate<AggState13, int32_t, int32_t, CustomAggOperation13>(LogicalType::INTEGER, LogicalType::INTEGER, FunctionNullHandling::SPECIAL_HANDLING);
+		auto ordersbycustomeraggregate = AggregateFunction::UnaryAggregate<AggState13, int32_t, int32_t, CustomAggOperation13>(LogicalType::INTEGER, LogicalType::INTEGER, FunctionNullHandling::SPECIAL_HANDLING);
 
 		// custom_agg_function.update = CountScatter<int64_t, AggState, CustomAggOperation>;
 		// auto custom_agg_function = AggregateFunction::UnaryAggregate<AggState, int64_t, int32_t, CustomAggOperation>(LogicalType::BIGINT, LogicalType::INTEGER);
 		ordersbycustomeraggregate.name = "ordersbycustomeraggregate";
 		ExtensionUtil::RegisterFunction(instance, ordersbycustomeraggregate);
-		// auto custom_agg = UnaryBaseAggregate<int32_t, int32_t, int32_t, CustomAggOperation>(LogicalType::INTEGER, LogicalType::INTEGER, FunctionNullHandling::SPECIAL_HANDLING);
+		auto custom_agg = BinaryBaseAggregate<AggState13, int32_t, int32_t, int32_t, CustomAggOperation>(LogicalType::INTEGER, LogicalType::INTEGER, LogicalType::INTEGER, FunctionNullHandling::SPECIAL_HANDLING);
 
 		// // custom_agg_function.update = CountScatter<int64_t, AggState, CustomAggOperation>;
 		// // auto custom_agg_function = AggregateFunction::UnaryAggregate<AggState, int64_t, int32_t, CustomAggOperation>(LogicalType::BIGINT, LogicalType::INTEGER);
-		// custom_agg.name = "customeraggregate";
-		// ExtensionUtil::RegisterFunction(instance, custom_agg);
+		custom_agg.name = "customeraggregate";
+		ExtensionUtil::RegisterFunction(instance, custom_agg);
 
 		auto promo_revenue_agg = BinaryBaseAggregate<AggState14, int64_t, int64_t, int64_t, CustomAggOperation14>(LogicalType::BIGINT, LogicalType::BIGINT, LogicalType::BIGINT, FunctionNullHandling::SPECIAL_HANDLING);
 		promo_revenue_agg.name = "promo_revenue_agg";

@@ -1,40 +1,25 @@
-call dbgen(sf=1);
-pragma build_agg;
-set threads to 10;
-CREATE MACRO OrdersByCustomerWithCustomAgg(cust_key) AS 
+CREATE MACRO OrdersByCustomer(cust_key) AS 
 (SELECT "val_1" AS "result" FROM 
     LATERAL 
     (SELECT
-        (SELECT ordersbycustomeraggregate("tmp"."o_orderkey") AS "count" FROM 
-            (select O_ORDERKEY from orders AS "orders" WHERE "orders"."o_custkey" = "cust_key") as tmp) AS "val_1") AS "let0"("val_1"));
+        (SELECT count("orders"."o_orderkey") AS "count" FROM 
+            orders AS "orders" WHERE "orders"."o_custkey" = "cust_key") AS "val_1") AS "let0"("val_1"));
 
-create macro OrdersByCustomer(cust_key) as
-(SELECT "val_2" AS "result"
-    FROM LATERAL (SELECT 0 AS "val_1") AS "let0"("val_1"), 
-         LATERAL
-         (SELECT (SELECT customeraggregate("tmp"."o_orderkey", "val_1") AS "row"
-                  FROM 
-                       (SELECT "orders"."o_orderkey" AS "o_orderkey"
-                        FROM orders AS "orders"
-                        WHERE "orders"."o_custkey" = "cust_key"
-                       ) AS "tmp"("o_orderkey")) AS "val_2"
-         ) AS "let1"("val_2"));
-
-create macro PromoRevenueWithCustomAgg(partkey) AS
+create macro PromoRevenue(partkey) AS
 (SELECT "revenue_1" AS "result"
     FROM LATERAL
-         (SELECT (SELECT promo_revenue_agg("lineitem"."l_extendedprice"::BIGINT, 
-                          "lineitem"."l_discount"::BIGINT) AS "row"
+         (SELECT (SELECT sum("lineitem"."l_extendedprice")-
+                          sum("lineitem"."l_extendedprice"*"lineitem"."l_discount") AS "row"
                   FROM lineitem AS "lineitem"
-                  WHERE "lineitem"."l_partkey" = partkey) AS "revenue_1"
+                  WHERE "lineitem"."l_partkey" = "partkey") AS "revenue_1"
          ) AS "let0"("revenue_1"));
 
-create macro VolumeCustomerWithCustomAgg(orderkey) AS
+create macro VolumeCustomer(orderkey) AS
 (SELECT "ifresult4".*
     FROM LATERAL (SELECT "orderkey" AS "ok_1") AS "let0"("ok_1"), 
          LATERAL (SELECT 0 AS "i_1") AS "let1"("i_1"), 
          LATERAL
-         (SELECT (SELECT volume_customer_agg("lineitem"."l_quantity"::INT) AS "count"
+         (SELECT (SELECT sum("lineitem"."l_quantity"::INT) AS "count"
                   FROM lineitem AS "lineitem"
                   WHERE "lineitem"."l_orderkey" = "ok_1") AS "d_2"
          ) AS "let2"("d_2"), 
@@ -48,9 +33,9 @@ create macro VolumeCustomerWithCustomAgg(orderkey) AS
            WHERE "q4_1" IS DISTINCT FROM True)
          ) AS "ifresult4");
 
-create macro DiscountedRevenueWithCustomAgg() as
-(SELECT (SELECT sum_discounted_price("lineitem"."l_extendedprice"::int, 
-                    "lineitem"."l_discount"::int) AS "row"
+create macro DiscountedRevenue() as
+(SELECT (SELECT sum("lineitem"."l_extendedprice")- 
+                    sum("lineitem"."l_extendedprice"*"lineitem"."l_discount") AS "row"
             FROM lineitem AS "lineitem", part AS "part"
             WHERE (("part"."p_partkey" = "lineitem"."l_partkey"
                     AND
@@ -103,10 +88,10 @@ create macro DiscountedRevenueWithCustomAgg() as
                     AND
                     "lineitem"."l_shipinstruct" = 'DELIVER IN PERSON'))) AS "result");
 
-create macro MinCostSuppWithCustomAgg(pk) AS
+create macro MinCostSupp(pk) AS
 (SELECT "val_1" AS "result"
     FROM LATERAL
-         (SELECT (SELECT MinCostSuppAggregate("partsupp"."ps_supplycost"::int, 
+         (SELECT (SELECT arg_min("partsupp"."ps_supplycost"::int, 
                           "supplier"."s_name") AS "row"
                   FROM partsupp AS "partsupp", supplier AS "supplier"
                   WHERE ("partsupp"."ps_partkey" = "pk"
@@ -114,11 +99,11 @@ create macro MinCostSuppWithCustomAgg(pk) AS
                          "partsupp"."ps_suppkey" = "supplier"."s_suppkey")) AS "val_1"
          ) AS "let0"("val_1"));
 
-create macro WaitingOrdersWithCustomAgg(suppkey) AS
+create macro WaitingOrders(suppkey) AS
 (SELECT "val_2" AS "result"
     FROM LATERAL (SELECT "suppkey" AS "skey_1") AS "let0"("skey_1"), 
          LATERAL
-         (SELECT (SELECT ordersbycustomeraggregate("q"."ok") AS "ok"
+         (SELECT (SELECT count("q"."ok") AS "ok"
                   FROM 
                        (SELECT "l1"."l_orderkey" AS "ok", 
                                "l1"."l_partkey" AS "pk", 
