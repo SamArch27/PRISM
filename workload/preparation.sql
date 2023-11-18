@@ -1,6 +1,6 @@
 call dbgen(sf=1);
 pragma build_agg;
-set threads to 10;
+set threads to 1;
 CREATE MACRO OrdersByCustomerWithCustomAgg(cust_key) AS 
 (SELECT "val_1" AS "result" FROM 
     LATERAL 

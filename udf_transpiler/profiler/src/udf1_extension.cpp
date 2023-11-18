@@ -1,10 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "udf1_extension.hpp"
-#include "functions.hpp"
-#include "numeric.hpp"
-#include "cast.hpp"
-#include "string.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
@@ -21,14 +17,18 @@
 #define REPEAT_TIMES 3
 #define NAME_SHOW_LEN 20
 
-std::unique_ptr<Connection> con;
-ClientContext *context = NULL;
-
 namespace duckdb
 {
 
-string short_name(const string &name){
+std::unique_ptr<Connection> con;
+ClientContext *context = NULL;
+
+string short_name(const string &name_arg){
   string ret;
+  string name = name_arg;
+  if(name[0] == '\n'){
+    name = name.substr(1);
+  }
   if(name.size() > NAME_SHOW_LEN){
     ret = name.substr(0, NAME_SHOW_LEN/2) + "..." + name.substr(name.size()-NAME_SHOW_LEN/2);
     // replace ' with `
@@ -49,6 +49,20 @@ string short_name(const string &name){
   return ret;
 }
 
+string reformat_sql_string(const string &str){
+  string ret;
+  ret = str;
+  while(ret[0] == '\n'){
+    ret = ret.substr(1);
+  }
+  for(int i = 0; i < ret.size(); i++){
+    if(ret[i] == '\''){
+      ret[i] = '`';
+    }
+  }
+  return ret;
+}
+
 string repeat_run(const string &sql, int times){
   std::chrono::time_point<std::chrono::steady_clock> start;
   std::chrono::time_point<std::chrono::steady_clock> end;
@@ -59,6 +73,8 @@ string repeat_run(const string &sql, int times){
     end = std::chrono::steady_clock::now();
     if(result->HasError()){
       std::string err = result->GetError();
+      std::cout<<sql<<std::endl;
+      std::cout<<err<<std::endl;
       return err;
     }
     sum += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -101,12 +117,7 @@ inline string ProfilePragmaFun(ClientContext &context, const FunctionParameters 
   if(buffer2.str().empty()){
     std::string err = "Input file is empty or does not exist: " + file_name;
     // replace ' with `
-    for(int i = 0; i < err.size(); i++){
-      if(err[i] == '\''){
-        err[i] = '`';
-      }
-    }
-    return "select '" + err + "' as 'Workload Failed.';";
+    return "select '" + reformat_sql_string(err) + "' as 'Workload Failed.';";
   }
   std::cout<<"Doing workloads"<<std::endl;
   string running_result_table;
@@ -122,18 +133,14 @@ inline string ProfilePragmaFun(ClientContext &context, const FunctionParameters 
     workload = workload.substr(pos+1);
     std::cout<<short_name(sql)<<std::endl;
     auto result = repeat_run(sql, REPEAT_TIMES);
-    // replace ' with `
-    for(int i = 0; i < result.size(); i++){
-      if(result[i] == '\''){
-        result[i] = '`';
-      }
-    }
-    running_result_table += "('"+std::to_string(count)+"','"+short_name(sql)+"','"+result+"'),";
+    result = reformat_sql_string(result);
+    sql = reformat_sql_string(sql);
+    running_result_table += "('"+std::to_string(count)+"','"+sql+"','"+result+"'),";
     count++;
   }
   running_result_table = running_result_table.substr(0, running_result_table.size()-1);
   std::cout<<"Workloads Done"<<std::endl;
-  std::cout<<running_result_table<<std::endl;
+  // std::cout<<running_result_table<<std::endl;
   return "select col0 as id, col1 as description, col2 as \"avg_time(ms)/error\" from (values"+running_result_table+");";
 
 }

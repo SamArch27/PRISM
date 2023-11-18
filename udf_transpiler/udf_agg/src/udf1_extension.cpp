@@ -185,7 +185,7 @@ namespace duckdb
 		static void Initialize(STATE &state)
 		{
 			state.isInitialized = false;
-			// state.count = 0;
+			state.count = 0;
 		}
 
 		template <class INPUT_TYPE, class STATE, class OP>
@@ -211,9 +211,10 @@ namespace duckdb
 		template <class STATE, class OP>
 		static void Combine(const STATE &source, STATE &target, AggregateInputData &) {
 			if (source.isInitialized == false) {
-				target.count = 0;
+				return;
 			}
 			else{
+				target.isInitialized = true;
 				target.count += source.count;
 			}
 		}
@@ -439,6 +440,7 @@ namespace duckdb
 			if(state.isInitialized == false){
 				state.isInitialized = true;
 				state.min_cost = input1;
+				state.supp_name = input2;
 			}
 			if(input1 < state.min_cost){
 				state.min_cost = input1;

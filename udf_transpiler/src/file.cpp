@@ -141,8 +141,14 @@ void insert_def_and_reg(const string &defs, const string &regs, int udf_count) {
 }
 
 void compile_udf(int udf_count) {
-  string cmd = "cd " + current_dir + "/../" + ";make udf1 >/dev/null 2>&1";
+  string cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
   cout << exec(cmd.c_str()) << endl;
+}
+
+void compile_udaf(int udf_count){
+    string cmd = "cd " + current_dir + "/../" + ";make udafs";
+    cout<<cmd<<endl;
+    cout<<exec(cmd.c_str())<<endl;
 }
 
 void load_udf(duckdb::Connection &connection, int udf_count) {

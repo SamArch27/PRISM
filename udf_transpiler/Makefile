@@ -44,7 +44,8 @@ debug:
 UDF_UDF1_EXTENSION_FLAGS=-DDUCKDB_EXTENSION_NAMES="udf1" -DDUCKDB_EXTENSION_UDF1_PATH="$(PROJ_DIR)udf1" -DDUCKDB_EXTENSION_UDF1_INCLUDE_PATH="$(PROJ_DIR)udf1/src/include"
 udfs:
 	mkdir -p build/udfs
-	cp -r udf_template udf1
+	mkdir -p udf1
+	- cp -r -n udf_template/* udf1
 	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF1_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
 	cmake --build build/udfs --config Release
 

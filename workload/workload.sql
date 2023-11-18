@@ -9,4 +9,3 @@ FROM part;
 SELECT S_NAME, S_SUPPKEY
 FROM supplier
 WHERE WaitingOrdersWithCustomAgg(S_SUPPKEY) > 0;
-SELECT c_custkey, OrdersByCustomer2(c_custkey) FROM customer order by *;

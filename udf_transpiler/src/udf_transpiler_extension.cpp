@@ -24,7 +24,7 @@
 namespace duckdb
 {
     duckdb::DuckDB *db_instance;
-	int udf_count = 1;
+	int udf_count = 0;
 
 	inline string Udf_transpilerPragmaFun(ClientContext &context, const FunctionParameters &parameters)
 	{	
@@ -43,6 +43,7 @@ namespace duckdb
 		std::vector<std::string> ret = transpiler.run();
 		// cout<<ret[0]<<endl;
 		// cout<<ret[1]<<endl;
+		udf_count++;
 		cout<<"Transpiling the UDF..."<<endl;
 		insert_def_and_reg(ret[0], ret[1], udf_count);
 		// compile the template
@@ -51,7 +52,6 @@ namespace duckdb
 		// load the compiled library
 		cout<<"Installing and loading the UDF..."<<endl;
 		load_udf(con, udf_count);
-		udf_count++;
 		return "select '' as 'Transpilation Done.';";
 	}
 
@@ -74,9 +74,9 @@ namespace duckdb
 		std::vector<std::string> ret = transpiler.run();
 		// cout<<ret[0]<<endl;
 		// cout<<ret[1]<<endl;
+		udf_count++;
 		cout<<"Transpiling the UDF..."<<endl;
 		insert_def_and_reg(ret[0], ret[1], udf_count);
-		udf_count++;
 		return "select '' as 'Code Generation Done.';";
 	}
 
@@ -85,6 +85,9 @@ namespace duckdb
 	*/
 	inline string Udf_BuilderPragmaFun(ClientContext &context, const FunctionParameters &parameters)
 	{	
+		if(udf_count == 0){
+			udf_count = 1;
+		}
 		cout<<"Compiling the UDF..."<<endl;
 		compile_udf(udf_count);
 		// load the compiled library
@@ -96,6 +99,9 @@ namespace duckdb
 
 	inline string Udaf_BuilderPragmaFun(ClientContext &context, const FunctionParameters &parameters)
 	{	
+		if(udf_count == 0){
+			udf_count = 1;
+		}
 		cout<<"Compiling the UDAF..."<<endl;
 		compile_udaf(udf_count);
 		// load the compiled library
