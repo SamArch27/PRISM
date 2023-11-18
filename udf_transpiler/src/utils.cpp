@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include <filesystem>
 #include <yaml-cpp/yaml.h>
 
 template <>
@@ -182,9 +183,12 @@ string UDFType::create_duckdb_value(const string &ret_name,
 }
 
 YAMLConfig::YAMLConfig() {
-  query = YAML::LoadFile("templates/query.yaml");
-  function = YAML::LoadFile("templates/function.yaml");
-  control = YAML::LoadFile("templates/control.yaml");
+  std::string filePath(__FILE__); // Get the path of the current source file
+  std::filesystem::path path(filePath);
+  std::string current_dir = path.parent_path().string();
+  query = YAML::LoadFile(current_dir + "/../templates/query.yaml");
+  function = YAML::LoadFile(current_dir + "/../templates/function.yaml");
+  control = YAML::LoadFile(current_dir + "/../templates/control.yaml");
 }
 
 /**
