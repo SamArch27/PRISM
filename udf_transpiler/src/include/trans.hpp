@@ -32,8 +32,8 @@ private:
     // Catalog *catalog;
 
 private:
-    string translate_query(json &query, duckdb::CodeInsertionPoint &insert, UDF_Type *expected_type, bool query_is_assignment);
-    string translate_expr(json &expr, duckdb::CodeInsertionPoint &insert, UDF_Type *expected_type, bool query_is_assignment);
+    string translate_query(json &query, duckdb::CodeInsertionPoint &insert, UDFType *expected_type, bool query_is_assignment);
+    string translate_expr(json &expr, duckdb::CodeInsertionPoint &insert, UDFType *expected_type, bool query_is_assignment);
     string translate_assign_stmt(json &stmt);
     string translate_return_stmt(json &stmt);
     string translate_cond_stmt(json &cond_stmt, duckdb::CodeInsertionPoint &insert);
@@ -44,7 +44,7 @@ private:
     string translate_stmt_block(json &stmt_block);
     string translate_exitcont_stmt(json &stmt);
     string get_function_vars(json &datums, string &udf_str);
-    string translate_body(json &body, UDF_Type *expectd_type = NULL);
+    string translate_body(json &body, UDFType *expectd_type = NULL);
     string translate_action(json &action);
     vector<string> translate_function(json &ast, string &udf_str);
     void parse_assignment(const string &query, string &lvalue, string &rvalue);
