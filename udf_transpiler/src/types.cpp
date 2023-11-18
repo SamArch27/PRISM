@@ -2,7 +2,53 @@
 #include "utils.hpp"
 #include <regex>
 
-PostgresTypeTag getPostgresTag(const std::string &type) {
+std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
+  switch (tag) {
+  case DuckdbTypeTag::BIGINT: os << "BIGINT"; break;
+  case DuckdbTypeTag::BIT: os << "BIT"; break;
+  case DuckdbTypeTag::BLOB: os << "BLOB"; break;
+  case DuckdbTypeTag::BOOLEAN: os << "BOOLEAN"; break;
+  case DuckdbTypeTag::DATE: os << "DATE"; break;
+  case DuckdbTypeTag::DECIMAL: os << "DECIMAL"; break;
+  case DuckdbTypeTag::DOUBLE: os << "DOUBLE"; break;
+  case DuckdbTypeTag::HUGEINT: os << "HUGEINT"; break;
+  case DuckdbTypeTag::INTEGER: os << "INTEGER"; break;
+  case DuckdbTypeTag::INTERVAL: os << "INTERVAL"; break;
+  case DuckdbTypeTag::REAL: os << "REAL"; break;
+  case DuckdbTypeTag::SMALLINT: os << "SMALLINT"; break;
+  case DuckdbTypeTag::TIME: os << "TIME"; break;
+  case DuckdbTypeTag::TIMESTAMP: os << "TIMESTAMP"; break;
+  case DuckdbTypeTag::TINYINT: os << "TINYINT"; break;
+  case DuckdbTypeTag::UBIGINT: os << "UBIGINT"; break;
+  case DuckdbTypeTag::UINTEGER: os << "UINTEGER"; break;
+  case DuckdbTypeTag::UNKNOWN: os << "UNKNOWN"; break;
+  case DuckdbTypeTag::USMALLINT: os << "USMALLINT"; break;
+  case DuckdbTypeTag::UTINYINT: os << "UTINYINT"; break;
+  case DuckdbTypeTag::UUID: os << "UUID"; break;
+  case DuckdbTypeTag::VARCHAR: os << "VARCHAR"; break;
+  }
+  return os;
+}
+std::ostream &operator<<(std::ostream &os, CppTypeTag tag) {
+  switch (tag) {
+  case CppTypeTag::BOOL: os << "bool"; break;
+  case CppTypeTag::INT8_T: os << "int8_t"; break;
+  case CppTypeTag::INT16_T: os << "int16_t"; break;
+  case CppTypeTag::INT32_T: os << "int32_t"; break;
+  case CppTypeTag::INT64_T: os << "int64_t"; break;
+  case CppTypeTag::HUGEINT_T: os << "duckdb::hugeint_t"; break;
+  case CppTypeTag::UINT8_T: os << "uint8_t"; break;
+  case CppTypeTag::UINT16_T: os << "uint16_t"; break;
+  case CppTypeTag::UINT32_T: os << "uint32_t"; break;
+  case CppTypeTag::UINT64_T: os << "uint64_t"; break;
+  case CppTypeTag::FLOAT: os << "float"; break;
+  case CppTypeTag::DOUBLE: os << "double"; break;
+  case CppTypeTag::STRING_T: os << "string_t"; break;
+  }
+  return os;
+}
+
+PostgresTypeTag Type::getPostgresTag(const std::string &type) {
   // remove spaces and capitalize the name
   std::string upper = toUpper(removeSpaces(type));
 
@@ -54,7 +100,7 @@ PostgresTypeTag getPostgresTag(const std::string &type) {
       {"VARCHAR", PostgresTypeTag::VARCHAR}};
 
   // Edge case for DECIMAL(width,scale)
-  if (getDecimalWidthScale(upper)) {
+  if (upper.starts_with("DECIMAL")) {
     return nameToTag.at("DECIMAL");
   }
 
@@ -64,7 +110,40 @@ PostgresTypeTag getPostgresTag(const std::string &type) {
   return nameToTag.at(upper);
 };
 
-std::string resolveTypeName(const std::string &udfs, const std::string &type) {
+std::optional<Type::WidthScale>
+Type::getDecimalWidthScale(const std::string &type) {
+  std::regex decimalPattern("DECIMAL\\((\\d+),(\\d+)\\)",
+                            std::regex_constants::icase);
+  std::smatch decimalMatch;
+  auto strippedString = removeSpaces(type);
+  std::regex_search(strippedString, decimalMatch, decimalPattern);
+  if (decimalMatch.size() == 3) {
+    auto width = std::stoi(decimalMatch[1]);
+    auto scale = std::stoi(decimalMatch[2]);
+    return {std::make_pair(width, scale)};
+  }
+  return {};
+}
+
+std::unique_ptr<Type> Type::getTypeFromPostgresName(const std::string &name,
+                                                    const std::string &udfs) {
+  auto tag = getPostgresTag(resolveTypeName(name, udfs));
+  if (tag == PostgresTypeTag::DECIMAL) {
+    // provide width, scale info if available
+    auto widthScale = getDecimalWidthScale(name);
+    if (widthScale) {
+      auto [width, scale] = *widthScale;
+      return std::make_unique<DecimalType>(tag, width, scale);
+    } else {
+      return std::make_unique<DecimalType>(tag);
+    }
+  } else {
+    return std::make_unique<NonDecimalType>(tag);
+  }
+}
+
+std::string Type::resolveTypeName(const std::string &type,
+                                  const std::string &udfs) {
   if (!type.starts_with('#')) {
     ASSERT(!type.empty(), "Type name is empty");
     return type;
@@ -79,67 +158,6 @@ std::string resolveTypeName(const std::string &udfs, const std::string &type) {
   std::regex_search(udfs.begin() + typeOffset, udfs.end(), matches, typeRegex);
   ASSERT(matches.size() == 4, "Invalid type format.");
   return matches[0];
-}
-
-std::optional<std::pair<int, int>>
-getDecimalWidthScale(const std::string &type) {
-  std::regex decimalPattern("DECIMAL\\((\\d+),(\\d+)\\)",
-                            std::regex_constants::icase);
-  std::smatch decimalMatch;
-  auto strippedString = removeSpaces(type);
-  std::regex_search(strippedString, decimalMatch, decimalPattern);
-  if (decimalMatch.size() == 3) {
-    auto width = std::stoi(decimalMatch[1]);
-    auto scale = std::stoi(decimalMatch[2]);
-    return {std::make_pair(width, scale)};
-  }
-  return {};
-}
-
-std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
-  switch (tag) {
-  case DuckdbTypeTag::BIGINT: os << "BIGINT"; break;
-  case DuckdbTypeTag::BIT: os << "BIT"; break;
-  case DuckdbTypeTag::BLOB: os << "BLOB"; break;
-  case DuckdbTypeTag::BOOLEAN: os << "BOOLEAN"; break;
-  case DuckdbTypeTag::DATE: os << "DATE"; break;
-  case DuckdbTypeTag::DECIMAL: os << "DECIMAL"; break;
-  case DuckdbTypeTag::DOUBLE: os << "DOUBLE"; break;
-  case DuckdbTypeTag::HUGEINT: os << "HUGEINT"; break;
-  case DuckdbTypeTag::INTEGER: os << "INTEGER"; break;
-  case DuckdbTypeTag::INTERVAL: os << "INTERVAL"; break;
-  case DuckdbTypeTag::REAL: os << "REAL"; break;
-  case DuckdbTypeTag::SMALLINT: os << "SMALLINT"; break;
-  case DuckdbTypeTag::TIME: os << "TIME"; break;
-  case DuckdbTypeTag::TIMESTAMP: os << "TIMESTAMP"; break;
-  case DuckdbTypeTag::TINYINT: os << "TINYINT"; break;
-  case DuckdbTypeTag::UBIGINT: os << "UBIGINT"; break;
-  case DuckdbTypeTag::UINTEGER: os << "UINTEGER"; break;
-  case DuckdbTypeTag::UNKNOWN: os << "UNKNOWN"; break;
-  case DuckdbTypeTag::USMALLINT: os << "USMALLINT"; break;
-  case DuckdbTypeTag::UTINYINT: os << "UTINYINT"; break;
-  case DuckdbTypeTag::UUID: os << "UUID"; break;
-  case DuckdbTypeTag::VARCHAR: os << "VARCHAR"; break;
-  }
-  return os;
-}
-std::ostream &operator<<(std::ostream &os, CppTypeTag tag) {
-  switch (tag) {
-  case CppTypeTag::BOOL: os << "bool"; break;
-  case CppTypeTag::INT8_T: os << "int8_t"; break;
-  case CppTypeTag::INT16_T: os << "int16_t"; break;
-  case CppTypeTag::INT32_T: os << "int32_t"; break;
-  case CppTypeTag::INT64_T: os << "int64_t"; break;
-  case CppTypeTag::HUGEINT_T: os << "duckdb::hugeint_t"; break;
-  case CppTypeTag::UINT8_T: os << "uint8_t"; break;
-  case CppTypeTag::UINT16_T: os << "uint16_t"; break;
-  case CppTypeTag::UINT32_T: os << "uint32_t"; break;
-  case CppTypeTag::UINT64_T: os << "uint64_t"; break;
-  case CppTypeTag::FLOAT: os << "float"; break;
-  case CppTypeTag::DOUBLE: os << "double"; break;
-  case CppTypeTag::STRING_T: os << "string_t"; break;
-  }
-  return os;
 }
 
 DuckdbTypeTag Type::lookupDuckdbTag(PostgresTypeTag pgTag) const {
