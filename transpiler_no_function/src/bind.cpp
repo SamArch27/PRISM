@@ -15,17 +15,17 @@ bool QueryTranspiler::bind_constant(QueryNode &node){
     // ASSERT(ast.contains("A_Const"), "The ast should be a A_Const");
     // json &value = ast["A_Const"];
     node.bound = true;
-    UDF_Type const_type;
+    UDFType const_type;
     string const_value;
     if(value.contains("fval")){
         // float constant
-        const_type = UDF_Type("double");
+        const_type = UDFType("double");
         ASSERT(value["fval"]["fval"].is_string(), "unexpected json format");
         const_value = value["fval"]["fval"];
     }
     else if(value.contains("ival")){
         // integer constant
-        const_type = UDF_Type("int");
+        const_type = UDFType("int");
         // this is to handle the quark in pg_query that 0 int has no ival
         if(value["ival"].empty()){
             const_value = "0";
@@ -37,7 +37,7 @@ bool QueryTranspiler::bind_constant(QueryNode &node){
         
     }
     else if(value.contains("sval")){
-        const_type = UDF_Type("varchar");
+        const_type = UDFType("varchar");
         ASSERT(value["sval"]["sval"].is_string(), "unexpected json format");
         const_value = value["sval"]["sval"];
     }

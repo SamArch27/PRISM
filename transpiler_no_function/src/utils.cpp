@@ -34,7 +34,7 @@ bool is_number(){
 /**
  * @brief Resolve a type name to a C++ type name and a type size.
  */
-string UDF_Type::resolve_type(string type_name, const string &udf_str){
+string UDFType::resolve_type(string type_name, const string &udf_str){
     // std::cout<<type_name<<std::endl;
     // std::cout<<std::stoi("#28#")<<std::endl;
     if (type_name.starts_with('#'))
@@ -76,7 +76,7 @@ string UDF_Type::resolve_type(string type_name, const string &udf_str){
     }
 }
 
-void UDF_Type::get_decimal_width_scale(string &duckdb_type, int &width, int &scale){
+void UDFType::get_decimal_width_scale(string &duckdb_type, int &width, int &scale){
     std::regex decimal_pattern("DECIMAL\\((\\d+),(\\d+)\\)", std::regex_constants::icase);
     std::smatch decimal_match;
     std::regex_search(duckdb_type, decimal_match, decimal_pattern);
@@ -86,7 +86,7 @@ void UDF_Type::get_decimal_width_scale(string &duckdb_type, int &width, int &sca
     // std::cout << width << scale << '\n';
 }
 
-string UDF_Type::get_decimal_int_type(int width, int scale){
+string UDFType::get_decimal_int_type(int width, int scale){
     ASSERT(width > 0, "Width of decimal should be > 0.");
     if(width <= 4)
         return "int16_t";
@@ -100,24 +100,24 @@ string UDF_Type::get_decimal_int_type(int width, int scale){
         ERROR("Width larger than 38.");
 }
 
-string UDF_Type::get_cpp_type()
+string UDFType::get_cpp_type()
 {
     ASSERT(is_unknown() == false, "Cannot get cpp type from UNKNOWN duckdb type.");
     // std::cout << duckdb_type << "_____" << '\n';
     if(duckdb_type.starts_with("DECIMAL(")){
         int width, scale;
-        UDF_Type::get_decimal_width_scale(duckdb_type, width, scale);
-        return UDF_Type::get_decimal_int_type(width, scale);
+        UDFType::get_decimal_width_scale(duckdb_type, width, scale);
+        return UDFType::get_decimal_int_type(width, scale);
     }
     return duckdb_to_cpp_type.at(duckdb_type);
 }
 
-string UDF_Type::create_duckdb_value(const string &ret_name, const string &cpp_value){
+string UDFType::create_duckdb_value(const string &ret_name, const string &cpp_value){
     const vector<string> numeric = {"BOOLEAN", "TINYINT", "SMALLINT", "DATE", "TIME", "INTEGER", "BIGINT", "TIMESTAMP", "FLOAT", "DOUBLE", "DECIMAL"};
     const vector<string> blob = {"VARCHAR", "BLOB"};
     if(duckdb_type.starts_with("DECIMAL")){
         int width, scale;
-        UDF_Type::get_decimal_width_scale(duckdb_type, width, scale);
+        UDFType::get_decimal_width_scale(duckdb_type, width, scale);
         return fmt::format("{} = Value::DECIMAL({}, {}, {})", ret_name, cpp_value, width, scale);
     }
     else if(std::find(numeric.begin(), numeric.end(), duckdb_type) != numeric.end()){

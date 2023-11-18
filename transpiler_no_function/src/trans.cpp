@@ -14,7 +14,7 @@ void Transpiler::parse_assignment(const string &query, string &lvalue, string &r
 }
 
 // todo
-string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool query_is_assignment = false){
+string Transpiler::translate_query(json &query, UDFType *expected_type, bool query_is_assignment = false){
     ASSERT(query.is_string(), "Query statement should be a string.");
     // cout<<query<<endl;
     // todo substitute variable
@@ -37,7 +37,7 @@ string Transpiler::translate_query(json &query, UDF_Type *expected_type, bool qu
     // return query;
 }
 
-string Transpiler::translate_expr(json &expr, UDF_Type *expected_type, bool query_is_assignment = false){
+string Transpiler::translate_expr(json &expr, UDFType *expected_type, bool query_is_assignment = false){
     if(expr.contains("query") and expr.size() == 1){
         return translate_query(expr["query"], expected_type, query_is_assignment);
     }
@@ -67,7 +67,7 @@ string Transpiler::translate_return_stmt(json &stmt){
 string Transpiler::translate_cond_stmt(json &cond_stmt){
     ASSERT(cond_stmt.contains("PLpgSQL_expr"), "cond stmt should contain PLpgSQL_expr.");
     string tmp = "BOOL";
-    UDF_Type cond_type(tmp, udf_str);
+    UDFType cond_type(tmp, udf_str);
     return translate_expr(cond_stmt["PLpgSQL_expr"], &cond_type);
 }
 
@@ -142,7 +142,7 @@ string Transpiler::translate_for_stmt(json &for_stmt){
     if(is_reverse)
         ASSERT(for_stmt["reverse"], "reverse must be true.");
     
-    UDF_Type tmp_int_type(for_var_type, udf_str);
+    UDFType tmp_int_type(for_var_type, udf_str);
     string step_size = "1";
     if(for_stmt.contains("step")){
         step_size = translate_expr(for_stmt["step"]["PLpgSQL_expr"], &tmp_int_type, false);
@@ -191,7 +191,7 @@ string Transpiler::translate_exitcont_stmt(json &stmt){
  * by return type determined stmts like "cond":{"PLpgSQL_expr"..., should set 
  * argument expected_type.
 */
-string Transpiler::translate_body(json &body, UDF_Type *expected_type){
+string Transpiler::translate_body(json &body, UDFType *expected_type){
     string output = "";
     for(auto &stmt : body){
         if (stmt.contains("PLpgSQL_stmt_if"))
@@ -218,7 +218,7 @@ string Transpiler::translate_body(json &body, UDF_Type *expected_type){
 }
 
 string Transpiler::translate_stmt_block(json &stmt_block){
-    UDF_Type tmp;
+    UDFType tmp;
     return translate_body(stmt_block["body"], NULL);
 }
 
@@ -379,7 +379,7 @@ vector<string> Transpiler::run(){
         if(ast[i].contains("PLpgSQL_function")){
             function_info = std::make_unique<FunctionInfo>();
             function_info->func_name = func_names[i];
-            function_info->func_return_type = UDF_Type(return_types[i], udf_str);
+            function_info->func_return_type = UDFType(return_types[i], udf_str);
             vector<string> tmp_ret = translate_function(ast[i]["PLpgSQL_function"], udf_str);
             // std::cout<<function_info->func_return_type.duckdb_type<<std::endl;
 

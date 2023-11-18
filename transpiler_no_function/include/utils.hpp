@@ -35,7 +35,7 @@ void remove_spaces(std::string &str);
 static unordered_map<string, string> alias_to_duckdb_type = {{"UNKNOWN", "UNKNOWN"}, {"BIGINT", "BIGINT"}, {"INT8", "BIGINT"}, {"LONG", "BIGINT"}, {"BIT", "BIT"}, {"BITSTRING", "BIT"}, {"BOOLEAN", "BOOLEAN"}, {"BOOL", "BOOLEAN"}, {"LOGICAL", "BOOLEAN"}, {"BLOB", "BLOB"}, {"BYTEA", "BLOB"}, {"BINARY", "BLOB"}, {"VARBINARY", "BLOB"}, {"DATE", "DATE"}, {"DOUBLE", "DOUBLE"}, {"FLOAT8", "DOUBLE"}, {"NUMERIC", "DOUBLE"}, {"DECIMAL", "DOUBLE"}, {"HUGEINT", "HUGEINT"}, {"INTEGER", "INTEGER"}, {"INT", "INTEGER"}, {"INT4", "INTEGER"}, {"SIGNED", "INTEGER"}, {"INTERVAL", "INTERVAL"}, {"REAL", "REAL"}, {"FLOAT4", "REAL"}, {"FLOAT", "REAL"}, {"SMALLINT", "SMALLINT"}, {"INT2", "SMALLINT"}, {"SHORT", "SMALLINT"}, {"TIME", "TIME"}, {"TIMESTAMP", "TIMESTAMP"}, {"DATETIME", "TIMESTAMP"}, {"TINYINT", "TINYINT"}, {"INT1", "TINYINT"}, {"UBIGINT", "UBIGINT"}, {"UINTEGER", "UINTEGER"}, {"USMALLINT", "USMALLINT"}, {"UTINYINT", "UTINYINT"}, {"UUID", "UUID"}, {"VARCHAR", "VARCHAR"}, {"CHAR", "VARCHAR"}, {"BPCHAR", "VARCHAR"}, {"TEXT", "VARCHAR"}, {"STRING", "VARCHAR"}};
 static unordered_map<string, string> duckdb_to_cpp_type = {{"BOOLEAN", "bool"}, {"TINYINT", "int8_t"}, {"SMALLINT", "int16_t"}, {"DATE", "int32_t"}, {"TIME", "int32_t"}, {"INTEGER", "int32_t"}, {"BIGINT", "int64_t"}, {"TIMESTAMP", "int64_t"}, {"FLOAT", "float"}, {"DOUBLE", "double"}, {"DECIMAL", "double"}, {"VARCHAR", "string_t"}, {"CHAR", "string_t"}, {"BLOB", "string_t"}};
 
-class UDF_Type
+class UDFType
 {
 public:
     string duckdb_type;
@@ -44,15 +44,15 @@ public:
     static void get_decimal_width_scale(string &duckdb_type, int &width, int &scale);
     static string get_decimal_int_type(int width, int scale);
 
-    UDF_Type(){};
+    UDFType(){};
 
-    UDF_Type(const string &type_name){
-        duckdb_type = UDF_Type::resolve_type(type_name, "");
+    UDFType(const string &type_name){
+        duckdb_type = UDFType::resolve_type(type_name, "");
     }
 
-    UDF_Type(const string &type_name, const string &udf_str)
+    UDFType(const string &type_name, const string &udf_str)
     {
-        duckdb_type = UDF_Type::resolve_type(type_name, udf_str);
+        duckdb_type = UDFType::resolve_type(type_name, udf_str);
     }
 
     string get_duckdb_type()
@@ -75,7 +75,7 @@ class VarInfo
 public:
     int id;
     bool init;
-    UDF_Type type;
+    UDFType type;
     VarInfo(){};
     VarInfo(int id, string &type_name, const string &udf_str, bool i) : id(id), init(i), type(type_name, udf_str){};
 };
@@ -95,7 +95,7 @@ public:
     int function_count = 0;
     int vector_size = 2048;
     string func_name;
-    UDF_Type func_return_type;
+    UDFType func_return_type;
     int tmp_var_count = 0;
     vector<string> func_args_vec;
     unordered_map<string, VarInfo> func_args;
