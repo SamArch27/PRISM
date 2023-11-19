@@ -1,10 +1,10 @@
-SELECT c_custkey, OrdersByCustomer(c_custkey) FROM customer order by *;
-SELECT P_PARTKEY, PromoRevenue(P_PARTKEY) FROM part WHERE P_TYPE LIKE 'PROMO%%';
+SELECT c_custkey, OrdersByCustomer(c_custkey) FROM customer;
+SELECT P_PARTKEY, PromoRevenue(p_partkey) FROM part WHERE P_TYPE LIKE 'PROMO%%';
 SELECT O_ORDERKEY, O_TOTALPRICE
 FROM orders
-WHERE VolumeCustomer(O_ORDERKEY) = 1;
+WHERE VolumeCustomer(o_orderkey) = 1;
 SELECT DiscountedRevenue() as dr;
-SELECT P_PARTKEY, MinCostSupp(P_PARTKEY)
+SELECT P_PARTKEY, MinCostSupp(p_partkey)
 FROM part;
 SELECT S_NAME, S_SUPPKEY
 FROM supplier

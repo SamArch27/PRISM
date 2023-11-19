@@ -1,4 +1,4 @@
-CREATE MACRO OrdersByCustomer(cust_key) AS 
+CREATE MACRO OrdersByCustomer2(cust_key) AS 
 (SELECT "val_1" AS "result" FROM 
     LATERAL 
     (SELECT
@@ -91,8 +91,8 @@ create macro DiscountedRevenue() as
 create macro MinCostSupp(pk) AS
 (SELECT "val_1" AS "result"
     FROM LATERAL
-         (SELECT (SELECT arg_min("partsupp"."ps_supplycost"::int, 
-                          "supplier"."s_name") AS "row"
+         (SELECT (SELECT arg_min("supplier"."s_name", 
+                                "partsupp"."ps_supplycost"::int) AS "row"
                   FROM partsupp AS "partsupp", supplier AS "supplier"
                   WHERE ("partsupp"."ps_partkey" = "pk"
                          AND
