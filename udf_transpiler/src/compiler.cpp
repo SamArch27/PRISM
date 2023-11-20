@@ -19,20 +19,6 @@ void Compiler::run() {
     ASSERT(udf.contains(header),
            std::string("UDF is missing the magic header string: ") + header);
   }
-
-  /*
-          std::cout << function << std::endl;
-          auto datums = function["datums"];
-          ASSERT(datums.is_array(), "Datums is not an array.");
-
-          for (auto &datum : datums)
-          {
-              ASSERT(datum.contains("PLpgSQL_var"), "Datum does not contain
-     PLpgSQL_var."); auto var  = datum["PLpgSQL_var"]; auto name =
-     var["refname"]; auto type = var["datatype"]["PLpgSQL_type"]["typname"];
-              // addVariable(type, name);
-          }
-         */
 }
 
 json Compiler::parseJson() const {
@@ -143,6 +129,8 @@ Compiler::getDecimalWidthScale(const std::string &type) {
   if (decimalMatch.size() == 3) {
     auto width = std::stoi(decimalMatch[1]);
     auto scale = std::stoi(decimalMatch[2]);
+    std::cout << "Width: " << width << std::endl;
+    std::cout << "Scale: " << scale << std::endl;
     return {std::make_pair(width, scale)};
   }
   return {};
@@ -150,10 +138,11 @@ Compiler::getDecimalWidthScale(const std::string &type) {
 
 std::unique_ptr<Type>
 Compiler::getTypeFromPostgresName(const std::string &name) const {
-  auto tag = getPostgresTag(resolveTypeName(name));
+  auto resolvedName = resolveTypeName(name);
+  auto tag = getPostgresTag(resolvedName);
   if (tag == PostgresTypeTag::DECIMAL) {
     // provide width, scale info if available
-    auto widthScale = getDecimalWidthScale(name);
+    auto widthScale = getDecimalWidthScale(resolvedName);
     if (widthScale) {
       auto [width, scale] = *widthScale;
       return std::make_unique<DecimalType>(tag, width, scale);
