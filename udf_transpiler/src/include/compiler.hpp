@@ -5,8 +5,10 @@
 #include <include/fmt/core.h>
 #include <json.hpp>
 #include <memory>
+#include <optional>
 #include <regex>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 struct FunctionMetadata {
@@ -77,7 +79,11 @@ using json = nlohmann::json;
 
 class Compiler {
 public:
-  Compiler(const std::string &udfs, bool optimize = true);
+  using WidthScale = std::pair<int, int>;
+
+  Compiler(const std::string &programText) : programText(programText) {}
+
+  void run();
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;
@@ -91,9 +97,14 @@ public:
   std::string getGeneratedPLpgSQLFunctions();
 
 private:
-  json parseJson(const std::string &udfs) const;
-  std::vector<FunctionMetadata>
-  getFunctionMetadata(const std::string &udfs) const;
+  json parseJson() const;
+  std::vector<FunctionMetadata> getFunctionMetadata() const;
+
+  static std::optional<WidthScale>
+  getDecimalWidthScale(const std::string &type);
+  static PostgresTypeTag getPostgresTag(const std::string &name);
+  std::unique_ptr<Type> getTypeFromPostgresName(const std::string &name) const;
+  std::string resolveTypeName(const std::string &type) const;
 
   /*
   void addVariable(const std::string &t, const std::string &name)
@@ -104,6 +115,7 @@ private:
   }
   */
 
+  std::string programText;
   std::size_t variable_id = 0;
   std::unordered_map<std::string, Variable *> bindings;
   std::vector<Variable *> variables;

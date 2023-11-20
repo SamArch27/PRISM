@@ -323,6 +323,7 @@ std::string Transpiler::get_function_vars(json &datums, string &udf_str) {
 vector<string> Transpiler::translate_function(json &ast, string &udf_str) {
 
   string vars_init = get_function_vars(ast["datums"], udf_str);
+
   // for(auto i : function_info->func_args){
   //     std::cout<<i.first<<i.second.type.duckdb_type<<i.second.init<<std::endl;
   // }
@@ -339,19 +340,23 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str) {
                     fmt::arg("var_name", name),
                     fmt::arg("i", function_info->func_args[name].id));
     function_args += "\n";
+
     arg_indexes +=
         fmt::format(fmt::runtime(config->function["argindex"].Scalar()),
                     fmt::arg("var_name", name));
     arg_indexes += "\n";
+
     subfunc_args +=
         fmt::format(fmt::runtime(config->function["subfunc_arg"].Scalar()),
                     fmt::arg("var_name", name));
     subfunc_args += ", ";
+
     fbody_args +=
         fmt::format(fmt::runtime(config->function["fbody_arg"].Scalar()),
                     fmt::arg("i", function_info->func_args[name].id),
                     fmt::arg("var_name", name));
     fbody_args += ", ";
+
     // count++;
     check_null.push_back(name + "_null");
   }
@@ -411,6 +416,7 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str) {
 vector<string> Transpiler::run() {
 
   auto compiler = Compiler(udf_str);
+  compiler.run();
 
   // collect the function return types
   std::vector<std::string> return_types;

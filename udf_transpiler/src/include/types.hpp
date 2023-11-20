@@ -2,8 +2,6 @@
 #include "utils.hpp"
 #define FMT_HEADER_ONLY
 #include <iostream>
-#include <optional>
-#include <utility>
 
 enum class PostgresTypeTag {
   BIGINT,
@@ -97,8 +95,6 @@ std::ostream &operator<<(std::ostream &os, CppTypeTag);
 
 class Type {
 public:
-  static std::unique_ptr<Type> getTypeFromPostgresName(const std::string &name,
-                                                       const std::string &udfs);
   DuckdbTypeTag getDuckDBTag() const { return duckdbTag; }
   CppTypeTag getCppTag() const { return cppTag; }
   friend std::ostream &operator<<(std::ostream &os, const Type &type) {
@@ -115,14 +111,6 @@ protected:
 
   DuckdbTypeTag duckdbTag;
   CppTypeTag cppTag;
-
-private:
-  using WidthScale = std::pair<int, int>;
-  static std::optional<WidthScale>
-  getDecimalWidthScale(const std::string &type);
-  static PostgresTypeTag getPostgresTag(const std::string &name);
-  static std::string resolveTypeName(const std::string &type,
-                                     const std::string &udfs);
 };
 
 class DecimalType : public Type {
