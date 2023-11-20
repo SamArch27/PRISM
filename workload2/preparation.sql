@@ -1,4 +1,4 @@
-CREATE MACRO OrdersByCustomer2(cust_key) AS 
+CREATE MACRO OrdersByCustomer(cust_key) AS 
 (SELECT "val_1" AS "result" FROM 
     LATERAL 
     (SELECT
