@@ -477,7 +477,7 @@ namespace duckdb
 		// 													 LogicalType::BOOLEAN, isListDistinct);
 		// ExtensionUtil::RegisterFunction(instance, isListDistinct_scalar_function);
 		/* ==== Unique identifier to indicate register insertion point start: 04rj39jds934 ==== */
-		auto ordersbycustomeraggregate = AggregateFunction::UnaryAggregate<AggState13, int32_t, int32_t, CustomAggOperation13>(LogicalType::INTEGER, LogicalType::INTEGER, FunctionNullHandling::SPECIAL_HANDLING);
+		auto ordersbycustomeraggregate = UnaryBaseAggregate<AggState13, int32_t, int32_t, CustomAggOperation13>(LogicalType::INTEGER, LogicalType::INTEGER, FunctionNullHandling::SPECIAL_HANDLING);
 
 		// custom_agg_function.update = CountScatter<int64_t, AggState, CustomAggOperation>;
 		// auto custom_agg_function = AggregateFunction::UnaryAggregate<AggState, int64_t, int32_t, CustomAggOperation>(LogicalType::BIGINT, LogicalType::INTEGER);

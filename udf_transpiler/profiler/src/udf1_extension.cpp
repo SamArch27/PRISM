@@ -14,7 +14,7 @@
 
 #define PREPARATION_FILE "preparation.sql"
 #define WORKLOAD_FILE "workload.sql"
-#define REPEAT_TIMES 3
+#define REPEAT_TIMES 10
 #define NAME_SHOW_LEN 20
 
 namespace duckdb

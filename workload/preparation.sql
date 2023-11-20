@@ -1,6 +1,6 @@
-call dbgen(sf=1);
+call dbgen(sf=10);
 pragma build_agg;
-set threads to 1;
+-- set threads to 1;
 CREATE MACRO OrdersByCustomerWithCustomAgg(cust_key) AS 
 (SELECT "val_1" AS "result" FROM 
     LATERAL 
@@ -8,7 +8,7 @@ CREATE MACRO OrdersByCustomerWithCustomAgg(cust_key) AS
         (SELECT ordersbycustomeraggregate("tmp"."o_orderkey") AS "count" FROM 
             (select O_ORDERKEY from orders AS "orders" WHERE "orders"."o_custkey" = "cust_key") as tmp) AS "val_1") AS "let0"("val_1"));
 
-create macro OrdersByCustomer(cust_key) as
+create macro OrdersByCustomerWithCustomAggCorrect(cust_key) as
 (SELECT "val_2" AS "result"
     FROM LATERAL (SELECT 0 AS "val_1") AS "let0"("val_1"), 
          LATERAL

@@ -1,4 +1,4 @@
-SELECT c_custkey, OrdersByCustomerWithCustomAgg(c_custkey) FROM customer order by *;
+SELECT c_custkey, OrdersByCustomerWithCustomAgg(c_custkey) FROM customer;
 SELECT P_PARTKEY, PromoRevenueWithCustomAgg(p_partkey) FROM part WHERE P_TYPE LIKE 'PROMO%%';
 SELECT O_ORDERKEY, O_TOTALPRICE
 FROM orders
