@@ -101,12 +101,12 @@ public:
     type.print(os);
     return os;
   }
+  virtual void print(std::ostream &os) const = 0;
 
 protected:
   Type(DuckdbTypeTag duckdbTag, CppTypeTag cppTag)
       : duckdbTag(duckdbTag), cppTag(cppTag) {}
 
-  virtual void print(std::ostream &os) const = 0;
   DuckdbTypeTag lookupDuckdbTag(PostgresTypeTag pgTag) const;
 
   DuckdbTypeTag duckdbTag;

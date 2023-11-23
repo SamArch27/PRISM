@@ -2,16 +2,20 @@
 #include "pg_query.h"
 #include "utils.hpp"
 #include <iostream>
+#include <sstream>
 #include <string>
 
 void Compiler::run() {
 
   auto json = parseJson();
-  auto functionMetadata = getFunctionMetadata();
 
-  for (const auto &metadata : functionMetadata) {
-    std::cout << "Function Name: " << metadata.functionName << std::endl;
-    std::cout << "Return Type: " << *(metadata.returnType) << std::endl;
+  std::cout << json << std::endl;
+
+  auto functions = getFunctionMetadata();
+
+  for (const auto &metadata : functions) {
+    std::cout << "Function Name: " << metadata.getFunctionName() << std::endl;
+    std::cout << "Return Type: " << *(metadata.getReturnType()) << std::endl;
   }
 
   auto header = "PLpgSQL_function";
@@ -19,6 +23,100 @@ void Compiler::run() {
     ASSERT(udf.contains(header),
            std::string("UDF is missing the magic header string: ") + header);
   }
+
+  for (std::size_t i = 0; i < functions.size(); ++i) {
+
+    auto datums = json[i]["PLpgSQL_function"]["datums"];
+    ASSERT(datums.is_array(), "Datums is not an array.");
+
+    bool readingArguments = true;
+
+    for (const auto &datum : datums) {
+
+      ASSERT(datum.contains("PLpgSQL_var"),
+             "Datum does not contain PLpgSQL_var.");
+      auto variable = datum["PLpgSQL_var"];
+      auto variableName = variable["refname"];
+      if (variableName == "found") {
+        readingArguments = false;
+        continue;
+      }
+      auto variableType = variable["datatype"]["PLpgSQL_type"]["typname"];
+
+      if (readingArguments) {
+        functions[i].addArgument(variableName,
+                                 getTypeFromPostgresName(variableType));
+      } else {
+        functions[i].addVariable(variableName,
+                                 getTypeFromPostgresName(variableType));
+
+        std::string defaultVal =
+            variable.contains("default_val")
+                ? variable["default_val"]["PLpgSQL_expr"]["query"]
+                      .get<std::string>()
+                : "NULL";
+        bindExpression(functions[i], defaultVal);
+      }
+    }
+  }
+
+  for (const auto &function : functions) {
+    std::cout << "-----------------------------" << std::endl;
+    std::cout << "Function Name: " << function.getFunctionName() << std::endl;
+    std::cout << "Return Type: " << *(function.getReturnType()) << std::endl;
+    std::cout << "Arguments: " << std::endl;
+    for (const auto &argument : function.getArguments()) {
+      std::cout << "\t[" << argument.getName() << "," << *argument.getType()
+                << "]" << std::endl;
+    }
+    std::cout << "Variables: " << std::endl;
+    for (const auto &variable : function.getVariables()) {
+      std::cout << "\t[" << variable.getName() << "," << *variable.getType()
+                << "]" << std::endl;
+    }
+    std::cout << "-----------------------------" << std::endl;
+  }
+}
+
+std::unique_ptr<Expression>
+Compiler::bindExpression(const FunctionMetadata &function,
+                         const std::string &expression) {
+
+  std::stringstream createTableString;
+  createTableString << "CREATE TABLE tmp(";
+  bool first = true;
+  for (const auto &binding : function.getBindings()) {
+    auto &[name, type] = binding;
+    createTableString << (first ? "" : ", ");
+    if (first) {
+      first = false;
+    }
+    createTableString << name << " " << *type;
+  }
+  createTableString << ");";
+
+  // Create commands
+  std::string createTableCommand = createTableString.str();
+  std::string selectExpressionCommand = "SELECT " + expression + " FROM tmp;";
+  std::string dropTableCommand = "DROP TABLE tmp;";
+
+  // Execute the commands
+  auto res = connection->Query(createTableCommand);
+  if (res->HasError()) {
+    EXCEPTION(res->GetError());
+  }
+  // Disable the optimizer (TODO: Fix this)
+  auto connectionContext = connection->context.get();
+  connectionContext->config.enable_optimizer = false;
+
+  // Bind the expression and drop the table
+  auto boundExpression =
+      connectionContext->ExtractPlan(selectExpressionCommand);
+  connection->Query(dropTableCommand);
+
+  std::cout << boundExpression->ToString() << std::endl;
+
+  return std::move(boundExpression);
 }
 
 json Compiler::parseJson() const {

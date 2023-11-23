@@ -415,7 +415,7 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str) {
  */
 vector<string> Transpiler::run() {
 
-  auto compiler = Compiler(udf_str);
+  auto compiler = Compiler(&connection, udf_str);
   compiler.run();
 
   // collect the function return types
