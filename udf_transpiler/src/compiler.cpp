@@ -75,6 +75,7 @@ void Compiler::run() {
       std::cout << "\t[" << variable->getName() << "," << *(variable->getType())
                 << "]" << std::endl;
     }
+    std::cout << "Declarations: " << std::endl;
     for (const auto &declaration : function.getDeclarations()) {
       std::cout << "\t" << declaration->getVar()->getName() << " = "
                 << std::endl;
