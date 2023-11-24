@@ -47,15 +47,16 @@ void Compiler::run() {
         functions[i].addArgument(variableName,
                                  getTypeFromPostgresName(variableType));
       } else {
-        functions[i].addVariable(variableName,
-                                 getTypeFromPostgresName(variableType));
-
+        // If the declared variable has a default value (i.e. DECLARE x = 0;)
+        // then get it (otherwise assign to NULL)
         std::string defaultVal =
             variable.contains("default_val")
                 ? variable["default_val"]["PLpgSQL_expr"]["query"]
                       .get<std::string>()
                 : "NULL";
-        bindExpression(functions[i], defaultVal);
+        functions[i].addVariable(variableName,
+                                 getTypeFromPostgresName(variableType),
+                                 bindExpression(functions[i], defaultVal));
       }
     }
   }
@@ -66,13 +67,18 @@ void Compiler::run() {
     std::cout << "Return Type: " << *(function.getReturnType()) << std::endl;
     std::cout << "Arguments: " << std::endl;
     for (const auto &argument : function.getArguments()) {
-      std::cout << "\t[" << argument.getName() << "," << *argument.getType()
+      std::cout << "\t[" << argument->getName() << "," << *(argument->getType())
                 << "]" << std::endl;
     }
     std::cout << "Variables: " << std::endl;
     for (const auto &variable : function.getVariables()) {
-      std::cout << "\t[" << variable.getName() << "," << *variable.getType()
+      std::cout << "\t[" << variable->getName() << "," << *(variable->getType())
                 << "]" << std::endl;
+    }
+    for (const auto &declaration : function.getDeclarations()) {
+      std::cout << "\t" << declaration->getVar()->getName() << " = "
+                << std::endl;
+      std::cout << declaration->getExpr()->ToString() << std::endl;
     }
     std::cout << "-----------------------------" << std::endl;
   }

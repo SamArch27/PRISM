@@ -33,14 +33,14 @@ class Instruction {};
 
 class Assignment : public Instruction {
 public:
-  Assignment(std::unique_ptr<Variable> var, std::unique_ptr<Expression> expr)
-      : Instruction(), var(std::move(var)), expr(std::move(expr)) {}
+  Assignment(const Variable *var, std::unique_ptr<Expression> expr)
+      : Instruction(), var(var), expr(std::move(expr)) {}
 
-  const Variable *getVar() const { return var.get(); }
+  const Variable *getVar() const { return var; }
   const Expression *getExpr() const { return expr.get(); }
 
 private:
-  std::unique_ptr<Variable> var;
+  const Variable *var;
   std::unique_ptr<Expression> expr;
 };
 
@@ -52,16 +52,27 @@ public:
 
   void addArgument(const std::string &name, std::unique_ptr<Type> type) {
     bindings.emplace(name, type.get());
-    arguments.emplace_back(name, std::move(type));
+    arguments.emplace_back(std::make_unique<Variable>(name, std::move(type)));
   }
 
-  void addVariable(const std::string &name, std::unique_ptr<Type> type) {
+  void addVariable(const std::string &name, std::unique_ptr<Type> type,
+                   std::unique_ptr<Expression> expr) {
     bindings.emplace(name, type.get());
-    variables.emplace_back(name, std::move(type));
+    variables.emplace_back(std::make_unique<Variable>(name, std::move(type)));
+    declarations.emplace_back(
+        std::make_unique<Assignment>(variables.back().get(), std::move(expr)));
   }
 
-  const std::vector<Variable> &getArguments() const { return arguments; }
-  const std::vector<Variable> &getVariables() const { return variables; }
+  const std::vector<std::unique_ptr<Variable>> &getArguments() const {
+    return arguments;
+  }
+  const std::vector<std::unique_ptr<Variable>> &getVariables() const {
+    return variables;
+  }
+  const std::vector<std::unique_ptr<Assignment>> &getDeclarations() const {
+    return declarations;
+  }
+
   std::string getFunctionName() const { return functionName; }
   const Type *getReturnType() const { return returnType.get(); }
 
@@ -72,8 +83,9 @@ public:
 private:
   std::string functionName;
   std::unique_ptr<Type> returnType;
-  std::vector<Variable> arguments;
-  std::vector<Variable> variables;
+  std::vector<std::unique_ptr<Variable>> arguments;
+  std::vector<std::unique_ptr<Variable>> variables;
+  std::vector<std::unique_ptr<Assignment>> declarations;
   std::unordered_map<std::string, Type *> bindings;
 };
 
