@@ -19,6 +19,8 @@ template <typename A, typename B = A, typename... Args>
 Own<A> Make(Args &&... xs) {
   return std::make_unique<B>(std::forward<Args>(xs)...);
 }
+template <typename A> using Vec = std::vector<A>;
+
 template <typename A> using VecOwn = std::vector<Own<A>>;
 
 template <typename A> using Opt = std::optional<A>;
@@ -55,9 +57,20 @@ private:
   Own<Expression> expr;
 };
 
-class FunctionMetadata {
+class BasicBlock {
 public:
-  FunctionMetadata(const std::string &functionName, Own<Type> returnType)
+  BasicBlock(const std::string &label) : label(label) {}
+
+  void addInstruction(Instruction *inst) { instructions.push_back(inst); }
+
+private:
+  std::string label;
+  Vec<Instruction *> instructions;
+};
+
+class Module {
+public:
+  Module(const std::string &functionName, Own<Type> returnType)
       : functionName(functionName), returnType(std::move(returnType)) {}
 
   void addArgument(const std::string &name, Own<Type> type) {
@@ -116,9 +129,9 @@ public:
 
 private:
   json parseJson() const;
-  std::vector<FunctionMetadata> getFunctionMetadata() const;
+  Vec<Module> getModules() const;
 
-  Own<Expression> bindExpression(const FunctionMetadata &function,
+  Own<Expression> bindExpression(const Module &function,
                                  const std::string &expression);
   static Opt<WidthScale> getDecimalWidthScale(const std::string &type);
   static PostgresTypeTag getPostgresTag(const std::string &name);

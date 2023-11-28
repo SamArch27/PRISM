@@ -11,11 +11,11 @@ void Compiler::run() {
 
   std::cout << json << std::endl;
 
-  auto functions = getFunctionMetadata();
+  auto modules = getModules();
 
-  for (const auto &metadata : functions) {
-    std::cout << "Function Name: " << metadata.getFunctionName() << std::endl;
-    std::cout << "Return Type: " << *(metadata.getReturnType()) << std::endl;
+  for (const auto &module : modules) {
+    std::cout << "Function Name: " << module.getFunctionName() << std::endl;
+    std::cout << "Return Type: " << *(module.getReturnType()) << std::endl;
   }
 
   auto header = "PLpgSQL_function";
@@ -24,7 +24,7 @@ void Compiler::run() {
            std::string("UDF is missing the magic header string: ") + header);
   }
 
-  for (std::size_t i = 0; i < functions.size(); ++i) {
+  for (std::size_t i = 0; i < modules.size(); ++i) {
 
     auto datums = json[i]["PLpgSQL_function"]["datums"];
     ASSERT(datums.is_array(), "Datums is not an array.");
@@ -44,8 +44,8 @@ void Compiler::run() {
       auto variableType = variable["datatype"]["PLpgSQL_type"]["typname"];
 
       if (readingArguments) {
-        functions[i].addArgument(variableName,
-                                 getTypeFromPostgresName(variableType));
+        modules[i].addArgument(variableName,
+                               getTypeFromPostgresName(variableType));
       } else {
         // If the declared variable has a default value (i.e. DECLARE x = 0;)
         // then get it (otherwise assign to NULL)
@@ -54,14 +54,14 @@ void Compiler::run() {
                 ? variable["default_val"]["PLpgSQL_expr"]["query"]
                       .get<std::string>()
                 : "NULL";
-        functions[i].addVariable(variableName,
-                                 getTypeFromPostgresName(variableType),
-                                 bindExpression(functions[i], defaultVal));
+        modules[i].addVariable(variableName,
+                               getTypeFromPostgresName(variableType),
+                               bindExpression(modules[i], defaultVal));
       }
     }
   }
 
-  for (const auto &function : functions) {
+  for (const auto &function : modules) {
     std::cout << "-----------------------------" << std::endl;
     std::cout << "Function Name: " << function.getFunctionName() << std::endl;
     std::cout << "Return Type: " << *(function.getReturnType()) << std::endl;
@@ -91,12 +91,9 @@ void Compiler::run() {
   // 3. Visit the AST and construct the corresponding ControlFlowGraph correctly
   // (think about cursor loops)
   // 4. Visit and code gen to C++ (using Yuchen's visitor)
-
-  // Optional: Replace unique_ptr with Own<T>, vector<unique_ptr> with VecOwn,
-  // make_unique with Make<T>, clone()/print()??
 }
 
-Own<Expression> Compiler::bindExpression(const FunctionMetadata &function,
+Own<Expression> Compiler::bindExpression(const Module &function,
                                          const std::string &expression) {
 
   std::stringstream createTableString;
@@ -148,8 +145,8 @@ json Compiler::parseJson() const {
   return json;
 }
 
-std::vector<FunctionMetadata> Compiler::getFunctionMetadata() const {
-  std::vector<FunctionMetadata> functionMetadata;
+Vec<Module> Compiler::getModules() const {
+  Vec<Module> modules;
 
   // Collect function names from program text
   auto functionNames = extractMatches(programText, FUNCTION_NAME_PATTERN, 1);
@@ -164,12 +161,12 @@ std::vector<FunctionMetadata> Compiler::getFunctionMetadata() const {
   ASSERT(functionNames.size() >= returnTypes.size(),
          "Function name not specified for all functions");
 
-  // Construct the FunctionMetadata and return
+  // Construct the Module and return
   for (std::size_t i = 0; i < functionNames.size(); ++i) {
-    functionMetadata.emplace_back(functionNames[i],
-                                  getTypeFromPostgresName(returnTypes[i]));
+    modules.emplace_back(functionNames[i],
+                         getTypeFromPostgresName(returnTypes[i]));
   }
-  return functionMetadata;
+  return modules;
 }
 
 PostgresTypeTag Compiler::getPostgresTag(const std::string &type) {
