@@ -45,7 +45,7 @@ void Compiler::run() {
 
       if (readingArguments) {
         functions[i].addArgument(variableName,
-                               getTypeFromPostgresName(variableType));
+                                 getTypeFromPostgresName(variableType));
       } else {
         // If the declared variable has a default value (i.e. DECLARE x = 0;)
         // then get it (otherwise assign to NULL)
@@ -55,8 +55,8 @@ void Compiler::run() {
                       .get<std::string>()
                 : "NULL";
         functions[i].addVariable(variableName,
-                               getTypeFromPostgresName(variableType),
-                               bindExpression(functions[i], defaultVal));
+                                 getTypeFromPostgresName(variableType),
+                                 bindExpression(functions[i], defaultVal));
       }
     }
   }
@@ -98,34 +98,48 @@ Own<Expression> Compiler::bindExpression(const Function &function,
 
   std::stringstream createTableString;
   createTableString << "CREATE TABLE tmp(";
+  std::stringstream insertTableString;
+  insertTableString << "INSERT INTO tmp VALUES(";
+
   bool first = true;
   for (const auto &binding : function.getBindings()) {
     auto &[name, type] = binding;
     createTableString << (first ? "" : ", ");
+    insertTableString << (first ? "" : ", ");
     if (first) {
       first = false;
     }
     createTableString << name << " " << *type;
+    insertTableString << "(NULL) ";
   }
   createTableString << ");";
+  insertTableString << ");";
 
   // Create commands
   std::string createTableCommand = createTableString.str();
+  std::string insertTableCommand = insertTableString.str();
   std::string selectExpressionCommand = "SELECT " + expression + " FROM tmp;";
   std::string dropTableCommand = "DROP TABLE tmp;";
 
-  // Execute the commands
+  // CREATE TABLE
   auto res = connection->Query(createTableCommand);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
-  // Disable the optimizer (TODO: Fix this)
-  auto connectionContext = connection->context.get();
-  connectionContext->config.enable_optimizer = false;
 
-  // Bind the expression and drop the table
+  // INSERT (NULL,NULL,...)
+  res = connection->Query(insertTableCommand);
+  if (res->HasError()) {
+    EXCEPTION(res->GetError());
+  }
+
+  auto connectionContext = connection->context.get();
+
+  // SELECT <expr> FROM tmp
   auto boundExpression =
       connectionContext->ExtractPlan(selectExpressionCommand);
+
+  // DROP tmp
   connection->Query(dropTableCommand);
 
   std::cout << boundExpression->ToString() << std::endl;

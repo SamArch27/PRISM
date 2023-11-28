@@ -113,7 +113,8 @@ inline string Udaf_BuilderPragmaFun(ClientContext &context,
 
 static void LoadInternal(DatabaseInstance &instance) {
   // auto udf_transpiler_scalar_function = ScalarFunction("udf_transpiler",
-  // {LogicalType::VARCHAR}, 													 LogicalType::VARCHAR, Udf_transpilerScalarFun);
+  // {LogicalType::VARCHAR},
+  // LogicalType::VARCHAR, Udf_transpilerScalarFun);
   // ExtensionUtil::RegisterFunction(instance, udf_transpiler_scalar_function);
 
   auto udf_transpiler_pragma_function = PragmaFunction::PragmaCall(
