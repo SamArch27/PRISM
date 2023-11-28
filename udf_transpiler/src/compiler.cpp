@@ -83,11 +83,21 @@ void Compiler::run() {
     }
     std::cout << "-----------------------------" << std::endl;
   }
+
+  // TODO:
+  // 1. Create a BasicBlock class (VecOwn<Instruction>) with addInstruction(...)
+  // 2. Create a ControlFlowGraph class which holds connectivity info for
+  // BasicBlocks (successors, predecessors, etc.)
+  // 3. Visit the AST and construct the corresponding ControlFlowGraph correctly
+  // (think about cursor loops)
+  // 4. Visit and code gen to C++ (using Yuchen's visitor)
+
+  // Optional: Replace unique_ptr with Own<T>, vector<unique_ptr> with VecOwn,
+  // make_unique with Make<T>, clone()/print()??
 }
 
-std::unique_ptr<Expression>
-Compiler::bindExpression(const FunctionMetadata &function,
-                         const std::string &expression) {
+Own<Expression> Compiler::bindExpression(const FunctionMetadata &function,
+                                         const std::string &expression) {
 
   std::stringstream createTableString;
   createTableString << "CREATE TABLE tmp(";
@@ -166,7 +176,7 @@ PostgresTypeTag Compiler::getPostgresTag(const std::string &type) {
   // remove spaces and capitalize the name
   std::string upper = toUpper(removeSpaces(type));
 
-  std::unordered_map<std::string, PostgresTypeTag> nameToTag = {
+  Map<std::string, PostgresTypeTag> nameToTag = {
       {"BIGINT", PostgresTypeTag::BIGINT},
       {"BINARY", PostgresTypeTag::BINARY},
       {"BIT", PostgresTypeTag::BIT},
@@ -224,7 +234,7 @@ PostgresTypeTag Compiler::getPostgresTag(const std::string &type) {
   return nameToTag.at(upper);
 };
 
-std::optional<Compiler::WidthScale>
+Opt<Compiler::WidthScale>
 Compiler::getDecimalWidthScale(const std::string &type) {
   std::regex decimalPattern("DECIMAL\\((\\d+),(\\d+)\\)",
                             std::regex_constants::icase);
@@ -241,8 +251,7 @@ Compiler::getDecimalWidthScale(const std::string &type) {
   return {};
 }
 
-std::unique_ptr<Type>
-Compiler::getTypeFromPostgresName(const std::string &name) const {
+Own<Type> Compiler::getTypeFromPostgresName(const std::string &name) const {
   auto resolvedName = resolveTypeName(name);
   auto tag = getPostgresTag(resolvedName);
   if (tag == PostgresTypeTag::DECIMAL) {
@@ -250,12 +259,12 @@ Compiler::getTypeFromPostgresName(const std::string &name) const {
     auto widthScale = getDecimalWidthScale(resolvedName);
     if (widthScale) {
       auto [width, scale] = *widthScale;
-      return std::make_unique<DecimalType>(tag, width, scale);
+      return Make<DecimalType>(tag, width, scale);
     } else {
-      return std::make_unique<DecimalType>(tag);
+      return Make<DecimalType>(tag);
     }
   } else {
-    return std::make_unique<NonDecimalType>(tag);
+    return Make<NonDecimalType>(tag);
   }
 }
 

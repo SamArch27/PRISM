@@ -14,11 +14,22 @@
 #include <utility>
 #include <vector>
 
+template <class A> using Own = std::unique_ptr<A>;
+template <typename A, typename B = A, typename... Args>
+Own<A> Make(Args &&... xs) {
+  return std::make_unique<B>(std::forward<Args>(xs)...);
+}
+template <typename A> using VecOwn = std::vector<Own<A>>;
+
+template <typename A> using Opt = std::optional<A>;
+
+template <typename A, typename B> using Map = std::unordered_map<A, B>;
+
 using Expression = duckdb::LogicalOperator;
 
 class Variable {
 public:
-  Variable(const std::string &name, std::unique_ptr<Type> type)
+  Variable(const std::string &name, Own<Type> type)
       : name(name), type(std::move(type)) {}
 
   std::string getName() const { return name; }
@@ -26,14 +37,14 @@ public:
 
 private:
   std::string name;
-  std::unique_ptr<Type> type;
+  Own<Type> type;
 };
 
 class Instruction {};
 
 class Assignment : public Instruction {
 public:
-  Assignment(const Variable *var, std::unique_ptr<Expression> expr)
+  Assignment(const Variable *var, Own<Expression> expr)
       : Instruction(), var(var), expr(std::move(expr)) {}
 
   const Variable *getVar() const { return var; }
@@ -41,37 +52,30 @@ public:
 
 private:
   const Variable *var;
-  std::unique_ptr<Expression> expr;
+  Own<Expression> expr;
 };
 
 class FunctionMetadata {
 public:
-  FunctionMetadata(const std::string &functionName,
-                   std::unique_ptr<Type> returnType)
+  FunctionMetadata(const std::string &functionName, Own<Type> returnType)
       : functionName(functionName), returnType(std::move(returnType)) {}
 
-  void addArgument(const std::string &name, std::unique_ptr<Type> type) {
+  void addArgument(const std::string &name, Own<Type> type) {
     bindings.emplace(name, type.get());
-    arguments.emplace_back(std::make_unique<Variable>(name, std::move(type)));
+    arguments.emplace_back(Make<Variable>(name, std::move(type)));
   }
 
-  void addVariable(const std::string &name, std::unique_ptr<Type> type,
-                   std::unique_ptr<Expression> expr) {
+  void addVariable(const std::string &name, Own<Type> type,
+                   Own<Expression> expr) {
     bindings.emplace(name, type.get());
-    variables.emplace_back(std::make_unique<Variable>(name, std::move(type)));
+    variables.emplace_back(Make<Variable>(name, std::move(type)));
     declarations.emplace_back(
-        std::make_unique<Assignment>(variables.back().get(), std::move(expr)));
+        Make<Assignment>(variables.back().get(), std::move(expr)));
   }
 
-  const std::vector<std::unique_ptr<Variable>> &getArguments() const {
-    return arguments;
-  }
-  const std::vector<std::unique_ptr<Variable>> &getVariables() const {
-    return variables;
-  }
-  const std::vector<std::unique_ptr<Assignment>> &getDeclarations() const {
-    return declarations;
-  }
+  const VecOwn<Variable> &getArguments() const { return arguments; }
+  const VecOwn<Variable> &getVariables() const { return variables; }
+  const VecOwn<Assignment> &getDeclarations() const { return declarations; }
 
   std::string getFunctionName() const { return functionName; }
   const Type *getReturnType() const { return returnType.get(); }
@@ -82,11 +86,11 @@ public:
 
 private:
   std::string functionName;
-  std::unique_ptr<Type> returnType;
-  std::vector<std::unique_ptr<Variable>> arguments;
-  std::vector<std::unique_ptr<Variable>> variables;
-  std::vector<std::unique_ptr<Assignment>> declarations;
-  std::unordered_map<std::string, Type *> bindings;
+  Own<Type> returnType;
+  VecOwn<Variable> arguments;
+  VecOwn<Variable> variables;
+  VecOwn<Assignment> declarations;
+  Map<std::string, Type *> bindings;
 };
 
 /* Compiler */
@@ -114,12 +118,11 @@ private:
   json parseJson() const;
   std::vector<FunctionMetadata> getFunctionMetadata() const;
 
-  std::unique_ptr<Expression> bindExpression(const FunctionMetadata &function,
-                                             const std::string &expression);
-  static std::optional<WidthScale>
-  getDecimalWidthScale(const std::string &type);
+  Own<Expression> bindExpression(const FunctionMetadata &function,
+                                 const std::string &expression);
+  static Opt<WidthScale> getDecimalWidthScale(const std::string &type);
   static PostgresTypeTag getPostgresTag(const std::string &name);
-  std::unique_ptr<Type> getTypeFromPostgresName(const std::string &name) const;
+  Own<Type> getTypeFromPostgresName(const std::string &name) const;
   std::string resolveTypeName(const std::string &type) const;
 
   duckdb::Connection *connection;
