@@ -1,4 +1,4 @@
-call dbgen(sf=1);
+call dbgen(sf=10);
 pragma build_agg;
 
 create macro OrdersByCustomerWithCustomAgg(cust_key) as
