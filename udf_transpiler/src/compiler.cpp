@@ -11,11 +11,11 @@ void Compiler::run() {
 
   std::cout << json << std::endl;
 
-  auto modules = getModules();
+  auto functions = getFunctions();
 
-  for (const auto &module : modules) {
-    std::cout << "Function Name: " << module.getFunctionName() << std::endl;
-    std::cout << "Return Type: " << *(module.getReturnType()) << std::endl;
+  for (const auto &function : functions) {
+    std::cout << "Function Name: " << function.getFunctionName() << std::endl;
+    std::cout << "Return Type: " << *(function.getReturnType()) << std::endl;
   }
 
   auto header = "PLpgSQL_function";
@@ -24,7 +24,7 @@ void Compiler::run() {
            std::string("UDF is missing the magic header string: ") + header);
   }
 
-  for (std::size_t i = 0; i < modules.size(); ++i) {
+  for (std::size_t i = 0; i < functions.size(); ++i) {
 
     auto datums = json[i]["PLpgSQL_function"]["datums"];
     ASSERT(datums.is_array(), "Datums is not an array.");
@@ -44,7 +44,7 @@ void Compiler::run() {
       auto variableType = variable["datatype"]["PLpgSQL_type"]["typname"];
 
       if (readingArguments) {
-        modules[i].addArgument(variableName,
+        functions[i].addArgument(variableName,
                                getTypeFromPostgresName(variableType));
       } else {
         // If the declared variable has a default value (i.e. DECLARE x = 0;)
@@ -54,14 +54,14 @@ void Compiler::run() {
                 ? variable["default_val"]["PLpgSQL_expr"]["query"]
                       .get<std::string>()
                 : "NULL";
-        modules[i].addVariable(variableName,
+        functions[i].addVariable(variableName,
                                getTypeFromPostgresName(variableType),
-                               bindExpression(modules[i], defaultVal));
+                               bindExpression(functions[i], defaultVal));
       }
     }
   }
 
-  for (const auto &function : modules) {
+  for (const auto &function : functions) {
     std::cout << "-----------------------------" << std::endl;
     std::cout << "Function Name: " << function.getFunctionName() << std::endl;
     std::cout << "Return Type: " << *(function.getReturnType()) << std::endl;
@@ -93,7 +93,7 @@ void Compiler::run() {
   // 4. Visit and code gen to C++ (using Yuchen's visitor)
 }
 
-Own<Expression> Compiler::bindExpression(const Module &function,
+Own<Expression> Compiler::bindExpression(const Function &function,
                                          const std::string &expression) {
 
   std::stringstream createTableString;
@@ -145,8 +145,8 @@ json Compiler::parseJson() const {
   return json;
 }
 
-Vec<Module> Compiler::getModules() const {
-  Vec<Module> modules;
+Vec<Function> Compiler::getFunctions() const {
+  Vec<Function> functions;
 
   // Collect function names from program text
   auto functionNames = extractMatches(programText, FUNCTION_NAME_PATTERN, 1);
@@ -161,12 +161,12 @@ Vec<Module> Compiler::getModules() const {
   ASSERT(functionNames.size() >= returnTypes.size(),
          "Function name not specified for all functions");
 
-  // Construct the Module and return
+  // Construct the function and return
   for (std::size_t i = 0; i < functionNames.size(); ++i) {
-    modules.emplace_back(functionNames[i],
-                         getTypeFromPostgresName(returnTypes[i]));
+    functions.emplace_back(functionNames[i],
+                           getTypeFromPostgresName(returnTypes[i]));
   }
-  return modules;
+  return functions;
 }
 
 PostgresTypeTag Compiler::getPostgresTag(const std::string &type) {

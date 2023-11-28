@@ -14,19 +14,6 @@
 #include <utility>
 #include <vector>
 
-template <class A> using Own = std::unique_ptr<A>;
-template <typename A, typename B = A, typename... Args>
-Own<A> Make(Args &&... xs) {
-  return std::make_unique<B>(std::forward<Args>(xs)...);
-}
-template <typename A> using Vec = std::vector<A>;
-
-template <typename A> using VecOwn = std::vector<Own<A>>;
-
-template <typename A> using Opt = std::optional<A>;
-
-template <typename A, typename B> using Map = std::unordered_map<A, B>;
-
 using Expression = duckdb::LogicalOperator;
 
 class Variable {
@@ -68,9 +55,9 @@ private:
   Vec<Instruction *> instructions;
 };
 
-class Module {
+class Function {
 public:
-  Module(const std::string &functionName, Own<Type> returnType)
+  Function(const std::string &functionName, Own<Type> returnType)
       : functionName(functionName), returnType(std::move(returnType)) {}
 
   void addArgument(const std::string &name, Own<Type> type) {
@@ -129,9 +116,9 @@ public:
 
 private:
   json parseJson() const;
-  Vec<Module> getModules() const;
+  Vec<Function> getFunctions() const;
 
-  Own<Expression> bindExpression(const Module &function,
+  Own<Expression> bindExpression(const Function &function,
                                  const std::string &expression);
   static Opt<WidthScale> getDecimalWidthScale(const std::string &type);
   static PostgresTypeTag getPostgresTag(const std::string &name);
