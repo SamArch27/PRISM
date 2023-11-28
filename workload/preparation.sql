@@ -59,65 +59,51 @@ create macro PromoRevenueWithCustomAgg(partkey) AS
          ) AS "ifresult4");
 
 create macro VolumeCustomerWithCustomAgg(orderkey) AS
-(WITH RECURSIVE run("rec?", "res", "orderkey", "ok", "i", "d") AS
-    (
-        (SELECT "ifresult12".*
-         FROM LATERAL (SELECT NULL :: int8 AS "ok_3") AS "let5"("ok_3"), 
-              LATERAL (SELECT NULL :: int4 AS "i_5") AS "let6"("i_5"), 
-              LATERAL (SELECT NULL :: numeric AS "d_3") AS "let7"("d_3"), 
-              LATERAL (SELECT "orderkey" AS "ok_1") AS "let8"("ok_1"), 
-              LATERAL (SELECT 0 AS "i_1") AS "let9"("i_1"), 
-              LATERAL (SELECT 0 AS "d_1") AS "let10"("d_1"), 
-              LATERAL
-              (SELECT EXISTS (SELECT "lineitem"."l_quantity" AS "l_quantity"
-                              FROM lineitem AS "lineitem"
-                              WHERE "lineitem"."l_orderkey" = "ok_1") AS "q4_1"
-              ) AS "let11"("q4_1"), 
-              LATERAL
-              ((SELECT True, NULL :: int4, "orderkey", "ok_1", "i_1", "d_5"
-                FROM LATERAL
-                     (SELECT (SELECT volume_customer_agg("tmp"."l_quantity" :: int, "d_1" :: bigint) AS "row"
-                              FROM 
-                                   (SELECT "lineitem"."l_quantity" AS "l_quantity"
-                                    FROM lineitem AS "lineitem"
-                                    WHERE "lineitem"."l_orderkey" = "ok_1"
-                                   ) AS "tmp"("l_quantity")) AS "d_5"
-                     ) AS "let13"("d_5")
-                WHERE NOT "q4_1" IS DISTINCT FROM True)
-                 UNION ALL
-               (SELECT True, NULL :: int4, "orderkey", "ok_1", "i_1", "d_1"
-                WHERE "q4_1" IS DISTINCT FROM True)
-              ) AS "ifresult12")
-          UNION ALL
-        (SELECT "result".*
-         FROM run AS "run"("rec?", "res", "orderkey", "ok", "i", "d"), 
-              LATERAL
-              (SELECT "ifresult1".*
-               FROM LATERAL (SELECT "d" > (300) AS "q8_2") AS "let0"("q8_2"), 
-                    LATERAL
-                    ((SELECT False, 
-                             "i_4" AS "result", 
-                             "run"."orderkey", 
-                             "run"."ok", 
-                             "run"."i", 
-                             "run"."d"
-                      FROM LATERAL (SELECT 1 AS "i_4") AS "let2"("i_4")
-                      WHERE NOT "q8_2" IS DISTINCT FROM True)
-                       UNION ALL
-                     (SELECT False, 
-                             "i" AS "result", 
-                             "run"."orderkey", 
-                             "run"."ok", 
-                             "run"."i", 
-                             "run"."d"
-                      WHERE "q8_2" IS DISTINCT FROM True)
-                    ) AS "ifresult1"
-              ) AS "result"
-         WHERE "run"."rec?")
-    )
-    SELECT "run"."res" AS "res"
-    FROM run AS "run"
-    WHERE NOT "run"."rec?");
+(SELECT "ifresult7".*
+    FROM LATERAL (SELECT NULL :: int8 AS "ok_3") AS "let0"("ok_3"), 
+         LATERAL (SELECT NULL :: int4 AS "i_5") AS "let1"("i_5"), 
+         LATERAL (SELECT NULL :: numeric AS "d_3") AS "let2"("d_3"), 
+         LATERAL (SELECT "orderkey" AS "ok_1") AS "let3"("ok_1"), 
+         LATERAL (SELECT 0 AS "i_1") AS "let4"("i_1"), 
+         LATERAL (SELECT 0 AS "d_1") AS "let5"("d_1"), 
+         LATERAL
+         (SELECT EXISTS (SELECT "lineitem"."l_quantity" AS "l_quantity"
+                         FROM lineitem AS "lineitem"
+                         WHERE "lineitem"."l_orderkey" = "ok_1") AS "q4_1"
+         ) AS "let6"("q4_1"), 
+         LATERAL
+         ((SELECT "ifresult10".*
+           FROM LATERAL
+                (SELECT (SELECT volume_customer_agg("tmp"."l_quantity" :: int, "d_1") AS "row"
+                         FROM 
+                              (SELECT "lineitem"."l_quantity" AS "l_quantity"
+                               FROM lineitem AS "lineitem"
+                               WHERE "lineitem"."l_orderkey" = "ok_1"
+                              ) AS "tmp"("l_quantity")) AS "d_5"
+                ) AS "let8"("d_5"), 
+                LATERAL (SELECT "d_5" > (300) AS "q8_2") AS "let9"("q8_2"), 
+                LATERAL
+                ((SELECT "i_4" AS "result"
+                  FROM LATERAL (SELECT 1 AS "i_4") AS "let11"("i_4")
+                  WHERE NOT "q8_2" IS DISTINCT FROM True)
+                   UNION ALL
+                 (SELECT "i_1" AS "result"
+                  WHERE "q8_2" IS DISTINCT FROM True)
+                ) AS "ifresult10"
+           WHERE NOT "q4_1" IS DISTINCT FROM True)
+            UNION ALL
+          (SELECT "ifresult15".*
+           FROM LATERAL (SELECT "d_1" > (300) AS "q8_2") AS "let14"("q8_2"), 
+                LATERAL
+                ((SELECT "i_4" AS "result"
+                  FROM LATERAL (SELECT 1 AS "i_4") AS "let16"("i_4")
+                  WHERE NOT "q8_2" IS DISTINCT FROM True)
+                   UNION ALL
+                 (SELECT "i_1" AS "result"
+                  WHERE "q8_2" IS DISTINCT FROM True)
+                ) AS "ifresult15"
+           WHERE "q4_1" IS DISTINCT FROM True)
+         ) AS "ifresult7");
 
 create macro DiscountedRevenueWithCustomAgg() as
 (SELECT "ifresult2".*
