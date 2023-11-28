@@ -145,10 +145,10 @@ void compile_udf(int udf_count) {
   cout << exec(cmd.c_str()) << endl;
 }
 
-void compile_udaf(int udf_count){
-    string cmd = "cd " + current_dir + "/../" + ";make udafs";
-    cout<<cmd<<endl;
-    cout<<exec(cmd.c_str())<<endl;
+void compile_udaf(int udf_count) {
+  string cmd = "cd " + current_dir + "/../" + ";make udafs";
+  cout << cmd << endl;
+  cout << exec(cmd.c_str()) << endl;
 }
 
 void load_udf(duckdb::Connection &connection, int udf_count) {

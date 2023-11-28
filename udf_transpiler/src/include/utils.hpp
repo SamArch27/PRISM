@@ -36,6 +36,19 @@ using namespace std;
     throw exception();                                                         \
   } while (false)
 
+template <class A> using Own = std::unique_ptr<A>;
+template <typename A, typename B = A, typename... Args>
+Own<A> Make(Args &&... xs) {
+  return std::make_unique<B>(std::forward<Args>(xs)...);
+}
+template <typename A> using Vec = std::vector<A>;
+
+template <typename A> using VecOwn = std::vector<Own<A>>;
+
+template <typename A> using Opt = std::optional<A>;
+
+template <typename A, typename B> using Map = std::unordered_map<A, B>;
+
 template <typename T>
 std::string vec_join(std::vector<T> &vec, std::string sep) {
   ERROR("vec_join not implemented for this type");

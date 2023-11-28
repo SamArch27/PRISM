@@ -1,74 +1,96 @@
+
 #pragma once
 
+#include "duckdb/main/connection.hpp"
+#include "duckdb/planner/logical_operator.hpp"
 #include "types.hpp"
 #include "utils.hpp"
 #include <include/fmt/core.h>
 #include <json.hpp>
 #include <memory>
+#include <optional>
 #include <regex>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
-struct FunctionMetadata {
+using Expression = duckdb::LogicalOperator;
 
-  FunctionMetadata(const std::string &functionName,
-                   std::unique_ptr<Type> returnType)
-      : functionName(functionName), returnType(std::move(returnType)) {}
+class Variable {
+public:
+  Variable(const std::string &name, Own<Type> type)
+      : name(name), type(std::move(type)) {}
 
-  std::string functionName;
-  std::unique_ptr<Type> returnType;
+  std::string getName() const { return name; }
+  const Type *getType() const { return type.get(); }
+
+private:
+  std::string name;
+  Own<Type> type;
 };
-
-class Value;
-class BasicBlock;
-struct Variable;
-
-/* Variable */
-
-/*
-struct Variable
-{
-    Variable(bool initialized, const std::string& type, const std::string& name)
-: initialize(initialized), type(type), name(name) {};
-
-    bool initialized;
-    UDFType type;
-    std::string name;
-}
-*/
-
-/* Instructions */
 
 class Instruction {};
 
 class Assignment : public Instruction {
-  Variable *lhs;
-  Value *rhs;
-};
+public:
+  Assignment(const Variable *var, Own<Expression> expr)
+      : Instruction(), var(var), expr(std::move(expr)) {}
 
-class BranchInst : public Instruction {
-  bool is_conditional;
-  Value *cond;
-  BasicBlock *true_target;
-  BasicBlock *false_target;
-};
+  const Variable *getVar() const { return var; }
+  const Expression *getExpr() const { return expr.get(); }
 
-class ReturnInst : public Instruction {
-  Value *value;
+private:
+  const Variable *var;
+  Own<Expression> expr;
 };
-
-/* BasicBlock */
 
 class BasicBlock {
-  std::vector<Instruction> instructions;
+public:
+  BasicBlock(const std::string &label) : label(label) {}
+
+  void addInstruction(Instruction *inst) { instructions.push_back(inst); }
+
+private:
+  std::string label;
+  Vec<Instruction *> instructions;
 };
 
-/* ControlFlowGraph */
+class Function {
+public:
+  Function(const std::string &functionName, Own<Type> returnType)
+      : functionName(functionName), returnType(std::move(returnType)) {}
 
-class ControlFlowGraph {
-  std::vector<BasicBlock> blocks;
-  std::unordered_map<BasicBlock *, std::vector<BasicBlock *>> preds;
-  std::unordered_map<BasicBlock *, std::vector<BasicBlock *>> succs;
+  void addArgument(const std::string &name, Own<Type> type) {
+    bindings.emplace(name, type.get());
+    arguments.emplace_back(Make<Variable>(name, std::move(type)));
+  }
+
+  void addVariable(const std::string &name, Own<Type> type,
+                   Own<Expression> expr) {
+    bindings.emplace(name, type.get());
+    variables.emplace_back(Make<Variable>(name, std::move(type)));
+    declarations.emplace_back(
+        Make<Assignment>(variables.back().get(), std::move(expr)));
+  }
+
+  const VecOwn<Variable> &getArguments() const { return arguments; }
+  const VecOwn<Variable> &getVariables() const { return variables; }
+  const VecOwn<Assignment> &getDeclarations() const { return declarations; }
+
+  std::string getFunctionName() const { return functionName; }
+  const Type *getReturnType() const { return returnType.get(); }
+
+  const std::unordered_map<std::string, Type *> &getBindings() const {
+    return bindings;
+  }
+
+private:
+  std::string functionName;
+  Own<Type> returnType;
+  VecOwn<Variable> arguments;
+  VecOwn<Variable> variables;
+  VecOwn<Assignment> declarations;
+  Map<std::string, Type *> bindings;
 };
 
 /* Compiler */
@@ -77,7 +99,12 @@ using json = nlohmann::json;
 
 class Compiler {
 public:
-  Compiler(const std::string &udfs, bool optimize = true);
+  using WidthScale = std::pair<int, int>;
+
+  Compiler(duckdb::Connection *connection, const std::string &programText)
+      : connection(connection), programText(programText) {}
+
+  void run();
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;
@@ -87,25 +114,17 @@ public:
   static constexpr char FUNCTION_NAME_PATTERN[] =
       "CREATE\\s+FUNCTION\\s+(\\w+)";
 
-  std::vector<std::string> getGeneratedCppFunctions();
-  std::string getGeneratedPLpgSQLFunctions();
-
 private:
-  json parseJson(const std::string &udfs) const;
-  std::vector<FunctionMetadata>
-  getFunctionMetadata(const std::string &udfs) const;
+  json parseJson() const;
+  Vec<Function> getFunctions() const;
 
-  /*
-  void addVariable(const std::string &t, const std::string &name)
-  {
-      auto v = Variable(t, name);
-      variables.push_back(v);
-      bindings.insert({name,&v});
-  }
-  */
+  Own<Expression> bindExpression(const Function &function,
+                                 const std::string &expression);
+  static Opt<WidthScale> getDecimalWidthScale(const std::string &type);
+  static PostgresTypeTag getPostgresTag(const std::string &name);
+  Own<Type> getTypeFromPostgresName(const std::string &name) const;
+  std::string resolveTypeName(const std::string &type) const;
 
-  std::size_t variable_id = 0;
-  std::unordered_map<std::string, Variable *> bindings;
-  std::vector<Variable *> variables;
-  ControlFlowGraph cfg;
+  duckdb::Connection *connection;
+  std::string programText;
 };
