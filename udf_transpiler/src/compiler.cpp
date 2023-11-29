@@ -77,9 +77,7 @@ void Compiler::run() {
     }
     std::cout << "Declarations: " << std::endl;
     for (const auto &declaration : function.getDeclarations()) {
-      std::cout << "\t" << declaration->getVar()->getName() << " = "
-                << std::endl;
-      std::cout << declaration->getExpr()->ToString() << std::endl;
+      std::cout << "\t" << *declaration << std::endl;
     }
     std::cout << "-----------------------------" << std::endl;
   }

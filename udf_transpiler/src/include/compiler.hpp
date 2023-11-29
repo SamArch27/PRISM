@@ -24,12 +24,29 @@ public:
   std::string getName() const { return name; }
   const Type *getType() const { return type.get(); }
 
+  friend std::ostream &operator<<(std::ostream &os, const Variable &var) {
+    var.print(os);
+    return os;
+  }
+
+protected:
+  void print(std::ostream &os) const { os << name << "::" << *type; }
+
 private:
   std::string name;
   Own<Type> type;
 };
 
-class Instruction {};
+class Instruction {
+public:
+  friend std::ostream &operator<<(std::ostream &os, const Instruction &inst) {
+    inst.print(os);
+    return os;
+  }
+
+protected:
+  virtual void print(std::ostream &os) const = 0;
+};
 
 class Assignment : public Instruction {
 public:
@@ -38,6 +55,16 @@ public:
 
   const Variable *getVar() const { return var; }
   const Expression *getExpr() const { return expr.get(); }
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const Assignment &assignment) {
+    assignment.print(os);
+    return os;
+  }
+
+protected:
+  void print(std::ostream &os) const override {
+    os << var << " = \n" << expr->ToString();
+  }
 
 private:
   const Variable *var;

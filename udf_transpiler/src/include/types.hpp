@@ -101,11 +101,12 @@ public:
     type.print(os);
     return os;
   }
-  virtual void print(std::ostream &os) const = 0;
 
 protected:
   Type(DuckdbTypeTag duckdbTag, CppTypeTag cppTag)
       : duckdbTag(duckdbTag), cppTag(cppTag) {}
+
+  virtual void print(std::ostream &os) const = 0;
 
   DuckdbTypeTag lookupDuckdbTag(PostgresTypeTag pgTag) const;
 
@@ -136,14 +137,14 @@ public:
     return os;
   }
 
-  virtual void print(std::ostream &os) const {
-    os << fmt::format("DECIMAL({}, {})", width, scale);
-  }
-
   int getWidth() const { return width; }
   int getScale() const { return scale; }
 
 private:
+  void print(std::ostream &os) const override {
+    os << fmt::format("DECIMAL({}, {})", width, scale);
+  }
+
   CppTypeTag lookupCppTag(DuckdbTypeTag duckdbTag, int width) const;
 
   int width;
@@ -167,8 +168,8 @@ public:
     return os;
   }
 
-  virtual void print(std::ostream &os) const { os << duckdbTag; }
-
 private:
+  void print(std::ostream &os) const override { os << duckdbTag; }
+
   CppTypeTag lookupCppTag(DuckdbTypeTag duckdbTag) const;
 };
