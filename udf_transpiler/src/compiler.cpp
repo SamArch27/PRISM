@@ -7,9 +7,9 @@
 
 void Compiler::run() {
 
-  auto json = parseJson();
+  auto ast = parseJson();
 
-  std::cout << json << std::endl;
+  std::cout << ast << std::endl;
 
   auto functions = getFunctions();
 
@@ -19,14 +19,14 @@ void Compiler::run() {
   }
 
   auto header = "PLpgSQL_function";
-  for (const auto &udf : json) {
+  for (const auto &udf : ast) {
     ASSERT(udf.contains(header),
            std::string("UDF is missing the magic header string: ") + header);
   }
 
   for (std::size_t i = 0; i < functions.size(); ++i) {
 
-    auto datums = json[i]["PLpgSQL_function"]["datums"];
+    auto datums = ast[i]["PLpgSQL_function"]["datums"];
     ASSERT(datums.is_array(), "Datums is not an array.");
 
     bool readingArguments = true;
@@ -59,11 +59,41 @@ void Compiler::run() {
                                  bindExpression(functions[i], defaultVal));
       }
     }
+
+    const auto &body =
+        ast[i]["PLpgSQL_function"]["action"]["PLpgSQL_stmt_block"]["body"];
+    std::cout << body << std::endl;
+
+    // TODO: 
+    // 1. Create entry and exit blocks
+    // 2. Recursively construct the CFG for each AST node and attach the node back
+
+    // for (const auto &stmt : body) {
+    //   if (stmt.contains("PLpgSQL_stmt_if"))
+    //   output += translate_if_stmt(stmt["PLpgSQL_stmt_if"]);
+    // else if (stmt.contains("PLpgSQL_stmt_return"))
+    //   output += translate_return_stmt(stmt["PLpgSQL_stmt_return"]);
+    // else if (stmt.contains("PLpgSQL_stmt_assign"))
+    //   output += translate_assign_stmt(stmt["PLpgSQL_stmt_assign"]);
+    // else if (stmt.contains("PLpgSQL_stmt_loop"))
+    //   output += translate_loop_stmt(stmt["PLpgSQL_stmt_loop"]);
+    // else if (stmt.contains("PLpgSQL_stmt_fori"))
+    //   output += translate_for_stmt(stmt["PLpgSQL_stmt_fori"]);
+    // else if (stmt.contains("PLpgSQL_stmt_while"))
+    //   output += translate_while_stmt(stmt["PLpgSQL_stmt_while"]);
+    // else if (stmt.contains("PLpgSQL_stmt_exit"))
+    //   output += translate_exitcont_stmt(stmt["PLpgSQL_stmt_exit"]);
+    // else
+    //   ERROR(fmt::format("Unknown statement type: {}", stmt));
+    // }
   }
 
   for (const auto &function : functions) {
     std::cout << function << std::endl;
   }
+
+  // Traverse the AST (to get a sense about it) and construct BasicBlocks for
+  // each straight line code region
 
   // TODO:
   // 1. Create a BasicBlock class (VecOwn<Instruction>) with addInstruction(...)

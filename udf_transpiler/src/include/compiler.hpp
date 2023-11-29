@@ -75,11 +75,13 @@ class BasicBlock {
 public:
   BasicBlock(const std::string &label) : label(label) {}
 
-  void addInstruction(Instruction *inst) { instructions.push_back(inst); }
+  void addInstruction(Own<Instruction> inst) {
+    instructions.emplace_back(std::move(inst));
+  }
 
 private:
   std::string label;
-  Vec<Instruction *> instructions;
+  VecOwn<Instruction> instructions;
 };
 
 class Function {
