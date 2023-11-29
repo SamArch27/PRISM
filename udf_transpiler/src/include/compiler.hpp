@@ -43,6 +43,7 @@ public:
     inst.print(os);
     return os;
   }
+  virtual bool isTerminator() const = 0;
 
 protected:
   virtual void print(std::ostream &os) const = 0;
@@ -60,6 +61,7 @@ public:
     assignment.print(os);
     return os;
   }
+  bool isTerminator() const override { return false; }
 
 protected:
   void print(std::ostream &os) const override {
@@ -79,9 +81,66 @@ public:
     instructions.emplace_back(std::move(inst));
   }
 
+  std::string getLabel() const { return label; }
+
 private:
   std::string label;
   VecOwn<Instruction> instructions;
+};
+
+class ReturnInst : public Instruction {
+public:
+  ReturnInst(Own<Expression> expr, BasicBlock *exitBlock)
+      : Instruction(), expr(std::move(expr)), exitBlock(exitBlock) {}
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const ReturnInst &returnInst) {
+    returnInst.print(os);
+    return os;
+  }
+
+  bool isTerminator() const override { return true; }
+
+protected:
+  void print(std::ostream &os) const override {
+    os << "RETURN " << expr->ToString() << ";";
+  }
+
+private:
+  Own<Expression> expr;
+  BasicBlock *exitBlock;
+};
+
+class BranchInst : public Instruction {
+public:
+  BranchInst(BasicBlock *ifTrue, BasicBlock *ifFalse, Own<Expression> cond)
+      : Instruction(), ifTrue(ifTrue), ifFalse(ifFalse), cond(std::move(cond)),
+        conditional(true) {}
+  BranchInst(BasicBlock *ifTrue)
+      : Instruction(), ifTrue(ifTrue), ifFalse(nullptr), cond(nullptr),
+        conditional(false) {}
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const BranchInst &branchInst) {
+    branchInst.print(os);
+    return os;
+  }
+
+  bool isTerminator() const override { return true; }
+
+  bool isConditional() const { return conditional; }
+  bool isUnconditional() const { return !conditional; }
+
+protected:
+  void print(std::ostream &os) const override {
+    os << "jmp " << (conditional ? cond->ToString() : "true") << " ["
+       << ifTrue->getLabel() << "," << ifFalse->getLabel() << "]";
+  }
+
+private:
+  BasicBlock *ifTrue;
+  BasicBlock *ifFalse;
+  Own<Expression> cond;
+  bool conditional;
 };
 
 class Function {

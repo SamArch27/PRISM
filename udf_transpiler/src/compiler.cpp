@@ -64,9 +64,10 @@ void Compiler::run() {
         ast[i]["PLpgSQL_function"]["action"]["PLpgSQL_stmt_block"]["body"];
     std::cout << body << std::endl;
 
-    // TODO: 
-    // 1. Create entry and exit blocks
-    // 2. Recursively construct the CFG for each AST node and attach the node back
+    // TODO:
+    // 1. Figure out a way to print expressions...
+    // 2. Create entry and exit blocks
+    // 3. Construct the CFG for each AST node and attach the node back
 
     // for (const auto &stmt : body) {
     //   if (stmt.contains("PLpgSQL_stmt_if"))
