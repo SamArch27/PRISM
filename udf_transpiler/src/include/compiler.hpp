@@ -63,7 +63,7 @@ public:
 
 protected:
   void print(std::ostream &os) const override {
-    os << var << " = \n" << expr->ToString();
+    os << *var << " = \n" << expr->ToString();
   }
 
 private:
@@ -87,6 +87,11 @@ public:
   Function(const std::string &functionName, Own<Type> returnType)
       : functionName(functionName), returnType(std::move(returnType)) {}
 
+  friend std::ostream &operator<<(std::ostream &os, const Function &function) {
+    function.print(os);
+    return os;
+  }
+
   void addArgument(const std::string &name, Own<Type> type) {
     bindings.emplace(name, type.get());
     arguments.emplace_back(Make<Variable>(name, std::move(type)));
@@ -109,6 +114,24 @@ public:
 
   const std::unordered_map<std::string, Type *> &getBindings() const {
     return bindings;
+  }
+
+protected:
+  void print(std::ostream &os) const {
+    os << "Function Name: " << functionName << std::endl;
+    os << "Return Type: " << *returnType << std::endl;
+    os << "Arguments: " << std::endl;
+    for (const auto &argument : arguments) {
+      os << "\t" << *argument << std::endl;
+    }
+    os << "Variables: " << std::endl;
+    for (const auto &variable : variables) {
+      os << "\t" << *variable << std::endl;
+    }
+    os << "Declarations: " << std::endl;
+    for (const auto &declaration : declarations) {
+      os << "\t" << *declaration << std::endl;
+    }
   }
 
 private:

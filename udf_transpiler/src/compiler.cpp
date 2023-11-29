@@ -62,24 +62,7 @@ void Compiler::run() {
   }
 
   for (const auto &function : functions) {
-    std::cout << "-----------------------------" << std::endl;
-    std::cout << "Function Name: " << function.getFunctionName() << std::endl;
-    std::cout << "Return Type: " << *(function.getReturnType()) << std::endl;
-    std::cout << "Arguments: " << std::endl;
-    for (const auto &argument : function.getArguments()) {
-      std::cout << "\t[" << argument->getName() << "," << *(argument->getType())
-                << "]" << std::endl;
-    }
-    std::cout << "Variables: " << std::endl;
-    for (const auto &variable : function.getVariables()) {
-      std::cout << "\t[" << variable->getName() << "," << *(variable->getType())
-                << "]" << std::endl;
-    }
-    std::cout << "Declarations: " << std::endl;
-    for (const auto &declaration : function.getDeclarations()) {
-      std::cout << "\t" << *declaration << std::endl;
-    }
-    std::cout << "-----------------------------" << std::endl;
+    std::cout << function << std::endl;
   }
 
   // TODO:
