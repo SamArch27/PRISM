@@ -57,9 +57,9 @@ udafs:
 
 PROFILER_EXTENSION_FLAGS=-DDUCKDB_EXTENSION_NAMES="profiler" -DDUCKDB_EXTENSION_PROFILER_PATH="$(PROJ_DIR)profiler" -DDUCKDB_EXTENSION_PROFILER_INCLUDE_PATH="$(PROJ_DIR)profiler/src/include"
 profile:
-	mkdir -p build/udfs
-	cmake $(GENERATOR) $(FORCE_COLOR) $(PROFILER_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
-	cmake --build build/udfs --config Release
+	mkdir -p build/release
+	cmake $(GENERATOR) $(FORCE_COLOR) $(PROFILER_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/release
+	cmake --build build/release --config Release
 
 release:
 	- make udfs
