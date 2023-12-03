@@ -16,6 +16,8 @@
 
 using Expression = duckdb::LogicalOperator;
 
+std::ostream &operator<<(std::ostream &os, const Expression &expr);
+
 class Variable {
 public:
   Variable(const std::string &name, Own<Type> type)
@@ -65,7 +67,7 @@ public:
 
 protected:
   void print(std::ostream &os) const override {
-    os << *var << " = \n" << expr->ToString();
+    os << *var << " = \n" << *expr;
   }
 
 private:
@@ -102,7 +104,7 @@ public:
 
 protected:
   void print(std::ostream &os) const override {
-    os << "RETURN " << expr->ToString() << ";";
+    os << "RETURN " << *expr << ";";
   }
 
 private:
@@ -126,14 +128,18 @@ public:
   }
 
   bool isTerminator() const override { return true; }
-
   bool isConditional() const { return conditional; }
   bool isUnconditional() const { return !conditional; }
 
 protected:
   void print(std::ostream &os) const override {
-    os << "jmp " << (conditional ? cond->ToString() : "true") << " ["
-       << ifTrue->getLabel() << "," << ifFalse->getLabel() << "]";
+    os << "jmp ";
+    if (conditional) {
+      os << *cond;
+    } else {
+      os << "true";
+    }
+    os << " [" << ifTrue->getLabel() << "," << ifFalse->getLabel() << "]";
   }
 
 private:

@@ -5,6 +5,11 @@
 #include <sstream>
 #include <string>
 
+std::ostream &operator<<(std::ostream &os, const Expression &expr) {
+  os << expr.ToString();
+  return os;
+}
+
 void Compiler::run() {
 
   auto ast = parseJson();
