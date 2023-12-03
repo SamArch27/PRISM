@@ -79,6 +79,11 @@ public:
 
   using ConstInstIterator = ListOwn<Instruction>::const_iterator;
 
+  friend std::ostream &operator<<(std::ostream &os, const BasicBlock &block) {
+    block.print(os);
+    return os;
+  }
+
   void addInstruction(Own<Instruction> inst) {
     instructions.emplace_back(std::move(inst));
   }
@@ -95,6 +100,14 @@ public:
   }
 
   std::string getLabel() const { return label; }
+
+protected:
+  void print(std::ostream &os) const {
+    os << label << ":" << std::endl;
+    for (const auto &inst : instructions) {
+      os << "\t" << *inst << std::endl;
+    }
+  }
 
 private:
   std::string label;
