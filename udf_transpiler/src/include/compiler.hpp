@@ -77,17 +77,17 @@ class BasicBlock {
 public:
   BasicBlock(const std::string &label) : label(label) {}
 
-  using InstIterator = std::list<Own<Instruction>>::iterator;
+  using ConstInstIterator = ListOwn<Instruction>::const_iterator;
 
   void addInstruction(Own<Instruction> inst) {
     instructions.emplace_back(std::move(inst));
   }
 
-  void insertBefore(const InstIterator iter, Own<Instruction> inst) {
+  void insertBefore(const ConstInstIterator iter, Own<Instruction> inst) {
     instructions.insert(iter, std::move(inst));
   }
 
-  const InstIterator getTerminator() {
+  ConstInstIterator getTerminator() const {
     auto last = std::prev(instructions.end());
     ASSERT((*last)->isTerminator(),
            "Last instruction of BasicBlock must be a Terminator instruction.");
