@@ -9,22 +9,13 @@
 std::ostream &operator<<(std::ostream &os, const Expression &expr) {
   ExpressionPrinter printer(os);
   printer.VisitOperator(expr);
-  os << expr.ToString() << std::endl;
   return os;
 }
 
 void Compiler::run() {
 
   auto ast = parseJson();
-
-  std::cout << ast << std::endl;
-
   auto functions = getFunctions();
-
-  for (const auto &function : functions) {
-    std::cout << "Function Name: " << function.getFunctionName() << std::endl;
-    std::cout << "Return Type: " << *(function.getReturnType()) << std::endl;
-  }
 
   auto header = "PLpgSQL_function";
   for (const auto &udf : ast) {
@@ -73,10 +64,7 @@ void Compiler::run() {
     std::cout << body << std::endl;
 
     // TODO:
-    // 1. Define data structures for BasicBlock (std::list?) and implement
-    // iterators/printing
-    // 2. Create entry and exit blocks
-    // 3. Construct the CFG for each AST node and attach the node back
+    // 1. Construct the CFG for each AST node and attach the node back
 
     // for (const auto &stmt : body) {
     //   if (stmt.contains("PLpgSQL_stmt_if"))
@@ -101,17 +89,6 @@ void Compiler::run() {
   for (const auto &function : functions) {
     std::cout << function << std::endl;
   }
-
-  // Traverse the AST (to get a sense about it) and construct BasicBlocks for
-  // each straight line code region
-
-  // TODO:
-  // 1. Create a BasicBlock class (VecOwn<Instruction>) with addInstruction(...)
-  // 2. Create a ControlFlowGraph class which holds connectivity info for
-  // BasicBlocks (successors, predecessors, etc.)
-  // 3. Visit the AST and construct the corresponding ControlFlowGraph correctly
-  // (think about cursor loops)
-  // 4. Visit and code gen to C++ (using Yuchen's visitor)
 }
 
 Own<Expression> Compiler::bindExpression(const Function &function,
@@ -162,9 +139,6 @@ Own<Expression> Compiler::bindExpression(const Function &function,
 
   // DROP tmp
   connection->Query(dropTableCommand);
-
-  std::cout << boundExpression->ToString() << std::endl;
-
   return std::move(boundExpression);
 }
 
@@ -276,8 +250,6 @@ Compiler::getDecimalWidthScale(const std::string &type) {
   if (decimalMatch.size() == 3) {
     auto width = std::stoi(decimalMatch[1]);
     auto scale = std::stoi(decimalMatch[2]);
-    std::cout << "Width: " << width << std::endl;
-    std::cout << "Scale: " << scale << std::endl;
     return {std::make_pair(width, scale)};
   }
   return {};

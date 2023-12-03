@@ -32,7 +32,7 @@ public:
   }
 
 protected:
-  void print(std::ostream &os) const { os << name; }
+  void print(std::ostream &os) const { os << *type << " " << name; }
 
 private:
   std::string name;
@@ -176,7 +176,8 @@ private:
 class Function {
 public:
   Function(const std::string &functionName, Own<Type> returnType)
-      : functionName(functionName), returnType(std::move(returnType)) {}
+      : functionName(functionName), returnType(std::move(returnType)),
+        entryBlock("entry"), exitBlock("exit") {}
 
   friend std::ostream &operator<<(std::ostream &os, const Function &function) {
     function.print(os);
@@ -207,6 +208,9 @@ public:
     return bindings;
   }
 
+  BasicBlock *getEntryBlock() { return &entryBlock; }
+  BasicBlock *getExitBlock() { return &exitBlock; }
+
 protected:
   void print(std::ostream &os) const {
     os << "Function Name: " << functionName << std::endl;
@@ -232,6 +236,8 @@ private:
   VecOwn<Variable> variables;
   VecOwn<Assignment> declarations;
   Map<std::string, Type *> bindings;
+  BasicBlock entryBlock;
+  BasicBlock exitBlock;
 };
 
 /* Compiler */
