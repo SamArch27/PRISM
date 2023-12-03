@@ -1,4 +1,5 @@
 #include "compiler.hpp"
+#include "expression_printer.hpp"
 #include "pg_query.h"
 #include "utils.hpp"
 #include <iostream>
@@ -6,7 +7,9 @@
 #include <string>
 
 std::ostream &operator<<(std::ostream &os, const Expression &expr) {
-  os << expr.ToString();
+  ExpressionPrinter printer(os);
+  printer.VisitOperator(expr);
+  os << expr.ToString() << std::endl;
   return os;
 }
 

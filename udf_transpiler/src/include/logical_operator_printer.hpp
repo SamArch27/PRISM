@@ -12,11 +12,11 @@
 #include <iostream>
 
 namespace udf {
-class LogicalOperatorPrinter : public duckdb::LogicalOperatorVisitor {
+class ExpressionPrinter : public duckdb::LogicalOperatorVisitor {
 private:
   // duckdb::LogicalOperator *op;
 public:
-  LogicalOperatorPrinter() {
+  ExpressionPrinter() {
     // do nothing
   }
 

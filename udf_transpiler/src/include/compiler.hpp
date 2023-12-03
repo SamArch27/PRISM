@@ -32,7 +32,7 @@ public:
   }
 
 protected:
-  void print(std::ostream &os) const { os << name << "::" << *type; }
+  void print(std::ostream &os) const { os << name; }
 
 private:
   std::string name;
@@ -66,9 +66,7 @@ public:
   bool isTerminator() const override { return false; }
 
 protected:
-  void print(std::ostream &os) const override {
-    os << *var << " = \n" << *expr;
-  }
+  void print(std::ostream &os) const override { os << *var << " = " << *expr; }
 
 private:
   const Variable *var;
