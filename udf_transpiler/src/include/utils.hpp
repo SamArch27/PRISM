@@ -1,6 +1,7 @@
 #pragma once
 #include <cassert>
 #include <iostream>
+#include <list>
 #include <numeric>
 #include <string>
 #include <unordered_map>
@@ -41,9 +42,13 @@ template <typename A, typename B = A, typename... Args>
 Own<A> Make(Args &&... xs) {
   return std::make_unique<B>(std::forward<Args>(xs)...);
 }
+template <typename A> using List = std::list<A>;
+
 template <typename A> using Vec = std::vector<A>;
 
 template <typename A> using VecOwn = std::vector<Own<A>>;
+
+template <typename A> using ListOwn = std::list<Own<A>>;
 
 template <typename A> using Opt = std::optional<A>;
 

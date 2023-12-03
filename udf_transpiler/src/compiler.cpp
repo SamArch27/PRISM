@@ -73,7 +73,8 @@ void Compiler::run() {
     std::cout << body << std::endl;
 
     // TODO:
-    // 1. Figure out a way to print expressions...
+    // 1. Define data structures for BasicBlock (std::list?) and implement
+    // iterators/printing
     // 2. Create entry and exit blocks
     // 3. Construct the CFG for each AST node and attach the node back
 
