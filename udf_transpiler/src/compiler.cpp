@@ -217,6 +217,66 @@ void Compiler::run() {
         return newBlock;
       }
 
+      if (statement.contains("PLpgSQL_stmt_fori")) {
+        auto newBlock = function.makeBasicBlock();
+
+        auto &forJson = statement["PLpgSQL_stmt_fori"];
+        auto &bodyJson = forJson["body"];
+
+        std::cout << forJson << std::endl;
+        bool reverse = forJson.contains("reverse");
+        auto &lower = forJson["lower"];
+        auto &upper = forJson["upper"];
+
+        std::string lowerString = getExpr(lower);
+        std::string upperString = getExpr(upper);
+
+        // Default step of 1
+        std::string stepString = "1";
+        if (forJson.contains("step")) {
+          auto &step = forJson["step"];
+          stepString = getExpr(step);
+        }
+
+        std::string varString = forJson["var"]["PLpgSQL_var"]["refname"];
+
+        // Create assignment <var> =  <lower>
+        const auto &[left, right] = std::make_pair(varString, lowerString);
+        auto *var = function.getBinding(left);
+        auto expr = bindExpression(function, right);
+        newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
+
+        // Create step (assignment) <var> = <var> (reverse ? - : +) <step>
+        auto latchBlock = function.makeBasicBlock();
+        std::string rhs = fmt::format("{} {} {}", varString,
+                                      (reverse ? " - " : " + "), stepString);
+        std::cout << rhs << std::endl;
+        auto stepExpr = bindExpression(function, rhs);
+        latchBlock->addInstruction(Make<Assignment>(var, std::move(stepExpr)));
+
+        // Create condition as terminator into while loop
+        auto headerBlock = function.makeBasicBlock();
+        std::string condString = fmt::format(
+            "{} {} {}", left, (reverse ? " > " : " < "), upperString);
+        auto cond = bindExpression(function, condString);
+        auto *afterLoopBlock =
+            constructCFG(statements, continuationBlock, loopContinuationBlock,
+                         loopBreakContinuationBlock);
+        auto bodyStatements = getJsonList(bodyJson);
+        auto *bodyBlock = constructCFG(bodyStatements, latchBlock, latchBlock,
+                                       afterLoopBlock);
+
+        headerBlock->addInstruction(
+            Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
+
+        // Unconditional jump from latch block to header block
+        latchBlock->addInstruction(Make<BranchInst>(headerBlock));
+
+        // Unconditional from newBlock to headerBlock
+        newBlock->addInstruction(Make<BranchInst>(headerBlock));
+        return newBlock;
+      }
+
       if (statement.contains("PLpgSQL_stmt_exit")) {
         auto newBlock = function.makeBasicBlock();
         auto &exitJson = statement["PLpgSQL_stmt_exit"];
@@ -254,28 +314,7 @@ void Compiler::run() {
         constructCFG(statements, functionExitBlock, nullptr, nullptr)));
 
     // TODO:
-    // 1. Construct FOR loop from AST
-    // 2. Lower to C++
-    //
-    // for (const auto &stmt : body) {
-    //   if (stmt.contains("PLpgSQL_stmt_if"))
-    //   output += translate_if_stmt(stmt["PLpgSQL_stmt_if"]);
-    // else if (stmt.contains("PLpgSQL_stmt_return"))
-    //   output += translate_return_stmt(stmt["PLpgSQL_stmt_return"]);
-    // else if (stmt.contains("PLpgSQL_stmt_assign"))
-    //   output += translate_assign_stmt(stmt["PLpgSQL_stmt_assign"]);
-    // else if (stmt.contains("PLpgSQL_stmt_loop"))
-    //   output += translate_loop_stmt(stmt["PLpgSQL_stmt_loop"]);
-    // else if (stmt.contains("PLpgSQL_stmt_fori"))
-    //   output += translate_for_stmt(stmt["PLpgSQL_stmt_fori"]);
-    // else if (stmt.contains("PLpgSQL_stmt_while"))
-    //   output += translate_while_stmt(stmt["PLpgSQL_stmt_while"]);
-    // else if (stmt.contains("PLpgSQL_stmt_exit"))
-    //   output += translate_exitcont_stmt(stmt["PLpgSQL_stmt_exit"]);
-    // else
-    //   ERROR(fmt::format("Unknown statement type: {}", stmt));
-    // }
-    //}
+    // 1. Lower to C++
 
     for (const auto &function : functions) {
       std::cout << function << std::endl;

@@ -291,10 +291,6 @@ protected:
       }
     }
     os << "}" << std::endl;
-
-    for (const auto &block : basicBlocks) {
-      os << *block << std::endl;
-    }
   }
 
 private:
