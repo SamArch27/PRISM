@@ -172,9 +172,10 @@ public:
 protected:
   void print(std::ostream &os) const override {
     if (conditional) {
-      os << "c";
+      os << "br ";
+    } else {
+      os << "jmp ";
     }
-    os << "jmp ";
 
     if (conditional) {
       os << *cond;

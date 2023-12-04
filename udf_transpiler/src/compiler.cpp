@@ -122,11 +122,6 @@ void Compiler::run() {
 
         auto elseIfJsons = ifJson["elsif_list"];
 
-        // std::reverse(elseIfJsons.begin(), elseIfJsons.end());
-        // for (auto &elseIfJson : elseIfJsons) {
-
-        // }
-
         auto *afterIfBlock =
             constructCFG(statements, continuationBlock, loopContinuationBlock,
                          loopBreakContinuationBlock);
@@ -137,6 +132,13 @@ void Compiler::run() {
             constructCFG(thenStatements, afterIfBlock, loopContinuationBlock,
                          loopBreakContinuationBlock);
         auto elseIfStatements = getJsonList(elseIfJsons);
+
+        if (ifJson.contains("else_body")) {
+          auto str = "{\"PLpgSQL_if_else\":" + ifJson["else_body"].dump() + "}";
+          json j = json::parse(str);
+          elseIfStatements.push_back(j);
+        }
+
         newBlock->addInstruction(Make<BranchInst>(
             thenBlock,
             constructCFG(elseIfStatements, afterIfBlock, loopContinuationBlock,
@@ -144,6 +146,17 @@ void Compiler::run() {
             std::move(cond)));
         return newBlock;
       }
+      if (statement.contains("PLpgSQL_if_else")) {
+        auto newBlock = function.makeBasicBlock();
+        auto &elseJson = statement["PLpgSQL_if_else"];
+        auto thenStatements = getJsonList(elseJson);
+        auto *thenBlock =
+            constructCFG(thenStatements, continuationBlock,
+                         loopContinuationBlock, loopBreakContinuationBlock);
+        newBlock->addInstruction(Make<BranchInst>(thenBlock));
+        return newBlock;
+      }
+
       if (statement.contains("PLpgSQL_if_elsif")) {
         auto newBlock = function.makeBasicBlock();
         auto &elifJson = statement["PLpgSQL_if_elsif"];
@@ -175,6 +188,20 @@ void Compiler::run() {
             constructCFG(bodyStatements, newBlock, newBlock, afterLoopBlock);
         newBlock->addInstruction(
             Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
+        return newBlock;
+      }
+
+      if (statement.contains("PLpgSQL_stmt_loop")) {
+        auto newBlock = function.makeBasicBlock();
+        auto &loopJson = statement["PLpgSQL_stmt_loop"];
+
+        auto *afterLoopBlock =
+            constructCFG(statements, continuationBlock, loopContinuationBlock,
+                         loopBreakContinuationBlock);
+        auto bodyStatements = getJsonList(loopJson["body"]);
+        auto *bodyBlock =
+            constructCFG(bodyStatements, newBlock, newBlock, afterLoopBlock);
+        newBlock->addInstruction(Make<BranchInst>(bodyBlock));
         return newBlock;
       }
 
@@ -215,9 +242,9 @@ void Compiler::run() {
         constructCFG(statements, functionExitBlock, nullptr, nullptr)));
 
     // TODO:
-    // 1. Check DECLARE block has valid binding then reuse table
-    // 2. Construct the CFG for each AST node and attach the node back
-
+    // 1. Construct FOR loop from AST
+    // 2. Lower to C++
+    //
     // for (const auto &stmt : body) {
     //   if (stmt.contains("PLpgSQL_stmt_if"))
     //   output += translate_if_stmt(stmt["PLpgSQL_stmt_if"]);
