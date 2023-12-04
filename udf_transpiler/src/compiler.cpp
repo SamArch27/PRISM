@@ -59,9 +59,35 @@ void Compiler::run() {
       }
     }
 
+    auto &function = functions[i];
     const auto &body =
         ast[i]["PLpgSQL_function"]["action"]["PLpgSQL_stmt_block"]["body"];
     std::cout << body << std::endl;
+
+    auto getExpr = [](const json &json) -> std::string {
+      return json["expr"]["PLpgSQL_expr"]["query"];
+    };
+
+    auto *entryBlock = functions[i].getEntryBlock();
+    auto *exitBlock = functions[i].getExitBlock();
+
+    for (const auto &statement : body) {
+      if (statement.contains("PLpgSQL_stmt_assign")) {
+        std::string assignmentText = getExpr(statement["PLpgSQL_stmt_assign"]);
+        const auto &[left, right] = unpackAssignment(assignmentText);
+        auto *var = function.getBinding(left);
+        auto expr = bindExpression(function, right);
+        auto assignmentInst = Make<Assignment>(var, std::move(expr));
+        std::cout << "Assignment: " << *assignmentInst << std::endl;
+      } else if (statement.contains("PLpgSQL_stmt_return")) {
+        std::string ret = getExpr(statement["PLpgSQL_stmt_return"]);
+        auto returnInst =
+            Make<ReturnInst>(bindExpression(function, ret), exitBlock);
+        std::cout << "Return: " << *returnInst << std::endl;
+      } else {
+        ERROR(fmt::format("Unknown statement type: {}", statement));
+      }
+    }
 
     // TODO:
     // 1. Construct the CFG for each AST node and attach the node back
@@ -100,8 +126,8 @@ Own<Expression> Compiler::bindExpression(const Function &function,
   insertTableString << "INSERT INTO tmp VALUES(";
 
   bool first = true;
-  for (const auto &binding : function.getBindings()) {
-    auto &[name, type] = binding;
+  for (const auto &[name, variable] : function.getAllBindings()) {
+    auto type = variable->getType();
     createTableString << (first ? "" : ", ");
     insertTableString << (first ? "" : ", ");
     if (first) {
@@ -238,7 +264,14 @@ PostgresTypeTag Compiler::getPostgresTag(const std::string &type) {
     ERROR(type + " is not a valid Postgres Type.");
   }
   return nameToTag.at(upper);
-};
+}
+
+Compiler::StringPair Compiler::unpackAssignment(const std::string &assignment) {
+  std::regex pattern(ASSIGNMENT_PATTERN, std::regex_constants::icase);
+  std::smatch matches;
+  std::regex_search(assignment, matches, pattern);
+  return std::make_pair(matches.prefix(), matches.suffix());
+}
 
 Opt<Compiler::WidthScale>
 Compiler::getDecimalWidthScale(const std::string &type) {

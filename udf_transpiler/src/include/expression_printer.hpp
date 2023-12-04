@@ -19,9 +19,7 @@ private:
 public:
   ExpressionPrinter(std::ostream &os) : os(os) {}
 
-  void VisitOperatorHelper(duckdb::Expression &exp) {
-    os << exp.ToString() << std::endl;
-  }
+  void VisitOperatorHelper(duckdb::Expression &exp) { os << exp.ToString(); }
 
   void VisitOperatorHelper(const duckdb::LogicalOperator &op) {
     if (op.GetName() == "PROJECTION") {

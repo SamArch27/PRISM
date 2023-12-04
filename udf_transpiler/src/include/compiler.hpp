@@ -185,16 +185,19 @@ public:
   }
 
   void addArgument(const std::string &name, Own<Type> type) {
-    bindings.emplace(name, type.get());
-    arguments.emplace_back(Make<Variable>(name, std::move(type)));
+    auto var = Make<Variable>(name, std::move(type));
+    arguments.emplace_back(std::move(var));
+    bindings.emplace(name, arguments.back().get());
   }
 
   void addVariable(const std::string &name, Own<Type> type,
                    Own<Expression> expr) {
-    bindings.emplace(name, type.get());
-    variables.emplace_back(Make<Variable>(name, std::move(type)));
-    declarations.emplace_back(
-        Make<Assignment>(variables.back().get(), std::move(expr)));
+    auto var = Make<Variable>(name, std::move(type));
+    variables.emplace_back(std::move(var));
+    bindings.emplace(name, variables.back().get());
+
+    auto assignment = Make<Assignment>(variables.back().get(), std::move(expr));
+    declarations.emplace_back(std::move(assignment));
   }
 
   const VecOwn<Variable> &getArguments() const { return arguments; }
@@ -204,7 +207,15 @@ public:
   std::string getFunctionName() const { return functionName; }
   const Type *getReturnType() const { return returnType.get(); }
 
-  const std::unordered_map<std::string, Type *> &getBindings() const {
+  const Variable *getBinding(const std::string &name) const {
+    auto cleanedName = removeSpaces(name);
+    ASSERT(bindings.find(cleanedName) != bindings.end(),
+           fmt::format("Error: Variable |{}| is not in bindings map.",
+                       cleanedName));
+    return bindings.at(cleanedName);
+  }
+
+  const Map<std::string, Variable *> &getAllBindings() const {
     return bindings;
   }
 
@@ -235,7 +246,7 @@ private:
   VecOwn<Variable> arguments;
   VecOwn<Variable> variables;
   VecOwn<Assignment> declarations;
-  Map<std::string, Type *> bindings;
+  Map<std::string, Variable *> bindings;
   BasicBlock entryBlock;
   BasicBlock exitBlock;
 };
@@ -247,6 +258,7 @@ using json = nlohmann::json;
 class Compiler {
 public:
   using WidthScale = std::pair<int, int>;
+  using StringPair = std::pair<std::string, std::string>;
 
   Compiler(duckdb::Connection *connection, const std::string &programText)
       : connection(connection), programText(programText) {}
@@ -260,6 +272,7 @@ public:
       "RETURNS\\s+(\\w+ *(\\((\\d+, *)?\\d+\\))?)";
   static constexpr char FUNCTION_NAME_PATTERN[] =
       "CREATE\\s+FUNCTION\\s+(\\w+)";
+  static constexpr char ASSIGNMENT_PATTERN[] = "\\:?\\=";
 
 private:
   json parseJson() const;
@@ -267,6 +280,7 @@ private:
 
   Own<Expression> bindExpression(const Function &function,
                                  const std::string &expression);
+  static StringPair unpackAssignment(const string &assignment);
   static Opt<WidthScale> getDecimalWidthScale(const std::string &type);
   static PostgresTypeTag getPostgresTag(const std::string &name);
   Own<Type> getTypeFromPostgresName(const std::string &name) const;
