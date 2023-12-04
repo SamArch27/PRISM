@@ -68,26 +68,57 @@ void Compiler::run() {
       return json["expr"]["PLpgSQL_expr"]["query"];
     };
 
-    auto *entryBlock = functions[i].getEntryBlock();
-    auto *exitBlock = functions[i].getExitBlock();
+    auto *entryBlock = function.makeBasicBlock("entry");
+    auto *exitBlock = function.makeBasicBlock("exit");
 
-    for (const auto &statement : body) {
-      if (statement.contains("PLpgSQL_stmt_assign")) {
-        std::string assignmentText = getExpr(statement["PLpgSQL_stmt_assign"]);
-        const auto &[left, right] = unpackAssignment(assignmentText);
-        auto *var = function.getBinding(left);
-        auto expr = bindExpression(function, right);
-        auto assignmentInst = Make<Assignment>(var, std::move(expr));
-        std::cout << "Assignment: " << *assignmentInst << std::endl;
-      } else if (statement.contains("PLpgSQL_stmt_return")) {
-        std::string ret = getExpr(statement["PLpgSQL_stmt_return"]);
-        auto returnInst =
-            Make<ReturnInst>(bindExpression(function, ret), exitBlock);
-        std::cout << "Return: " << *returnInst << std::endl;
-      } else {
-        ERROR(fmt::format("Unknown statement type: {}", statement));
+    auto constructCFG = [&function, &getExpr,
+                         this](const json &body,
+                               BasicBlock *exitBlock) -> BasicBlock * {
+      auto firstBlock = function.makeBasicBlock();
+      auto *currentBlock = firstBlock;
+      for (const auto &statement : body) {
+        if (statement.contains("PLpgSQL_stmt_assign")) {
+          std::string assignmentText =
+              getExpr(statement["PLpgSQL_stmt_assign"]);
+          const auto &[left, right] = unpackAssignment(assignmentText);
+          auto *var = function.getBinding(left);
+          auto expr = bindExpression(function, right);
+          auto assignmentInst = Make<Assignment>(var, std::move(expr));
+          std::cout << "Assignment: " << *assignmentInst << std::endl;
+          currentBlock->addInstruction(std::move(assignmentInst));
+          continue;
+        }
+
+        // TODO:
+        // 1. Add the terminator instruction to the current BasicBlock
+
+        // We don't have an assignment so we are starting a new basic block
+        if (statement.contains("PLpgSQL_stmt_return")) {
+          std::string ret = getExpr(statement["PLpgSQL_stmt_return"]);
+          auto returnInst =
+              Make<ReturnInst>(bindExpression(function, ret), exitBlock);
+          std::cout << "Return: " << *returnInst << std::endl;
+          currentBlock->addInstruction(std::move(returnInst));
+        } else {
+          ERROR(fmt::format("Unknown statement type: {}", statement));
+        }
       }
+      return firstBlock;
+    };
+
+    // Create a "declare" BasicBlock with all declarations
+    auto declareBlock = function.makeBasicBlock("declare");
+    auto declarations = function.takeDeclarations();
+    for (auto &declaration : declarations) {
+      declareBlock->addInstruction(std::move(declaration));
     }
+
+    // Unconditionally jump from the "declare" BasicBlock to the constructed CFG
+    declareBlock->addInstruction(
+        Make<BranchInst>(constructCFG(body, exitBlock)));
+
+    // Finally, jump to the declaration block from the "entry" BasicBlock
+    entryBlock->addInstruction(Make<BranchInst>(declareBlock));
 
     // TODO:
     // 1. Construct the CFG for each AST node and attach the node back
@@ -110,10 +141,11 @@ void Compiler::run() {
     // else
     //   ERROR(fmt::format("Unknown statement type: {}", stmt));
     // }
-  }
+    //}
 
-  for (const auto &function : functions) {
-    std::cout << function << std::endl;
+    for (const auto &function : functions) {
+      std::cout << function << std::endl;
+    }
   }
 }
 

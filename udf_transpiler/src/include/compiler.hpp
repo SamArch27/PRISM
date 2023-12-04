@@ -157,13 +157,17 @@ public:
 
 protected:
   void print(std::ostream &os) const override {
+    if (conditional) {
+      os << "c";
+    }
     os << "jmp ";
+
     if (conditional) {
       os << *cond;
+      os << " [" << ifTrue->getLabel() << "," << ifFalse->getLabel() << "]";
     } else {
-      os << "true";
+      os << " [" << ifTrue->getLabel() << "] ";
     }
-    os << " [" << ifTrue->getLabel() << "," << ifFalse->getLabel() << "]";
   }
 
 private:
@@ -176,12 +180,22 @@ private:
 class Function {
 public:
   Function(const std::string &functionName, Own<Type> returnType)
-      : functionName(functionName), returnType(std::move(returnType)),
-        entryBlock("entry"), exitBlock("exit") {}
+      : labelNumber(0), functionName(functionName),
+        returnType(std::move(returnType)) {}
 
   friend std::ostream &operator<<(std::ostream &os, const Function &function) {
     function.print(os);
     return os;
+  }
+
+  BasicBlock *makeBasicBlock(const std::string &label) {
+    basicBlocks.emplace_back(Make<BasicBlock>(label));
+    return basicBlocks.back().get();
+  }
+
+  BasicBlock *makeBasicBlock() {
+    auto label = getNextLabel();
+    return makeBasicBlock(label);
   }
 
   void addArgument(const std::string &name, Own<Type> type) {
@@ -200,9 +214,14 @@ public:
     declarations.emplace_back(std::move(assignment));
   }
 
+  std::string getNextLabel() {
+    auto label = std::string("L") + std::to_string(labelNumber);
+    ++labelNumber;
+    return label;
+  }
   const VecOwn<Variable> &getArguments() const { return arguments; }
   const VecOwn<Variable> &getVariables() const { return variables; }
-  const VecOwn<Assignment> &getDeclarations() const { return declarations; }
+  VecOwn<Assignment> takeDeclarations() { return std::move(declarations); }
 
   std::string getFunctionName() const { return functionName; }
   const Type *getReturnType() const { return returnType.get(); }
@@ -219,8 +238,8 @@ public:
     return bindings;
   }
 
-  BasicBlock *getEntryBlock() { return &entryBlock; }
-  BasicBlock *getExitBlock() { return &exitBlock; }
+  BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
+  BasicBlock *getExitBlock() { return basicBlocks[1].get(); }
 
 protected:
   void print(std::ostream &os) const {
@@ -238,17 +257,22 @@ protected:
     for (const auto &declaration : declarations) {
       os << "\t" << *declaration << std::endl;
     }
+
+    os << "Control Flow Graph: \n" << std::endl;
+    for (const auto &block : basicBlocks) {
+      os << *block << std::endl;
+    }
   }
 
 private:
+  std::size_t labelNumber;
   std::string functionName;
   Own<Type> returnType;
   VecOwn<Variable> arguments;
   VecOwn<Variable> variables;
   VecOwn<Assignment> declarations;
   Map<std::string, Variable *> bindings;
-  BasicBlock entryBlock;
-  BasicBlock exitBlock;
+  VecOwn<BasicBlock> basicBlocks;
 };
 
 /* Compiler */
