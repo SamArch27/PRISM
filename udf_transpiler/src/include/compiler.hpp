@@ -316,6 +316,7 @@ public:
   Compiler(duckdb::Connection *connection, const std::string &programText)
       : connection(connection), programText(programText) {}
 
+  void buildCFG(Function &function, const json &ast);
   void run();
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
