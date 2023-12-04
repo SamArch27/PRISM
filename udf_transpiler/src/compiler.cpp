@@ -71,38 +71,47 @@ void Compiler::run() {
     auto *entryBlock = function.makeBasicBlock("entry");
     auto *exitBlock = function.makeBasicBlock("exit");
 
-    auto constructCFG = [&function, &getExpr,
-                         this](const json &body, BasicBlock *entryBlock,
-                               BasicBlock *exitBlock) -> BasicBlock * {
-      auto *currentBlock = entryBlock;
-      for (const auto &statement : body) {
-        if (statement.contains("PLpgSQL_stmt_assign")) {
-          std::string assignmentText =
-              getExpr(statement["PLpgSQL_stmt_assign"]);
-          const auto &[left, right] = unpackAssignment(assignmentText);
-          auto *var = function.getBinding(left);
-          auto expr = bindExpression(function, right);
-          auto assignmentInst = Make<Assignment>(var, std::move(expr));
-          std::cout << "Assignment: " << *assignmentInst << std::endl;
-          currentBlock->addInstruction(std::move(assignmentInst));
-          continue;
-        }
+    std::function<BasicBlock *(List<json> &)> constructCFG;
+    constructCFG = [&function, &getExpr, this, exitBlock,
+                    &constructCFG](List<json> &statements) -> BasicBlock * {
+      ASSERT(!statements.empty(),
+             "Error: Didn't handle RETURN statements correctly.");
 
-        // TODO:
-        // 1. Add the terminator instruction to the current BasicBlock
+      auto statement = statements.front();
+      statements.pop_front();
 
-        // We don't have an assignment so we are starting a new basic block
-        if (statement.contains("PLpgSQL_stmt_return")) {
-          std::string ret = getExpr(statement["PLpgSQL_stmt_return"]);
-          auto returnInst =
-              Make<ReturnInst>(bindExpression(function, ret), exitBlock);
-          std::cout << "Return: " << *returnInst << std::endl;
-          currentBlock->addInstruction(std::move(returnInst));
-        } else {
-          ERROR(fmt::format("Unknown statement type: {}", statement));
-        }
+      if (statement.contains("PLpgSQL_stmt_assign")) {
+        auto newBlock = function.makeBasicBlock();
+        std::string assignmentText = getExpr(statement["PLpgSQL_stmt_assign"]);
+        const auto &[left, right] = unpackAssignment(assignmentText);
+        auto *var = function.getBinding(left);
+        auto expr = bindExpression(function, right);
+        newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
+        newBlock->addInstruction(Make<BranchInst>(constructCFG(statements)));
+        return newBlock;
       }
-      return entryBlock;
+
+      if (statement.contains("PLpgSQL_stmt_return")) {
+        auto newBlock = function.makeBasicBlock();
+        std::string ret = getExpr(statement["PLpgSQL_stmt_return"]);
+        newBlock->addInstruction(
+            Make<ReturnInst>(bindExpression(function, ret), exitBlock));
+        return newBlock;
+      }
+
+      // if (statement.contains("PLpgSQL_stmt_if")) {
+      //   auto &ifBlock = statement["PLpgSQL_stmt_if"];
+      //   std::string condString = getExpr(ifBlock["cond"]);
+      //   auto cond = bindExpression(function, condString);
+      //   currentBlock->addInstruction(Make<BranchInst>(std::move(cond)))
+      // }
+
+      // TODO:
+      // 1. Add the terminator instruction to the current BasicBlock
+
+      // We don't have an assignment so we are starting a new basic block
+      ERROR(fmt::format("Unknown statement type: {}", statement));
+      return nullptr;
     };
 
     // Create a "declare" BasicBlock with all declarations
@@ -112,12 +121,20 @@ void Compiler::run() {
       declareBlock->addInstruction(std::move(declaration));
     }
 
+    List<json> statements;
+    for (const auto &statement : body) {
+      statements.push_back(statement);
+    }
+
+    // Connect "entry" block to "declare" block
+    entryBlock->addInstruction(Make<BranchInst>(declareBlock));
+
     // Finally, jump to the "declare" block from the "entry" BasicBlock
-    entryBlock->addInstruction(
-        Make<BranchInst>(constructCFG(body, declareBlock, exitBlock)));
+    declareBlock->addInstruction(Make<BranchInst>(constructCFG(statements)));
 
     // TODO:
-    // 1. Construct the CFG for each AST node and attach the node back
+    // 1. Check DECLARE block has valid binding then reuse table
+    // 2. Construct the CFG for each AST node and attach the node back
 
     // for (const auto &stmt : body) {
     //   if (stmt.contains("PLpgSQL_stmt_if"))
