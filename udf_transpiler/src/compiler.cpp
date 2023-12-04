@@ -27,6 +27,7 @@ void Compiler::run() {
 
     auto datums = ast[i]["PLpgSQL_function"]["datums"];
     ASSERT(datums.is_array(), "Datums is not an array.");
+    auto &function = functions[i];
 
     bool readingArguments = true;
 
@@ -35,16 +36,28 @@ void Compiler::run() {
       ASSERT(datum.contains("PLpgSQL_var"),
              "Datum does not contain PLpgSQL_var.");
       auto variable = datum["PLpgSQL_var"];
-      auto variableName = variable["refname"];
+      std::string variableName = variable["refname"];
       if (variableName == "found") {
         readingArguments = false;
         continue;
       }
-      auto variableType = variable["datatype"]["PLpgSQL_type"]["typname"];
+
+      std::string variableType =
+          variable["datatype"]["PLpgSQL_type"]["typname"];
+
+      if (variableType == "UNKNOWN") {
+        if (function.hasBinding(variableName)) {
+          continue;
+        }
+        ERROR(fmt::format(
+            "Error: Variable {} in cursor loop must be declared first",
+            variableName));
+        continue;
+      }
 
       if (readingArguments) {
-        functions[i].addArgument(variableName,
-                                 getTypeFromPostgresName(variableType));
+        function.addArgument(variableName,
+                             getTypeFromPostgresName(variableType));
       } else {
         // If the declared variable has a default value (i.e. DECLARE x = 0;)
         // then get it (otherwise assign to NULL)
@@ -53,13 +66,12 @@ void Compiler::run() {
                 ? variable["default_val"]["PLpgSQL_expr"]["query"]
                       .get<std::string>()
                 : "NULL";
-        functions[i].addVariable(variableName,
-                                 getTypeFromPostgresName(variableType),
-                                 bindExpression(functions[i], defaultVal));
+        function.addVariable(variableName,
+                             getTypeFromPostgresName(variableType),
+                             bindExpression(functions[i], defaultVal));
       }
     }
 
-    auto &function = functions[i];
     const auto &body =
         ast[i]["PLpgSQL_function"]["action"]["PLpgSQL_stmt_block"]["body"];
     std::cout << body << std::endl;

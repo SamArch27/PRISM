@@ -241,11 +241,16 @@ public:
   std::string getFunctionName() const { return functionName; }
   const Type *getReturnType() const { return returnType.get(); }
 
+  bool hasBinding(const std::string &name) const {
+    auto cleanedName = removeSpaces(name);
+    return bindings.find(cleanedName) != bindings.end();
+  }
+
   const Variable *getBinding(const std::string &name) const {
     auto cleanedName = removeSpaces(name);
-    ASSERT(bindings.find(cleanedName) != bindings.end(),
-           fmt::format("Error: Variable |{}| is not in bindings map.",
-                       cleanedName));
+    ASSERT(
+        hasBinding(cleanedName),
+        fmt::format("Error: Variable {} is not in bindings map.", cleanedName));
     return bindings.at(cleanedName);
   }
 
