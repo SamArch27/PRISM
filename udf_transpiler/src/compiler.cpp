@@ -119,6 +119,14 @@ void Compiler::run() {
         auto &ifJson = statement["PLpgSQL_stmt_if"];
         std::string condString = getExpr(ifJson["cond"]);
         auto cond = bindExpression(function, condString);
+
+        auto elseIfJsons = ifJson["elsif_list"];
+
+        // std::reverse(elseIfJsons.begin(), elseIfJsons.end());
+        // for (auto &elseIfJson : elseIfJsons) {
+
+        // }
+
         auto *afterIfBlock =
             constructCFG(statements, continuationBlock, loopContinuationBlock,
                          loopBreakContinuationBlock);
@@ -128,8 +136,28 @@ void Compiler::run() {
         auto *thenBlock =
             constructCFG(thenStatements, afterIfBlock, loopContinuationBlock,
                          loopBreakContinuationBlock);
-        newBlock->addInstruction(
-            Make<BranchInst>(thenBlock, afterIfBlock, std::move(cond)));
+        auto elseIfStatements = getJsonList(elseIfJsons);
+        newBlock->addInstruction(Make<BranchInst>(
+            thenBlock,
+            constructCFG(elseIfStatements, afterIfBlock, loopContinuationBlock,
+                         loopBreakContinuationBlock),
+            std::move(cond)));
+        return newBlock;
+      }
+      if (statement.contains("PLpgSQL_if_elsif")) {
+        auto newBlock = function.makeBasicBlock();
+        auto &elifJson = statement["PLpgSQL_if_elsif"];
+        std::string condString = getExpr(elifJson["cond"]);
+        auto cond = bindExpression(function, condString);
+        auto thenStatements = getJsonList(elifJson["stmts"]);
+        auto *thenBlock =
+            constructCFG(thenStatements, continuationBlock,
+                         loopContinuationBlock, loopBreakContinuationBlock);
+        newBlock->addInstruction(Make<BranchInst>(
+            thenBlock,
+            constructCFG(statements, continuationBlock, loopContinuationBlock,
+                         loopBreakContinuationBlock),
+            std::move(cond)));
         return newBlock;
       }
 
@@ -164,8 +192,6 @@ void Compiler::run() {
         }
         ASSERT(false, "Unimplemented :(");
       }
-      // TODO:
-      // 1. Add the terminator instruction to the current BasicBlock
 
       // We don't have an assignment so we are starting a new basic block
       ERROR(fmt::format("Unknown statement type: {}", statement));
