@@ -72,10 +72,9 @@ void Compiler::run() {
     auto *exitBlock = function.makeBasicBlock("exit");
 
     auto constructCFG = [&function, &getExpr,
-                         this](const json &body,
+                         this](const json &body, BasicBlock *entryBlock,
                                BasicBlock *exitBlock) -> BasicBlock * {
-      auto firstBlock = function.makeBasicBlock();
-      auto *currentBlock = firstBlock;
+      auto *currentBlock = entryBlock;
       for (const auto &statement : body) {
         if (statement.contains("PLpgSQL_stmt_assign")) {
           std::string assignmentText =
@@ -103,7 +102,7 @@ void Compiler::run() {
           ERROR(fmt::format("Unknown statement type: {}", statement));
         }
       }
-      return firstBlock;
+      return entryBlock;
     };
 
     // Create a "declare" BasicBlock with all declarations
@@ -113,12 +112,9 @@ void Compiler::run() {
       declareBlock->addInstruction(std::move(declaration));
     }
 
-    // Unconditionally jump from the "declare" BasicBlock to the constructed CFG
-    declareBlock->addInstruction(
-        Make<BranchInst>(constructCFG(body, exitBlock)));
-
-    // Finally, jump to the declaration block from the "entry" BasicBlock
-    entryBlock->addInstruction(Make<BranchInst>(declareBlock));
+    // Finally, jump to the "declare" block from the "entry" BasicBlock
+    entryBlock->addInstruction(
+        Make<BranchInst>(constructCFG(body, declareBlock, exitBlock)));
 
     // TODO:
     // 1. Construct the CFG for each AST node and attach the node back

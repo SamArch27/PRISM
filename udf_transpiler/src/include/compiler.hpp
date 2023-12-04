@@ -39,6 +39,8 @@ private:
   Own<Type> type;
 };
 
+class BasicBlock;
+
 class Instruction {
 public:
   friend std::ostream &operator<<(std::ostream &os, const Instruction &inst) {
@@ -46,6 +48,7 @@ public:
     return os;
   }
   virtual bool isTerminator() const = 0;
+  virtual Vec<BasicBlock *> getSuccessors() const = 0;
 
 protected:
   virtual void print(std::ostream &os) const = 0;
@@ -64,6 +67,7 @@ public:
     return os;
   }
   bool isTerminator() const override { return false; }
+  Vec<BasicBlock *> getSuccessors() const override { return {}; }
 
 protected:
   void print(std::ostream &os) const override { os << *var << " = " << *expr; }
@@ -77,7 +81,7 @@ class BasicBlock {
 public:
   BasicBlock(const std::string &label) : label(label) {}
 
-  using ConstInstIterator = ListOwn<Instruction>::const_iterator;
+  using InstIterator = ListOwn<Instruction>::iterator;
 
   friend std::ostream &operator<<(std::ostream &os, const BasicBlock &block) {
     block.print(os);
@@ -88,11 +92,11 @@ public:
     instructions.emplace_back(std::move(inst));
   }
 
-  void insertBefore(const ConstInstIterator iter, Own<Instruction> inst) {
+  void insertBefore(const InstIterator iter, Own<Instruction> inst) {
     instructions.insert(iter, std::move(inst));
   }
 
-  ConstInstIterator getTerminator() const {
+  InstIterator getTerminator() {
     auto last = std::prev(instructions.end());
     ASSERT((*last)->isTerminator(),
            "Last instruction of BasicBlock must be a Terminator instruction.");
@@ -105,7 +109,7 @@ protected:
   void print(std::ostream &os) const {
     os << label << ":" << std::endl;
     for (const auto &inst : instructions) {
-      os << "\t" << *inst << std::endl;
+      os << *inst << std::endl;
     }
   }
 
@@ -125,6 +129,7 @@ public:
   }
 
   bool isTerminator() const override { return true; }
+  Vec<BasicBlock *> getSuccessors() const override { return {exitBlock}; }
 
 protected:
   void print(std::ostream &os) const override {
@@ -152,6 +157,15 @@ public:
   }
 
   bool isTerminator() const override { return true; }
+  Vec<BasicBlock *> getSuccessors() const override {
+    Vec<BasicBlock *> res;
+    res.push_back(ifTrue);
+    if (conditional) {
+      res.push_back(ifFalse);
+    }
+    return res;
+  }
+
   bool isConditional() const { return conditional; }
   bool isUnconditional() const { return !conditional; }
 
@@ -259,6 +273,19 @@ protected:
     }
 
     os << "Control Flow Graph: \n" << std::endl;
+
+    os << "digraph cfg {" << std::endl;
+    for (const auto &block : basicBlocks) {
+      os << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
+      if (block->getLabel() != "exit") {
+        for (auto *succ : (*block->getTerminator())->getSuccessors()) {
+          os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
+             << std::endl;
+        }
+      }
+    }
+    os << "}" << std::endl;
+
     for (const auto &block : basicBlocks) {
       os << *block << std::endl;
     }
