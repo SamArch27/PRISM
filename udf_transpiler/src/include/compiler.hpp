@@ -317,6 +317,11 @@ public:
       : connection(connection), programText(programText) {}
 
   void buildCFG(Function &function, const json &ast);
+  BasicBlock *constructCFG(Function &function, List<json> &statements,
+                           BasicBlock *continuationBlock,
+                           BasicBlock *loopContinuationBlock,
+                           BasicBlock *loopBreakContinuationBlock,
+                           BasicBlock *functionExitBlock);
   void run();
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
@@ -330,6 +335,8 @@ public:
 
 private:
   json parseJson() const;
+  std::string getJsonExpr(const json &json);
+  List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
 
   Own<Expression> bindExpression(const Function &function,
