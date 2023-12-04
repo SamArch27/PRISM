@@ -79,11 +79,14 @@ void Compiler::run() {
     auto *entryBlock = function.makeBasicBlock("entry");
     auto *functionExitBlock = function.makeBasicBlock("exit");
 
-    std::function<BasicBlock *(List<json> &, BasicBlock *)> constructCFG;
-    constructCFG = [&](List<json> &statements,
-                       BasicBlock *exitBlock) -> BasicBlock * {
+    std::function<BasicBlock *(List<json> &, BasicBlock *, BasicBlock *,
+                               BasicBlock *)>
+        constructCFG;
+    constructCFG = [&](List<json> &statements, BasicBlock *continuationBlock,
+                       BasicBlock *loopContinuationBlock,
+                       BasicBlock *loopBreakContinuationBlock) -> BasicBlock * {
       if (statements.empty()) {
-        return exitBlock;
+        return continuationBlock;
       }
 
       auto statement = statements.front();
@@ -97,8 +100,9 @@ void Compiler::run() {
         auto *var = function.getBinding(left);
         auto expr = bindExpression(function, right);
         newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
-        newBlock->addInstruction(
-            Make<BranchInst>(constructCFG(statements, exitBlock)));
+        newBlock->addInstruction(Make<BranchInst>(
+            constructCFG(statements, continuationBlock, loopContinuationBlock,
+                         loopBreakContinuationBlock)));
         return newBlock;
       }
 
@@ -115,16 +119,51 @@ void Compiler::run() {
         auto &ifJson = statement["PLpgSQL_stmt_if"];
         std::string condString = getExpr(ifJson["cond"]);
         auto cond = bindExpression(function, condString);
-        auto *fallthrough = constructCFG(statements, exitBlock);
+        auto *afterIfBlock =
+            constructCFG(statements, continuationBlock, loopContinuationBlock,
+                         loopBreakContinuationBlock);
 
         auto thenStatements = getJsonList(ifJson["then_body"]);
 
-        auto *thenBlock = constructCFG(thenStatements, fallthrough);
+        auto *thenBlock =
+            constructCFG(thenStatements, afterIfBlock, loopContinuationBlock,
+                         loopBreakContinuationBlock);
         newBlock->addInstruction(
-            Make<BranchInst>(thenBlock, fallthrough, std::move(cond)));
+            Make<BranchInst>(thenBlock, afterIfBlock, std::move(cond)));
         return newBlock;
       }
 
+      if (statement.contains("PLpgSQL_stmt_while")) {
+        auto newBlock = function.makeBasicBlock();
+        auto &whileJson = statement["PLpgSQL_stmt_while"];
+        std::string condString = getExpr(whileJson["cond"]);
+        auto cond = bindExpression(function, condString);
+
+        auto *afterLoopBlock =
+            constructCFG(statements, continuationBlock, loopContinuationBlock,
+                         loopBreakContinuationBlock);
+        auto bodyStatements = getJsonList(whileJson["body"]);
+        auto *bodyBlock =
+            constructCFG(bodyStatements, newBlock, newBlock, afterLoopBlock);
+        newBlock->addInstruction(
+            Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
+        return newBlock;
+      }
+
+      if (statement.contains("PLpgSQL_stmt_exit")) {
+        auto newBlock = function.makeBasicBlock();
+        auto &exitJson = statement["PLpgSQL_stmt_exit"];
+        // continue
+        if (!exitJson.contains("is_exit")) {
+          newBlock->addInstruction(Make<BranchInst>(loopContinuationBlock));
+          return newBlock;
+        } else {
+          newBlock->addInstruction(
+              Make<BranchInst>(loopBreakContinuationBlock));
+          return newBlock;
+        }
+        ASSERT(false, "Unimplemented :(");
+      }
       // TODO:
       // 1. Add the terminator instruction to the current BasicBlock
 
@@ -146,8 +185,8 @@ void Compiler::run() {
     entryBlock->addInstruction(Make<BranchInst>(declareBlock));
 
     // Finally, jump to the "declare" block from the "entry" BasicBlock
-    declareBlock->addInstruction(
-        Make<BranchInst>(constructCFG(statements, functionExitBlock)));
+    declareBlock->addInstruction(Make<BranchInst>(
+        constructCFG(statements, functionExitBlock, nullptr, nullptr)));
 
     // TODO:
     // 1. Check DECLARE block has valid binding then reuse table
