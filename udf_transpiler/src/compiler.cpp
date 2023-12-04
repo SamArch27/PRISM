@@ -65,46 +65,65 @@ void Compiler::run() {
     std::cout << body << std::endl;
 
     auto getExpr = [](const json &json) -> std::string {
-      return json["expr"]["PLpgSQL_expr"]["query"];
+      return json["PLpgSQL_expr"]["query"];
+    };
+
+    auto getJsonList = [](const json &body) -> List<json> {
+      List<json> res;
+      for (auto &statement : body) {
+        res.push_back(statement);
+      }
+      return res;
     };
 
     auto *entryBlock = function.makeBasicBlock("entry");
-    auto *exitBlock = function.makeBasicBlock("exit");
+    auto *functionExitBlock = function.makeBasicBlock("exit");
 
-    std::function<BasicBlock *(List<json> &)> constructCFG;
-    constructCFG = [&function, &getExpr, this, exitBlock,
-                    &constructCFG](List<json> &statements) -> BasicBlock * {
-      ASSERT(!statements.empty(),
-             "Error: Didn't handle RETURN statements correctly.");
+    std::function<BasicBlock *(List<json> &, BasicBlock *)> constructCFG;
+    constructCFG = [&](List<json> &statements,
+                       BasicBlock *exitBlock) -> BasicBlock * {
+      if (statements.empty()) {
+        return exitBlock;
+      }
 
       auto statement = statements.front();
       statements.pop_front();
 
       if (statement.contains("PLpgSQL_stmt_assign")) {
         auto newBlock = function.makeBasicBlock();
-        std::string assignmentText = getExpr(statement["PLpgSQL_stmt_assign"]);
+        std::string assignmentText =
+            getExpr(statement["PLpgSQL_stmt_assign"]["expr"]);
         const auto &[left, right] = unpackAssignment(assignmentText);
         auto *var = function.getBinding(left);
         auto expr = bindExpression(function, right);
         newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
-        newBlock->addInstruction(Make<BranchInst>(constructCFG(statements)));
+        newBlock->addInstruction(
+            Make<BranchInst>(constructCFG(statements, exitBlock)));
         return newBlock;
       }
 
       if (statement.contains("PLpgSQL_stmt_return")) {
         auto newBlock = function.makeBasicBlock();
-        std::string ret = getExpr(statement["PLpgSQL_stmt_return"]);
+        std::string ret = getExpr(statement["PLpgSQL_stmt_return"]["expr"]);
         newBlock->addInstruction(
-            Make<ReturnInst>(bindExpression(function, ret), exitBlock));
+            Make<ReturnInst>(bindExpression(function, ret), functionExitBlock));
         return newBlock;
       }
 
-      // if (statement.contains("PLpgSQL_stmt_if")) {
-      //   auto &ifBlock = statement["PLpgSQL_stmt_if"];
-      //   std::string condString = getExpr(ifBlock["cond"]);
-      //   auto cond = bindExpression(function, condString);
-      //   currentBlock->addInstruction(Make<BranchInst>(std::move(cond)))
-      // }
+      if (statement.contains("PLpgSQL_stmt_if")) {
+        auto newBlock = function.makeBasicBlock();
+        auto &ifJson = statement["PLpgSQL_stmt_if"];
+        std::string condString = getExpr(ifJson["cond"]);
+        auto cond = bindExpression(function, condString);
+        auto *fallthrough = constructCFG(statements, exitBlock);
+
+        auto thenStatements = getJsonList(ifJson["then_body"]);
+
+        auto *thenBlock = constructCFG(thenStatements, fallthrough);
+        newBlock->addInstruction(
+            Make<BranchInst>(thenBlock, fallthrough, std::move(cond)));
+        return newBlock;
+      }
 
       // TODO:
       // 1. Add the terminator instruction to the current BasicBlock
@@ -121,16 +140,14 @@ void Compiler::run() {
       declareBlock->addInstruction(std::move(declaration));
     }
 
-    List<json> statements;
-    for (const auto &statement : body) {
-      statements.push_back(statement);
-    }
+    auto statements = getJsonList(body);
 
     // Connect "entry" block to "declare" block
     entryBlock->addInstruction(Make<BranchInst>(declareBlock));
 
     // Finally, jump to the "declare" block from the "entry" BasicBlock
-    declareBlock->addInstruction(Make<BranchInst>(constructCFG(statements)));
+    declareBlock->addInstruction(
+        Make<BranchInst>(constructCFG(statements, functionExitBlock)));
 
     // TODO:
     // 1. Check DECLARE block has valid binding then reuse table
@@ -203,6 +220,7 @@ Own<Expression> Compiler::bindExpression(const Function &function,
   }
 
   auto connectionContext = connection->context.get();
+  connectionContext->config.enable_optimizer = false;
 
   // SELECT <expr> FROM tmp
   auto boundExpression =
