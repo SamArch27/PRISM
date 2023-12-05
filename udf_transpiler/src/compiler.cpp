@@ -12,9 +12,199 @@ std::ostream &operator<<(std::ostream &os, const Expression &expr) {
   return os;
 }
 
+BasicBlock *
+Compiler::constructAssignmentCFG(const json &assignmentJson, Function &function,
+                                 List<json> &statements,
+                                 const Continuations &continuations) {
+  auto newBlock = function.makeBasicBlock();
+  std::string assignmentText = getJsonExpr(assignmentJson["expr"]);
+  const auto &[left, right] = unpackAssignment(assignmentText);
+  auto *var = function.getBinding(left);
+  auto expr = bindExpression(function, right);
+  newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
+  newBlock->addInstruction(
+      Make<BranchInst>(constructCFG(function, statements, continuations)));
+  return newBlock;
+}
+
+BasicBlock *Compiler::constructReturnCFG(const json &returnJson,
+                                         Function &function,
+                                         List<json> &statements,
+                                         const Continuations &continuations) {
+  auto newBlock = function.makeBasicBlock();
+  std::string ret = getJsonExpr(returnJson["expr"]);
+  newBlock->addInstruction(Make<ReturnInst>(bindExpression(function, ret),
+                                            continuations.functionExit));
+  return newBlock;
+}
+
+BasicBlock *Compiler::constructIfCFG(const json &ifJson, Function &function,
+                                     List<json> &statements,
+                                     const Continuations &continuations) {
+  auto newBlock = function.makeBasicBlock();
+  std::string condString = getJsonExpr(ifJson["cond"]);
+  auto cond = bindExpression(function, condString);
+
+  auto *afterIfBlock = constructCFG(function, statements, continuations);
+
+  auto thenStatements = getJsonList(ifJson["then_body"]);
+
+  auto newContinuations =
+      Continuations(afterIfBlock, continuations.fallthrough,
+                    continuations.loopExit, continuations.functionExit);
+  auto *thenBlock = constructCFG(function, thenStatements, newContinuations);
+
+  List<json> elseIfStatements;
+  if (ifJson.contains("elsif_list")) {
+    auto elseIfJsons = ifJson["elsif_list"];
+    elseIfStatements = getJsonList(elseIfJsons);
+  }
+
+  if (ifJson.contains("else_body")) {
+    auto str = "{\"PLpgSQL_if_else\":" + ifJson["else_body"].dump() + "}";
+    json j = json::parse(str);
+    elseIfStatements.push_back(j);
+  }
+
+  newBlock->addInstruction(Make<BranchInst>(
+      thenBlock, constructCFG(function, elseIfStatements, newContinuations),
+      std::move(cond)));
+
+  return newBlock;
+}
+
+BasicBlock *Compiler::constructIfElseCFG(const json &ifElseJson,
+                                         Function &function,
+                                         List<json> &statements,
+                                         const Continuations &continuations) {
+  auto newBlock = function.makeBasicBlock();
+  auto thenStatements = getJsonList(ifElseJson);
+  auto *thenBlock = constructCFG(function, thenStatements, continuations);
+  newBlock->addInstruction(Make<BranchInst>(thenBlock));
+  return newBlock;
+}
+
+BasicBlock *Compiler::constructIfElseIfCFG(const json &ifElseIfJson,
+                                           Function &function,
+                                           List<json> &statements,
+                                           const Continuations &continuations) {
+  auto newBlock = function.makeBasicBlock();
+  std::string condString = getJsonExpr(ifElseIfJson["cond"]);
+  auto cond = bindExpression(function, condString);
+  auto thenStatements = getJsonList(ifElseIfJson["stmts"]);
+  auto *thenBlock = constructCFG(function, thenStatements, continuations);
+  newBlock->addInstruction(Make<BranchInst>(
+      thenBlock, constructCFG(function, statements, continuations),
+      std::move(cond)));
+  return newBlock;
+}
+BasicBlock *Compiler::constructWhileCFG(const json &whileJson,
+                                        Function &function,
+                                        List<json> &statements,
+                                        const Continuations &continuations) {
+  auto newBlock = function.makeBasicBlock();
+  std::string condString = getJsonExpr(whileJson["cond"]);
+  auto cond = bindExpression(function, condString);
+
+  auto *afterLoopBlock = constructCFG(function, statements, continuations);
+  auto bodyStatements = getJsonList(whileJson["body"]);
+
+  auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock,
+                                        continuations.functionExit);
+  auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
+  newBlock->addInstruction(
+      Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
+  return newBlock;
+}
+
+BasicBlock *Compiler::constructLoopCFG(const json &loopJson, Function &function,
+                                       List<json> &statements,
+                                       const Continuations &continuations) {
+  auto newBlock = function.makeBasicBlock();
+  auto *afterLoopBlock = constructCFG(function, statements, continuations);
+  auto bodyStatements = getJsonList(loopJson["body"]);
+  auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock,
+                                        continuations.functionExit);
+  auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
+  newBlock->addInstruction(Make<BranchInst>(bodyBlock));
+  return newBlock;
+}
+
+BasicBlock *Compiler::constructForLoopCFG(const json &forJson,
+                                          Function &function,
+                                          List<json> &statements,
+                                          const Continuations &continuations) {
+  auto newBlock = function.makeBasicBlock();
+  auto &bodyJson = forJson["body"];
+
+  bool reverse = forJson.contains("reverse");
+  auto &lower = forJson["lower"];
+  auto &upper = forJson["upper"];
+
+  std::string lowerString = getJsonExpr(lower);
+  std::string upperString = getJsonExpr(upper);
+
+  // Default step of 1
+  std::string stepString = "1";
+  if (forJson.contains("step")) {
+    auto &step = forJson["step"];
+    stepString = getJsonExpr(step);
+  }
+
+  std::string varString = forJson["var"]["PLpgSQL_var"]["refname"];
+
+  // Create assignment <var> =  <lower>
+  const auto &[left, right] = std::make_pair(varString, lowerString);
+  auto *var = function.getBinding(left);
+  auto expr = bindExpression(function, right);
+  newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
+
+  // Create step (assignment) <var> = <var> (reverse ? - : +) <step>
+  auto latchBlock = function.makeBasicBlock();
+  std::string rhs =
+      fmt::format("{} {} {}", varString, (reverse ? " - " : " + "), stepString);
+  auto stepExpr = bindExpression(function, rhs);
+  latchBlock->addInstruction(Make<Assignment>(var, std::move(stepExpr)));
+
+  // Create condition as terminator into while loop
+  auto headerBlock = function.makeBasicBlock();
+  std::string condString =
+      fmt::format("{} {} {}", left, (reverse ? " > " : " < "), upperString);
+  auto cond = bindExpression(function, condString);
+  auto *afterLoopBlock = constructCFG(function, statements, continuations);
+  auto bodyStatements = getJsonList(bodyJson);
+
+  auto newContinuations = Continuations(latchBlock, latchBlock, afterLoopBlock,
+                                        continuations.functionExit);
+  auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
+
+  headerBlock->addInstruction(
+      Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
+
+  // Unconditional jump from latch block to header block
+  latchBlock->addInstruction(Make<BranchInst>(headerBlock));
+
+  // Unconditional from newBlock to headerBlock
+  newBlock->addInstruction(Make<BranchInst>(headerBlock));
+  return newBlock;
+}
+
+BasicBlock *Compiler::constructExitCFG(const json &exitJson, Function &function,
+                                       List<json> &statements,
+                                       const Continuations &continuations) {
+  auto newBlock = function.makeBasicBlock();
+  // continue
+  if (!exitJson.contains("is_exit")) {
+    newBlock->addInstruction(Make<BranchInst>(continuations.loopHeader));
+    return newBlock;
+  } else {
+    newBlock->addInstruction(Make<BranchInst>(continuations.loopExit));
+    return newBlock;
+  }
+}
+
 BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
                                    const Continuations &continuations) {
-
   if (statements.empty()) {
     return continuations.fallthrough;
   }
@@ -23,177 +213,41 @@ BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
   statements.pop_front();
 
   if (statement.contains("PLpgSQL_stmt_assign")) {
-    auto newBlock = function.makeBasicBlock();
-    std::string assignmentText =
-        getJsonExpr(statement["PLpgSQL_stmt_assign"]["expr"]);
-    const auto &[left, right] = unpackAssignment(assignmentText);
-    auto *var = function.getBinding(left);
-    auto expr = bindExpression(function, right);
-    newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
-    newBlock->addInstruction(
-        Make<BranchInst>(constructCFG(function, statements, continuations)));
-    return newBlock;
+    return constructAssignmentCFG(statement["PLpgSQL_stmt_assign"], function,
+                                  statements, continuations);
   }
-
   if (statement.contains("PLpgSQL_stmt_return")) {
-    auto newBlock = function.makeBasicBlock();
-    std::string ret = getJsonExpr(statement["PLpgSQL_stmt_return"]["expr"]);
-    newBlock->addInstruction(Make<ReturnInst>(bindExpression(function, ret),
-                                              continuations.functionExit));
-    return newBlock;
+    return constructReturnCFG(statement["PLpgSQL_stmt_return"], function,
+                              statements, continuations);
   }
-
   if (statement.contains("PLpgSQL_stmt_if")) {
-    auto newBlock = function.makeBasicBlock();
-    auto &ifJson = statement["PLpgSQL_stmt_if"];
-    std::string condString = getJsonExpr(ifJson["cond"]);
-    auto cond = bindExpression(function, condString);
-
-    auto elseIfJsons = ifJson["elsif_list"];
-
-    auto *afterIfBlock = constructCFG(function, statements, continuations);
-
-    auto thenStatements = getJsonList(ifJson["then_body"]);
-
-    auto newContinuations =
-        Continuations(afterIfBlock, continuations.fallthrough,
-                      continuations.loopExit, continuations.functionExit);
-    auto *thenBlock = constructCFG(function, thenStatements, newContinuations);
-    auto elseIfStatements = getJsonList(elseIfJsons);
-
-    if (ifJson.contains("else_body")) {
-      auto str = "{\"PLpgSQL_if_else\":" + ifJson["else_body"].dump() + "}";
-      json j = json::parse(str);
-      elseIfStatements.push_back(j);
-    }
-
-    newBlock->addInstruction(Make<BranchInst>(
-        thenBlock, constructCFG(function, elseIfStatements, newContinuations),
-        std::move(cond)));
-    return newBlock;
+    return constructIfCFG(statement["PLpgSQL_stmt_if"], function, statements,
+                          continuations);
   }
   if (statement.contains("PLpgSQL_if_else")) {
-    auto newBlock = function.makeBasicBlock();
-    auto &elseJson = statement["PLpgSQL_if_else"];
-    auto thenStatements = getJsonList(elseJson);
-    auto *thenBlock = constructCFG(function, thenStatements, continuations);
-    newBlock->addInstruction(Make<BranchInst>(thenBlock));
-    return newBlock;
+    return constructIfElseCFG(statement["PLpgSQL_if_else"], function,
+                              statements, continuations);
   }
-
   if (statement.contains("PLpgSQL_if_elsif")) {
-    auto newBlock = function.makeBasicBlock();
-    auto &elifJson = statement["PLpgSQL_if_elsif"];
-    std::string condString = getJsonExpr(elifJson["cond"]);
-    auto cond = bindExpression(function, condString);
-    auto thenStatements = getJsonList(elifJson["stmts"]);
-    auto *thenBlock = constructCFG(function, thenStatements, continuations);
-    newBlock->addInstruction(Make<BranchInst>(
-        thenBlock, constructCFG(function, statements, continuations),
-        std::move(cond)));
-    return newBlock;
+    return constructIfElseIfCFG(statement["PLpgSQL_if_elsif"], function,
+                                statements, continuations);
   }
-
   if (statement.contains("PLpgSQL_stmt_while")) {
-    auto newBlock = function.makeBasicBlock();
-    auto &whileJson = statement["PLpgSQL_stmt_while"];
-    std::string condString = getJsonExpr(whileJson["cond"]);
-    auto cond = bindExpression(function, condString);
-
-    auto *afterLoopBlock = constructCFG(function, statements, continuations);
-    auto bodyStatements = getJsonList(whileJson["body"]);
-
-    auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock,
-                                          continuations.functionExit);
-    auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
-    newBlock->addInstruction(
-        Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
-    return newBlock;
+    return constructWhileCFG(statement["PLpgSQL_stmt_while"], function,
+                             statements, continuations);
   }
-
   if (statement.contains("PLpgSQL_stmt_loop")) {
-    auto newBlock = function.makeBasicBlock();
-    auto &loopJson = statement["PLpgSQL_stmt_loop"];
-
-    auto *afterLoopBlock = constructCFG(function, statements, continuations);
-    auto bodyStatements = getJsonList(loopJson["body"]);
-    auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock,
-                                          continuations.functionExit);
-    auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
-    newBlock->addInstruction(Make<BranchInst>(bodyBlock));
-    return newBlock;
+    return constructLoopCFG(statement["PLpgSQL_stmt_loop"], function,
+                            statements, continuations);
   }
-
   if (statement.contains("PLpgSQL_stmt_fori")) {
-    auto newBlock = function.makeBasicBlock();
-
-    auto &forJson = statement["PLpgSQL_stmt_fori"];
-    auto &bodyJson = forJson["body"];
-
-    bool reverse = forJson.contains("reverse");
-    auto &lower = forJson["lower"];
-    auto &upper = forJson["upper"];
-
-    std::string lowerString = getJsonExpr(lower);
-    std::string upperString = getJsonExpr(upper);
-
-    // Default step of 1
-    std::string stepString = "1";
-    if (forJson.contains("step")) {
-      auto &step = forJson["step"];
-      stepString = getJsonExpr(step);
-    }
-
-    std::string varString = forJson["var"]["PLpgSQL_var"]["refname"];
-
-    // Create assignment <var> =  <lower>
-    const auto &[left, right] = std::make_pair(varString, lowerString);
-    auto *var = function.getBinding(left);
-    auto expr = bindExpression(function, right);
-    newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
-
-    // Create step (assignment) <var> = <var> (reverse ? - : +) <step>
-    auto latchBlock = function.makeBasicBlock();
-    std::string rhs = fmt::format("{} {} {}", varString,
-                                  (reverse ? " - " : " + "), stepString);
-    auto stepExpr = bindExpression(function, rhs);
-    latchBlock->addInstruction(Make<Assignment>(var, std::move(stepExpr)));
-
-    // Create condition as terminator into while loop
-    auto headerBlock = function.makeBasicBlock();
-    std::string condString =
-        fmt::format("{} {} {}", left, (reverse ? " > " : " < "), upperString);
-    auto cond = bindExpression(function, condString);
-    auto *afterLoopBlock = constructCFG(function, statements, continuations);
-    auto bodyStatements = getJsonList(bodyJson);
-
-    auto newContinuations = Continuations(
-        latchBlock, latchBlock, afterLoopBlock, continuations.functionExit);
-    auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
-
-    headerBlock->addInstruction(
-        Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
-
-    // Unconditional jump from latch block to header block
-    latchBlock->addInstruction(Make<BranchInst>(headerBlock));
-
-    // Unconditional from newBlock to headerBlock
-    newBlock->addInstruction(Make<BranchInst>(headerBlock));
-    return newBlock;
+    return constructForLoopCFG(statement["PLpgSQL_stmt_fori"], function,
+                               statements, continuations);
   }
 
   if (statement.contains("PLpgSQL_stmt_exit")) {
-    auto newBlock = function.makeBasicBlock();
-    auto &exitJson = statement["PLpgSQL_stmt_exit"];
-    // continue
-    if (!exitJson.contains("is_exit")) {
-      newBlock->addInstruction(Make<BranchInst>(continuations.loopHeader));
-      return newBlock;
-    } else {
-      newBlock->addInstruction(Make<BranchInst>(continuations.loopExit));
-      return newBlock;
-    }
-    ASSERT(false, "Unimplemented :(");
+    return constructExitCFG(statement["PLpgSQL_stmt_exit"], function,
+                            statements, continuations);
   }
 
   // We don't have an assignment so we are starting a new basic block

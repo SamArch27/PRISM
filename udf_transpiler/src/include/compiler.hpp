@@ -329,6 +329,43 @@ public:
       : connection(connection), programText(programText) {}
 
   void buildCFG(Function &function, const json &ast);
+
+  BasicBlock *constructAssignmentCFG(const json &assignment, Function &function,
+                                     List<json> &statements,
+                                     const Continuations &continuations);
+
+  BasicBlock *constructReturnCFG(const json &returnJson, Function &function,
+                                 List<json> &statements,
+                                 const Continuations &continuations);
+
+  BasicBlock *constructIfCFG(const json &ifJson, Function &function,
+                             List<json> &statements,
+                             const Continuations &continuations);
+
+  BasicBlock *constructIfElseCFG(const json &ifElseJson, Function &function,
+                                 List<json> &statements,
+                                 const Continuations &continuations);
+
+  BasicBlock *constructIfElseIfCFG(const json &ifElseIfJson, Function &function,
+                                   List<json> &statements,
+                                   const Continuations &continuations);
+
+  BasicBlock *constructWhileCFG(const json &whileJson, Function &function,
+                                List<json> &statements,
+                                const Continuations &continuations);
+
+  BasicBlock *constructLoopCFG(const json &loopJson, Function &function,
+                               List<json> &statements,
+                               const Continuations &continuations);
+
+  BasicBlock *constructForLoopCFG(const json &forJson, Function &function,
+                                  List<json> &statements,
+                                  const Continuations &continuations);
+
+  BasicBlock *constructExitCFG(const json &exitJson, Function &function,
+                               List<json> &statements,
+                               const Continuations &continuations);
+
   BasicBlock *constructCFG(Function &function, List<json> &statements,
                            const Continuations &continuations);
   void run();
