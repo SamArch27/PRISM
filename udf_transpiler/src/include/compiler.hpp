@@ -5,12 +5,15 @@
 #include "duckdb/planner/logical_operator.hpp"
 #include "types.hpp"
 #include "utils.hpp"
+#include <functional>
 #include <include/fmt/core.h>
 #include <json.hpp>
 #include <memory>
 #include <optional>
+#include <queue>
 #include <regex>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -267,6 +270,34 @@ public:
 
   const VecOwn<BasicBlock> &getAllBasicBlocks() { return basicBlocks; }
 
+  void visitBFS(std::function<void(BasicBlock *)> f) {
+    std::queue<BasicBlock *> q;
+    std::unordered_set<BasicBlock *> visited;
+
+    q.push(getEntryBlock());
+    while (!q.empty()) {
+      auto *block = q.front();
+      q.pop();
+
+      if (visited.find(block) != visited.end()) {
+        continue;
+      }
+
+      visited.insert(block);
+      f(block);
+
+      if (block == getExitBlock()) {
+        continue;
+      }
+
+      for (auto &succ : block->getTerminator()->get()->getSuccessors()) {
+        q.push(succ);
+      }
+    }
+  }
+
+  void mergeBasicBlocks();
+
   void removeBasicBlock(BasicBlock *toRemove) {
     auto it = basicBlocks.begin();
     while (it != basicBlocks.end()) {
@@ -346,7 +377,6 @@ public:
       : connection(connection), programText(programText) {}
 
   void buildCFG(Function &function, const json &ast);
-  void mergeBasicBlocks(Function &function) const;
 
   BasicBlock *constructAssignmentCFG(const json &assignment, Function &function,
                                      List<json> &statements,

@@ -3,7 +3,6 @@
 #include "pg_query.h"
 #include "utils.hpp"
 #include <iostream>
-#include <queue>
 #include <sstream>
 #include <string>
 
@@ -294,66 +293,42 @@ void Compiler::buildCFG(Function &function, const json &ast) {
       constructCFG(function, statements, initialContinuations)));
 }
 
-void Compiler::mergeBasicBlocks(Function &function) const {
-  std::queue<BasicBlock *> q;
-  q.push(function.getEntryBlock());
+void Function::mergeBasicBlocks() {
   Map<BasicBlock *, Vec<BasicBlock *>> pred;
-  std::unordered_set<BasicBlock *> visited;
 
-  // now do the merging
-  q.push(function.getEntryBlock());
-  while (!q.empty()) {
-    auto *block = q.front();
-    q.pop();
-
-    if (visited.find(block) != visited.end()) {
-      continue;
-    }
-
-    visited.insert(block);
-
-    if (block == function.getExitBlock()) {
-      continue;
+  // compute predecessors
+  visitBFS([&pred, this](BasicBlock *block) {
+    if (block == getExitBlock()) {
+      return;
     }
 
     for (auto &succ : block->getTerminator()->get()->getSuccessors()) {
       pred[succ].push_back(block);
-      q.push(succ);
     }
-  }
+  });
 
-  visited.clear();
-  q.push(function.getEntryBlock());
-  while (!q.empty()) {
-    auto *block = q.front();
-    q.pop();
-
-    if (visited.find(block) != visited.end()) {
-      continue;
+  // merge basic blocks
+  visitBFS([&pred, this](BasicBlock *block) {
+    if (block == getExitBlock()) {
+      return;
     }
-    visited.insert(block);
-
-    if (block == function.getExitBlock()) {
-      continue;
-    }
-
     while (true) {
       auto successors = block->getTerminator()->get()->getSuccessors();
       // if we are not the entry block
-      if (block == function.getEntryBlock()) {
-        break;
+      if (block == getEntryBlock()) {
+        return;
       }
       // if we have an unconditional jump to a block that
       if (successors.size() != 1) {
-        break;
+        return;
       }
       auto *succ = successors.back();
       // and that block has only a single predecessor
-      if (succ == function.getExitBlock()) {
-        break;
+      if (succ == getExitBlock()) {
+        return;
       }
       if (pred[succ].size() != 1) {
-        break;
+        return;
       }
 
       // remove terminator from block
@@ -364,14 +339,10 @@ void Compiler::mergeBasicBlocks(Function &function) const {
         block->addInstruction(std::move(inst));
       }
       // finally remove the basic block from the function
-      function.removeBasicBlock(succ);
+      removeBasicBlock(succ);
       pred.erase(succ);
     }
-
-    for (auto &succ : block->getTerminator()->get()->getSuccessors()) {
-      q.push(succ);
-    }
-  }
+  });
 }
 
 void Compiler::run() {
@@ -436,7 +407,7 @@ void Compiler::run() {
     }
 
     buildCFG(function, ast);
-    mergeBasicBlocks(function);
+    function.mergeBasicBlocks();
 
     // TODO:
     // 1. Lower to C++
