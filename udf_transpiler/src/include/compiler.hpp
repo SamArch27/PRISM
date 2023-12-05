@@ -308,6 +308,18 @@ private:
 
 using json = nlohmann::json;
 
+struct Continuations {
+  Continuations(BasicBlock *fallthrough, BasicBlock *loopHeader,
+                BasicBlock *loopExit, BasicBlock *functionExit)
+      : fallthrough(fallthrough), loopHeader(loopHeader), loopExit(loopExit),
+        functionExit(functionExit) {}
+
+  BasicBlock *fallthrough;
+  BasicBlock *loopHeader;
+  BasicBlock *loopExit;
+  BasicBlock *functionExit;
+};
+
 class Compiler {
 public:
   using WidthScale = std::pair<int, int>;
@@ -318,10 +330,7 @@ public:
 
   void buildCFG(Function &function, const json &ast);
   BasicBlock *constructCFG(Function &function, List<json> &statements,
-                           BasicBlock *continuationBlock,
-                           BasicBlock *loopContinuationBlock,
-                           BasicBlock *loopBreakContinuationBlock,
-                           BasicBlock *functionExitBlock);
+                           const Continuations &continuations);
   void run();
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
