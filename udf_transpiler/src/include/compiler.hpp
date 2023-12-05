@@ -92,9 +92,13 @@ public:
     instructions.emplace_back(std::move(inst));
   }
 
+  void popInstruction() { instructions.pop_back(); }
+
   void insertBefore(const InstIterator iter, Own<Instruction> inst) {
     instructions.insert(iter, std::move(inst));
   }
+
+  ListOwn<Instruction> takeInstructions() { return std::move(instructions); }
 
   InstIterator getTerminator() {
     auto last = std::prev(instructions.end());
@@ -261,6 +265,19 @@ public:
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
   BasicBlock *getExitBlock() { return basicBlocks[1].get(); }
 
+  const VecOwn<BasicBlock> &getAllBasicBlocks() { return basicBlocks; }
+
+  void removeBasicBlock(BasicBlock *toRemove) {
+    auto it = basicBlocks.begin();
+    while (it != basicBlocks.end()) {
+      if (it->get() == toRemove) {
+        it = basicBlocks.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
 protected:
   void print(std::ostream &os) const {
     os << "Function Name: " << functionName << std::endl;
@@ -284,7 +301,7 @@ protected:
     for (const auto &block : basicBlocks) {
       os << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
       if (block->getLabel() != "exit") {
-        for (auto *succ : (*block->getTerminator())->getSuccessors()) {
+        for (auto *succ : block->getTerminator()->get()->getSuccessors()) {
           os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
              << std::endl;
         }
@@ -329,6 +346,7 @@ public:
       : connection(connection), programText(programText) {}
 
   void buildCFG(Function &function, const json &ast);
+  void mergeBasicBlocks(Function &function) const;
 
   BasicBlock *constructAssignmentCFG(const json &assignment, Function &function,
                                      List<json> &statements,

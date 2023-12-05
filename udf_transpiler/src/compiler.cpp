@@ -3,6 +3,7 @@
 #include "pg_query.h"
 #include "utils.hpp"
 #include <iostream>
+#include <queue>
 #include <sstream>
 #include <string>
 
@@ -44,9 +45,7 @@ BasicBlock *Compiler::constructIfCFG(const json &ifJson, Function &function,
   auto newBlock = function.makeBasicBlock();
   std::string condString = getJsonExpr(ifJson["cond"]);
   auto cond = bindExpression(function, condString);
-
   auto *afterIfBlock = constructCFG(function, statements, continuations);
-
   auto thenStatements = getJsonList(ifJson["then_body"]);
 
   auto newContinuations =
@@ -98,6 +97,7 @@ BasicBlock *Compiler::constructIfElseIfCFG(const json &ifElseIfJson,
       std::move(cond)));
   return newBlock;
 }
+
 BasicBlock *Compiler::constructWhileCFG(const json &whileJson,
                                         Function &function,
                                         List<json> &statements,
@@ -275,7 +275,7 @@ void Compiler::buildCFG(Function &function, const json &ast) {
   auto *functionExitBlock = function.makeBasicBlock("exit");
 
   // Create a "declare" BasicBlock with all declarations
-  auto declareBlock = function.makeBasicBlock("declare");
+  auto declareBlock = function.makeBasicBlock();
   auto declarations = function.takeDeclarations();
   for (auto &declaration : declarations) {
     declareBlock->addInstruction(std::move(declaration));
@@ -292,6 +292,86 @@ void Compiler::buildCFG(Function &function, const json &ast) {
       Continuations(functionExitBlock, nullptr, nullptr, functionExitBlock);
   declareBlock->addInstruction(Make<BranchInst>(
       constructCFG(function, statements, initialContinuations)));
+}
+
+void Compiler::mergeBasicBlocks(Function &function) const {
+  std::queue<BasicBlock *> q;
+  q.push(function.getEntryBlock());
+  Map<BasicBlock *, Vec<BasicBlock *>> pred;
+  std::unordered_set<BasicBlock *> visited;
+
+  // now do the merging
+  q.push(function.getEntryBlock());
+  while (!q.empty()) {
+    auto *block = q.front();
+    q.pop();
+
+    if (visited.find(block) != visited.end()) {
+      continue;
+    }
+
+    visited.insert(block);
+
+    if (block == function.getExitBlock()) {
+      continue;
+    }
+
+    for (auto &succ : block->getTerminator()->get()->getSuccessors()) {
+      pred[succ].push_back(block);
+      q.push(succ);
+    }
+  }
+
+  visited.clear();
+  q.push(function.getEntryBlock());
+  while (!q.empty()) {
+    auto *block = q.front();
+    q.pop();
+
+    if (visited.find(block) != visited.end()) {
+      continue;
+    }
+    visited.insert(block);
+
+    if (block == function.getExitBlock()) {
+      continue;
+    }
+
+    while (true) {
+      auto successors = block->getTerminator()->get()->getSuccessors();
+      // if we are not the entry block
+      if (block == function.getEntryBlock()) {
+        break;
+      }
+      // if we have an unconditional jump to a block that
+      if (successors.size() != 1) {
+        break;
+      }
+      auto *succ = successors.back();
+      // and that block has only a single predecessor
+      if (succ == function.getExitBlock()) {
+        break;
+      }
+      if (pred[succ].size() != 1) {
+        break;
+      }
+
+      // remove terminator from block
+      block->popInstruction();
+      // copy instructions from successor block to this block
+      auto instructions = succ->takeInstructions();
+      for (auto &inst : instructions) {
+        block->addInstruction(std::move(inst));
+      }
+      // finally remove the basic block from the function
+      function.removeBasicBlock(succ);
+      pred.erase(succ);
+    }
+
+    for (auto &succ : block->getTerminator()->get()->getSuccessors()) {
+      q.push(succ);
+    }
+  }
 }
 
 void Compiler::run() {
@@ -356,14 +436,12 @@ void Compiler::run() {
     }
 
     buildCFG(function, ast);
+    mergeBasicBlocks(function);
 
     // TODO:
-    // 1. Refactor CFG into Compiler class
-    // 2. Jump Threading
-    // 3. Unreachable Blocks
-    // 4. Lower to C++
-    // 5. Delete Yuchen's code
-    // 6. Aggify
+    // 1. Lower to C++
+    // 2. Delete Yuchen's code
+    // 3. Aggify
 
     for (const auto &function : functions) {
       std::cout << function << std::endl;
