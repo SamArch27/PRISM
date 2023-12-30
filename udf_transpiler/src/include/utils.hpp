@@ -19,7 +19,7 @@ using namespace std;
     if (!(condition)) {                                                        \
       std::cerr << "Assertion `" #condition "` failed in " << __FILE__         \
                 << " line " << __LINE__ << ": " << message << std::endl;       \
-      std::exit(EXIT_FAILURE);                                                 \
+      throw exception();                                                       \
     }                                                                          \
   } while (false)
 

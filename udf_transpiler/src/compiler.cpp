@@ -2,6 +2,7 @@
 #include "expression_printer.hpp"
 #include "pg_query.h"
 #include "utils.hpp"
+#include "cfg_code_generator.hpp"
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -416,6 +417,7 @@ void Compiler::run() {
 
     for (const auto &function : functions) {
       std::cout << function << std::endl;
+      generateCode(function);
     }
   }
 }
@@ -464,9 +466,18 @@ Own<Expression> Compiler::bindExpression(const Function &function,
   connectionContext->config.enable_optimizer = false;
 
   // SELECT <expr> FROM tmp
-  auto boundExpression =
+  duckdb::unique_ptr<duckdb::LogicalOperator> boundExpression;
+  try
+  {
+    boundExpression =
       connectionContext->ExtractPlan(selectExpressionCommand);
-
+  }
+  catch(const std::exception& e)
+  {
+    connection->Query(dropTableCommand);
+    throw e;
+    return nullptr;
+  }
   // DROP tmp
   connection->Query(dropTableCommand);
   return std::move(boundExpression);
@@ -564,8 +575,12 @@ PostgresTypeTag Compiler::getPostgresTag(const std::string &type) {
     return nameToTag.at("DECIMAL");
   }
 
+  else if (upper.starts_with("VARCHAR")) {
+    return nameToTag.at("VARCHAR");
+  }
+
   if (nameToTag.find(upper) == nameToTag.end()) {
-    ERROR(type + " is not a valid Postgres Type.");
+    EXCEPTION(type + " is not a valid Postgres Type.");
   }
   return nameToTag.at(upper);
 }
@@ -625,4 +640,13 @@ std::string Compiler::resolveTypeName(const std::string &type) const {
                     matches, typeRegex);
   ASSERT(matches.size() == 4, "Invalid type format.");
   return matches[0];
+}
+
+/**
+ * Generate code for a function
+ * Initialize a CFGCodeGenerator and run it through the function
+*/
+void Compiler::generateCode(const Function &func){
+  CFGCodeGenerator codeGenerator(connection);
+  codeGenerator.run(func);
 }

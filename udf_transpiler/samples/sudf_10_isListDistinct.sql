@@ -1,10 +1,10 @@
 -- Check if a given list of varchars is distinct. Called from sudf_14_sameManager
 
-CREATE FUNCTION isListDistinct(list TEXT, delim CHAR) RETURNS BOOL AS
+CREATE FUNCTION isListDistinct(list VARCHAR, delim CHAR) RETURNS BOOL AS
 $$
 DECLARE
   part TEXT;
-  pos  INT;
+  pos  int;
 BEGIN
   list := LTRIM(RTRIM(list)) || delim;
   pos  := STRPOS(list, delim);

@@ -117,5 +117,7 @@ format:
 update:
 	git submodule update --remote --merge
 
-test:
-	./udf_transpiler/build/release/duckdb -unsigned
+run:
+	./build/release/duckdb -unsigned
+
+

@@ -103,6 +103,9 @@ public:
 
   ListOwn<Instruction> takeInstructions() { return std::move(instructions); }
 
+  InstIterator begin() { return instructions.begin(); }
+  InstIterator end() { return instructions.end(); }
+  
   InstIterator getTerminator() {
     auto last = std::prev(instructions.end());
     ASSERT((*last)->isTerminator(),
@@ -377,6 +380,8 @@ public:
       : connection(connection), programText(programText) {}
 
   void buildCFG(Function &function, const json &ast);
+
+  void generateCode(const Function &function);
 
   BasicBlock *constructAssignmentCFG(const json &assignment, Function &function,
                                      List<json> &statements,

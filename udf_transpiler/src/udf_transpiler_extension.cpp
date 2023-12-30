@@ -12,6 +12,7 @@
 #include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
 #include "duckdb/planner/binder.hpp"
 // #include "logical_operator_code_generator.hpp"
+#include "cfg_code_generator.hpp"
 #include <fstream>
 #include <iostream>
 #include <stdio.h>
@@ -19,6 +20,7 @@
 #include "file.hpp"
 #include "trans.hpp"
 #include "utils.hpp"
+#include "compiler.hpp"
 #include <filesystem>
 
 namespace duckdb {
@@ -37,16 +39,22 @@ inline string Udf_transpilerPragmaFun(ClientContext &context,
   }
   YAMLConfig config;
   Connection con(*db_instance);
-  Transpiler transpiler(buffer.str(), &config, con);
-  // std::vector<std::string> ret = transpile_plpgsql_udf_str(buffer.str());
-  std::vector<std::string> ret = transpiler.run();
+
+  // Transpiler transpiler(buffer.str(), &config, con);
+  // std::vector<std::string> ret = transpiler.run();
+  auto compiler = Compiler(&con, buffer.str());
+  compiler.run();
+  // for(const auto &func : compiler.getFunctions()){
+  //   cout << func.name << endl;
+  //   cout << func.code << endl;
+  // }
   // cout<<ret[0]<<endl;
   // cout<<ret[1]<<endl;
   udf_count++;
-  cout << "Transpiling the UDF..." << endl;
-  insert_def_and_reg(ret[0], ret[1], udf_count);
+  std::cout << "Transpiling the UDF..." << std::endl;
+  // insert_def_and_reg(ret[0], ret[1], udf_count);
   // compile the template
-  cout << "Compiling the UDF..." << endl;
+  std::cout << "Compiling the UDF..." << std::endl;
   compile_udf(udf_count);
   // load the compiled library
   cout << "Installing and loading the UDF..." << endl;
