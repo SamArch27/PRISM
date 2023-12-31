@@ -46,11 +46,16 @@ private:
 
 class LogicalOperatorCodeGenerator : public LogicalOperatorVisitor {
 private:
+  // header is the code that should be inserted before the query
+  std::string header;
   std::string res;
 
 public:
   void VisitOperator(duckdb::LogicalOperator &op) override;
   void VisitOperator(duckdb::LogicalOperator &op, CodeInsertionPoint &insert);
+  std::pair<std::string, std::string> getResult() {
+    return {header, res};
+  }
   std::string
   run(Connection &con, const std::string &query,
       const std::vector<pair<const std::string &, const VarInfo &>> &vars,

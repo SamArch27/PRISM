@@ -273,7 +273,7 @@ public:
 
   const VecOwn<BasicBlock> &getAllBasicBlocks() { return basicBlocks; }
 
-  void visitBFS(std::function<void(BasicBlock *)> f) {
+  void visitBFS(std::function<void(BasicBlock *)> f){
     std::queue<BasicBlock *> q;
     std::unordered_set<BasicBlock *> visited;
 
@@ -311,6 +311,8 @@ public:
       }
     }
   }
+
+  const VecOwn<BasicBlock> &getBasicBlocks() const { return basicBlocks; }
 
 protected:
   void print(std::ostream &os) const {

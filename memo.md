@@ -42,3 +42,11 @@ must base on duckdb's source code
 libpgquery macos arm or x86 switch
 
 implicit cast on assignment
+
+
+TODOs (2023.12.30):
+1. case when assignment left hand side type mismatch with right hand side
+Use the DuckDB **strict** casting rule to see if compatible, i.e.:
+int --> long is compatible but decimal --> long is not
+2. how to treat NULL?
+have an isnull indicator for each variable
