@@ -140,6 +140,7 @@ public:
 
   bool isTerminator() const override { return true; }
   Vec<BasicBlock *> getSuccessors() const override { return {exitBlock}; }
+  inline Expression *getExpr() const { return expr.get(); }
 
 protected:
   void print(std::ostream &os) const override {
@@ -178,6 +179,10 @@ public:
 
   bool isConditional() const { return conditional; }
   bool isUnconditional() const { return !conditional; }
+
+  BasicBlock *getIfTrue() const { return ifTrue; }
+  BasicBlock *getIfFalse() const { return ifFalse; }
+  Expression *getCond() const { return cond.get(); }
 
 protected:
   void print(std::ostream &os) const override {
@@ -314,7 +319,7 @@ public:
 
   const VecOwn<BasicBlock> &getBasicBlocks() const { return basicBlocks; }
 
-protected:
+// protected:
   void print(std::ostream &os) const {
     os << "Function Name: " << functionName << std::endl;
     os << "Return Type: " << *returnType << std::endl;

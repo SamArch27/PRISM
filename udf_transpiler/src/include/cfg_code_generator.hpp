@@ -39,6 +39,9 @@ public:
     CFGCodeGenerator(duckdb::Connection *connection)
         : connection(connection){
         };
-    void basicBlockCodeGenerator(BasicBlock *bb);
+    void basicBlockCodeGenerator(BasicBlock *bb, const Function &func);
     void run(const Function &func);
+private:
+    string createReturnValue(const string &retName, const Type *retType, const string &retValue);
+
 };

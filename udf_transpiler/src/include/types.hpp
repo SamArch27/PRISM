@@ -2,6 +2,7 @@
 #include "utils.hpp"
 #define FMT_HEADER_ONLY
 #include <iostream>
+#include <set>
 
 enum class PostgresTypeTag {
   BIGINT,
@@ -95,12 +96,30 @@ std::ostream &operator<<(std::ostream &os, CppTypeTag);
 
 class Type {
 public:
+  const static inline std::set<DuckdbTypeTag> NumricTypes = {
+    DuckdbTypeTag::BOOLEAN, DuckdbTypeTag::TINYINT, DuckdbTypeTag::SMALLINT,
+    DuckdbTypeTag::INTEGER, DuckdbTypeTag::BIGINT, DuckdbTypeTag::DATE, 
+    DuckdbTypeTag::TIME, DuckdbTypeTag::TIMESTAMP, DuckdbTypeTag::UBIGINT,
+    DuckdbTypeTag::UINTEGER, DuckdbTypeTag::DOUBLE
+  };
+  
+  const static inline std::set<DuckdbTypeTag> BLOBTypes = {
+    DuckdbTypeTag::BLOB, DuckdbTypeTag::VARCHAR
+  };
+
   DuckdbTypeTag getDuckDBTag() const { return duckdbTag; }
   CppTypeTag getCppTag() const { return cppTag; }
   friend std::ostream &operator<<(std::ostream &os, const Type &type) {
     type.print(os);
     return os;
   }
+  std::string toString() const {
+    std::stringstream ss;
+    ss << duckdbTag;
+    return ss.str();
+  }
+  bool isNumeric() const { return NumricTypes.count(duckdbTag); }
+  bool isBLOB() const { return BLOBTypes.count(duckdbTag); }
 
 protected:
   Type(DuckdbTypeTag duckdbTag, CppTypeTag cppTag)
@@ -170,6 +189,5 @@ public:
 
 private:
   void print(std::ostream &os) const override { os << duckdbTag; }
-
   CppTypeTag lookupCppTag(DuckdbTypeTag duckdbTag) const;
 };
