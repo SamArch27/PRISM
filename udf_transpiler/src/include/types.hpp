@@ -102,7 +102,7 @@ public:
     DuckdbTypeTag::TIME, DuckdbTypeTag::TIMESTAMP, DuckdbTypeTag::UBIGINT,
     DuckdbTypeTag::UINTEGER, DuckdbTypeTag::DOUBLE
   };
-  
+
   const static inline std::set<DuckdbTypeTag> BLOBTypes = {
     DuckdbTypeTag::BLOB, DuckdbTypeTag::VARCHAR
   };
@@ -113,10 +113,11 @@ public:
     type.print(os);
     return os;
   }
-  std::string toString() const {
-    std::stringstream ss;
-    ss << duckdbTag;
-    return ss.str();
+  // no need to consider decimal case here
+  virtual std::string getDuckDBType() const = 0;
+  virtual std::string getCppType() const = 0;
+  std::string getDuckDBLogicalType() const {
+    return "LogicalType::" + getDuckDBType();
   }
   bool isNumeric() const { return NumricTypes.count(duckdbTag); }
   bool isBLOB() const { return BLOBTypes.count(duckdbTag); }
@@ -156,6 +157,24 @@ public:
     return os;
   }
 
+  std::string getDuckDBType() const override{
+    ERROR("Calling DecimalType::getDuckDBType()!");
+  }
+
+  std::string getCppType() const override{
+    ASSERT(width > 0, "Width of decimal should be > 0.");
+    if (width <= 4)
+      return "int16_t";
+    else if (width <= 9)
+      return "int32_t";
+    else if (width <= 18)
+      return "int64_t";
+    else if (width <= 38)
+      return "duckdb::hugeint_t";
+    else
+      ERROR("Width larger than 38.");
+  }
+
   int getWidth() const { return width; }
   int getScale() const { return scale; }
 
@@ -185,6 +204,18 @@ public:
                                   const NonDecimalType &type) {
     type.print(os);
     return os;
+  }
+
+  std::string getDuckDBType() const override{
+    std::stringstream ss;
+    ss << duckdbTag;
+    return ss.str();
+  }
+
+  std::string getCppType() const override{
+    std::stringstream ss;
+    ss << cppTag;
+    return ss.str();
   }
 
 private:

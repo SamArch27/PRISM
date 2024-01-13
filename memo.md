@@ -50,3 +50,5 @@ Use the DuckDB **strict** casting rule to see if compatible, i.e.:
 int --> long is compatible but decimal --> long is not
 2. how to treat NULL?
 have an isnull indicator for each variable
+make sure to maintain it when necessary
+

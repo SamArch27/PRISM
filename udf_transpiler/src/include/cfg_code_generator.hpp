@@ -17,21 +17,27 @@ using namespace std;
 
 class CodeContainer2 {
 public:
-//   bool query_macro = false;
-//   vector<string> global_macros;
-    // the declaration section of all function variable (argument are already delcared in the function signature)
-    vector<string> declarations;
-    // the loop body of the vectorized function
-    vector<string> body;
+    // // the declaration section of all function variable (argument are already delcared in the function signature)
+    // vector<string> declarations;
+    // the code generation result of all the basic blocks
+    vector<string> basicBlockCodes;
+    // the subfunction used as the loop body of the vectorized function
+    string body;
     // the main vectorized function to be registered to DuckDB
-    vector<string> main;
+    string main;
     // the registration codes called by DuckDB
     vector<string> registration;
 };
 
+class CodeGenFunctionInfo{
+public:
+    int stringFunctionCount = 0;
+
+};
+
 class CFGCodeGenerator {
 private:
-    CodeContainer2 cc;
+    CodeContainer2 container;
     YAMLConfig config;
     // need a connection to DuckDB to get the query plans
     duckdb::Connection *connection;
@@ -39,7 +45,8 @@ public:
     CFGCodeGenerator(duckdb::Connection *connection)
         : connection(connection){
         };
-    void basicBlockCodeGenerator(BasicBlock *bb, const Function &func);
+    void basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenFunctionInfo &function_info);
+    std::string extractVarFromChunk(const Function &func);
     void run(const Function &func);
 private:
     string createReturnValue(const string &retName, const Type *retType, const string &retValue);

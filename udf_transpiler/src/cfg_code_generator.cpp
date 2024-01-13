@@ -16,20 +16,20 @@ string CFGCodeGenerator::createReturnValue(const std::string &retName, const Typ
         return fmt::format("{} = Value::DECIMAL({}, {}, {})", retName, retValue,
                         width, scale);
     } else if (retType->isNumeric()) {
-        return fmt::format("{} = Value::{}({})", retName, retType->toString(), retValue);
+        return fmt::format("{} = Value::{}({})", retName, retType->getDuckDBType(), retValue);
     } else if (retType->isBLOB()) {
         return fmt::format(
             "{0} = Value({1});\n{0}.GetTypeMutable() = LogicalType::{2}", retName,
-            retValue, retType->toString());
+            retValue, retType->getDuckDBType());
     } else {
-        ERROR(fmt::format("Cannot create duckdb value from type {}", retType->toString()));
+        ERROR(fmt::format("Cannot create duckdb value from type {}", retType->getDuckDBType()));
     }
 }
 
 /**
  * for each instruction in the basic block, generate the corresponding C++ code
 */
-void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &func) {
+void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenFunctionInfo &function_info) {
     string code;
     code += fmt::format("/* ==== Basic block {} start ==== */\n", bb->getLabel());
     code += fmt::format("{}:\n", bb->getLabel());
@@ -81,9 +81,37 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &f
         }
     }
 end:
-    std::cout<<code<<endl;
+    // std::cout<<code<<endl;
     //todo: insert code to the container
+    container.basicBlockCodes.push_back(code);
     return;
+}
+
+/**
+ * 
+*/
+std::string CFGCodeGenerator::extractVarFromChunk(const Function &func){
+    string code;
+    const auto &args = func.getArguments();
+    for(size_t i=0;i<args.size();i++){
+        auto &arg = args[i];
+        string extract_data_from_value = fmt::format(
+          "v{}.GetValueUnsafe<{}>()", i, arg->getType()->getCppType());
+        code += fmt::format("{} {} = {};\n", arg->getType()->getCppType(),
+                                arg->getName(), extract_data_from_value);
+    }
+
+    // just declare the local variables, they will be initialized in the basic blocks
+    // also create the null indicator for each variable
+    const auto &vars = func.getVariables();
+    for(size_t i=0;i<vars.size();i++){
+        auto &var = vars[i];
+        code += fmt::format("{} {};\n", var->getType()->getCppType(),
+                                var->getName());
+        code += fmt::format("bool {}_null = false;\n", var->getName());
+    }
+
+    return code;
 }
 
 void CFGCodeGenerator::run(const Function &func) {
@@ -91,8 +119,88 @@ void CFGCodeGenerator::run(const Function &func) {
     // std::ostringstream oss;
     // func.print(oss);
     // cout<<oss.str()<<endl;
-    for(auto &bb_up : func.getBasicBlocks()){
-        basicBlockCodeGenerator(bb_up.get(), func);
+    CodeGenFunctionInfo function_info;
+
+    for(auto &bbUniq : func.getBasicBlocks()){
+        basicBlockCodeGenerator(bbUniq.get(), func, function_info);
     }
+    string function_args = "";
+    string arg_indexes = "";
+    string subfunc_args = "";
+    string fbody_args = "";
+    vector<string> check_null;
+
+    int count = 0;
+    for (const auto &arg : func.getArguments()) {
+        string name = arg->getName();
+        function_args +=
+            fmt::format(fmt::runtime(config.function["fargs2"].Scalar()),
+                        fmt::arg("var_name", name),
+                        fmt::arg("i", count));
+        function_args += "\n";
+
+        arg_indexes +=
+            fmt::format(fmt::runtime(config.function["argindex"].Scalar()),
+                        fmt::arg("var_name", name));
+        arg_indexes += "\n";
+
+        subfunc_args +=
+            fmt::format(fmt::runtime(config.function["subfunc_arg"].Scalar()),
+                        fmt::arg("var_name", name));
+        subfunc_args += ", ";
+
+        fbody_args +=
+            fmt::format(fmt::runtime(config.function["fbody_arg"].Scalar()),
+                        fmt::arg("i", count),
+                        fmt::arg("var_name", name));
+        fbody_args += ", ";
+
+        check_null.push_back(name + "_null");
+
+        //todo: add {}_null, result to the argument list
+        count++;
+    }
+
+    string vector_create = "";
+    if (function_info.stringFunctionCount > 0) {
+        vector_create = fmt::format(
+            fmt::runtime(config.function["vector_create"].Scalar()),
+            fmt::arg("vector_count", function_info.stringFunctionCount));
+        for (int i = 0; i < function_info.stringFunctionCount; i++) {
+        subfunc_args += fmt::format("tmp_chunk.data[{}], ", i);
+        fbody_args += fmt::format("Vector &tmp_vec{}, ", i);
+        }
+    }
+
+    string vars_init = extractVarFromChunk(func);
+
+    container.body = fmt::format(
+        fmt::runtime(config.function["fbodyshell"].Scalar()),
+        fmt::arg("function_name", func.getFunctionName()),
+        fmt::arg("fbody_args", fbody_args),
+        fmt::arg("check_null", vec_join(check_null, " or ")),
+        fmt::arg("vars_init", vars_init), fmt::arg("action", vec_join(container.basicBlockCodes, "\n")));
+
+    // cc.global_functions.push_back(
+    //     fmt::format(fmt::runtime(config.function["fshell2"].Scalar()),
+    //                 fmt::arg("function_name", function_info->func_name),
+    //                 fmt::arg("function_args", function_args),
+    //                 fmt::arg("arg_indexes", arg_indexes),
+    //                 fmt::arg("vector_create", vector_create),
+    //                 fmt::arg("subfunc_args", subfunc_args)));
+
+    // vector<string> args_logical_types;
+    // for (auto &arg : function_info->func_args_vec) {
+    //     args_logical_types.push_back(
+    //         function_info->func_args[arg].type.get_duckdb_logical_type());
+    // }
+    // string fcreate = fmt::format(
+    //     fmt::runtime(config.function["fcreate"].Scalar()),
+    //     fmt::arg("function_name", function_info->func_name),
+    //     fmt::arg("return_logical_type",
+    //             function_info->func_return_type.get_duckdb_logical_type()),
+    //     fmt::arg("args_logical_types", vec_join(args_logical_types, ", ")));
+    
+    std::cout<<container.body<<std::endl;
     return;
 }
