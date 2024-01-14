@@ -114,7 +114,7 @@ std::string CFGCodeGenerator::extractVarFromChunk(const Function &func){
     return code;
 }
 
-void CFGCodeGenerator::run(const Function &func) {
+vector<string> CFGCodeGenerator::run(const Function &func) {
     cout<<fmt::format("Generating code for function {}", func.getFunctionName())<<endl;
     // std::ostringstream oss;
     // func.print(oss);
@@ -181,26 +181,28 @@ void CFGCodeGenerator::run(const Function &func) {
         fmt::arg("check_null", vec_join(check_null, " or ")),
         fmt::arg("vars_init", vars_init), fmt::arg("action", vec_join(container.basicBlockCodes, "\n")));
 
-    // cc.global_functions.push_back(
-    //     fmt::format(fmt::runtime(config.function["fshell2"].Scalar()),
-    //                 fmt::arg("function_name", function_info->func_name),
-    //                 fmt::arg("function_args", function_args),
-    //                 fmt::arg("arg_indexes", arg_indexes),
-    //                 fmt::arg("vector_create", vector_create),
-    //                 fmt::arg("subfunc_args", subfunc_args)));
+    container.main = 
+        fmt::format(fmt::runtime(config.function["fshell2"].Scalar()),
+                    fmt::arg("function_name", func.getFunctionName()),
+                    fmt::arg("function_args", function_args),
+                    fmt::arg("arg_indexes", arg_indexes),
+                    fmt::arg("vector_create", vector_create),
+                    fmt::arg("subfunc_args", subfunc_args));
 
-    // vector<string> args_logical_types;
-    // for (auto &arg : function_info->func_args_vec) {
-    //     args_logical_types.push_back(
-    //         function_info->func_args[arg].type.get_duckdb_logical_type());
-    // }
-    // string fcreate = fmt::format(
-    //     fmt::runtime(config.function["fcreate"].Scalar()),
-    //     fmt::arg("function_name", function_info->func_name),
-    //     fmt::arg("return_logical_type",
-    //             function_info->func_return_type.get_duckdb_logical_type()),
-    //     fmt::arg("args_logical_types", vec_join(args_logical_types, ", ")));
+    vector<string> args_logical_types;
+    for (auto &arg : func.getArguments()) {
+        args_logical_types.push_back(
+            arg->getType()->getDuckDBLogicalType());
+    }
+    container.registration = fmt::format(
+        fmt::runtime(config.function["fcreate"].Scalar()),
+        fmt::arg("function_name", func.getFunctionName()),
+        fmt::arg("return_logical_type",
+                func.getReturnType()->getDuckDBLogicalType()),
+        fmt::arg("args_logical_types", vec_join(args_logical_types, ", ")));
     
     std::cout<<container.body<<std::endl;
-    return;
+    std::cout<<container.main<<std::endl;
+    std::cout<<container.registration<<std::endl;
+    return {container.body + "\n" + container.main, container.registration};
 }

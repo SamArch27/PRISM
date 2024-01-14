@@ -388,7 +388,7 @@ public:
 
   void buildCFG(Function &function, const json &ast);
 
-  void generateCode(const Function &function);
+  std::vector<std::string> generateCode(const Function &function);
 
   BasicBlock *constructAssignmentCFG(const json &assignment, Function &function,
                                      List<json> &statements,
@@ -428,7 +428,7 @@ public:
 
   BasicBlock *constructCFG(Function &function, List<json> &statements,
                            const Continuations &continuations);
-  void run();
+  void run(std::string &code, std::string &registration);
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;

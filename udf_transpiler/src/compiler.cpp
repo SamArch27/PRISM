@@ -346,7 +346,7 @@ void Function::mergeBasicBlocks() {
   });
 }
 
-void Compiler::run() {
+void Compiler::run(std::string &code, std::string &registration) {
 
   auto asts = parseJson();
   auto functions = getFunctions();
@@ -417,7 +417,9 @@ void Compiler::run() {
 
     for (const auto &function : functions) {
       std::cout << function << std::endl;
-      generateCode(function);
+      auto res = generateCode(function);
+      code += res[0] + "\n";
+      registration += res[1] + "\n";
     }
   }
 }
@@ -646,7 +648,7 @@ std::string Compiler::resolveTypeName(const std::string &type) const {
  * Generate code for a function
  * Initialize a CFGCodeGenerator and run it through the function
 */
-void Compiler::generateCode(const Function &func){
+std::vector<std::string> Compiler::generateCode(const Function &func){
   CFGCodeGenerator codeGenerator(connection);
-  codeGenerator.run(func);
+  return codeGenerator.run(func);
 }

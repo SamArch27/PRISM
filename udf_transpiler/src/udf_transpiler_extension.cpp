@@ -42,8 +42,9 @@ inline string Udf_transpilerPragmaFun(ClientContext &context,
 
   // Transpiler transpiler(buffer.str(), &config, con);
   // std::vector<std::string> ret = transpiler.run();
+  std::string code, registration;
   auto compiler = Compiler(&con, buffer.str());
-  compiler.run();
+  compiler.run(code, registration);
   // for(const auto &func : compiler.getFunctions()){
   //   cout << func.name << endl;
   //   cout << func.code << endl;
@@ -52,7 +53,7 @@ inline string Udf_transpilerPragmaFun(ClientContext &context,
   // cout<<ret[1]<<endl;
   udf_count++;
   std::cout << "Transpiling the UDF..." << std::endl;
-  // insert_def_and_reg(ret[0], ret[1], udf_count);
+  insert_def_and_reg(code, registration, udf_count);
   // compile the template
   std::cout << "Compiling the UDF..." << std::endl;
   compile_udf(udf_count);

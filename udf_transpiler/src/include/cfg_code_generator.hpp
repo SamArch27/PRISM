@@ -27,7 +27,8 @@ public:
     // the main vectorized function to be registered to DuckDB
     string main;
     // the registration codes called by DuckDB
-    vector<string> registration;
+    // vector<string> registration;
+    string registration;
 };
 
 // class CodeGenInfo{
@@ -48,7 +49,8 @@ public:
         };
     void basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenInfo &function_info);
     std::string extractVarFromChunk(const Function &func);
-    void run(const Function &func);
+    vector<string> run(const Function &func);
+
 private:
     string createReturnValue(const string &retName, const Type *retType, const string &retValue);
 
