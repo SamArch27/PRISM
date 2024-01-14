@@ -77,14 +77,14 @@ inline string Udf_CodeGeneratorPragmaFun(ClientContext &context,
   }
   YAMLConfig config;
   Connection con(*db_instance);
-  Transpiler transpiler(buffer.str(), &config, con);
+  // Transpiler transpiler(buffer.str(), &config, con);
   // std::vector<std::string> ret = transpile_plpgsql_udf_str(buffer.str());
-  std::vector<std::string> ret = transpiler.run();
+  // std::vector<std::string> ret = transpiler.run();
   // cout<<ret[0]<<endl;
   // cout<<ret[1]<<endl;
   udf_count++;
   cout << "Transpiling the UDF..." << endl;
-  insert_def_and_reg(ret[0], ret[1], udf_count);
+  // insert_def_and_reg(ret[0], ret[1], udf_count);
   return "select '' as 'Code Generation Done.';";
 }
 

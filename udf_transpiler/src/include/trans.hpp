@@ -32,14 +32,14 @@ private:
                                   // Catalog *catalog;
 
 private:
-  string translate_query(json &query, duckdb::CodeInsertionPoint &insert,
+  string translate_query(json &query, CodeGenInfo &insert,
                          UDFType *expected_type, bool query_is_assignment);
-  string translate_expr(json &expr, duckdb::CodeInsertionPoint &insert,
+  string translate_expr(json &expr, CodeGenInfo &insert,
                         UDFType *expected_type, bool query_is_assignment);
   string translate_assign_stmt(json &stmt);
   string translate_return_stmt(json &stmt);
   string translate_cond_stmt(json &cond_stmt,
-                             duckdb::CodeInsertionPoint &insert);
+                             CodeGenInfo &insert);
   string translate_if_stmt(json &stmt);
   string translate_loop_stmt(json &stmt);
   string translate_for_stmt(json &stmt);

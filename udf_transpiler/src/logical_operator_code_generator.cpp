@@ -29,7 +29,7 @@ string get_struct_name(const string &struct_operation) {
 void BoundExpressionCodeGenerator::SpecialCaseHandler(
     const ScalarFunctionInfo &function_info, string &function_name,
     std::vector<std::string> &template_args,
-    const std::vector<Expression *> &children, CodeInsertionPoint &insert,
+    const std::vector<Expression *> &children, CodeGenInfo &insert,
     std::list<std::string> &args) {
   for (auto special_case : function_info.special_handling) {
     switch (special_case) {
@@ -43,10 +43,10 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
       // udf_todo
       break;
     case ScalarFunctionInfo::VectorBackWrapper:
-      args.push_back(insert.new_vector());
+      args.push_back(insert.newVector());
       break;
     case ScalarFunctionInfo::VectorFrontWrapper:
-      args.push_front(insert.new_vector());
+      args.push_front(insert.newVector());
       break;
     case ScalarFunctionInfo::NumericCastWrapper:
       // udf_todo
@@ -72,7 +72,7 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
 
 std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(
     const ScalarFunctionInfo &function_info,
-    const std::vector<Expression *> &children, CodeInsertionPoint &insert) {
+    const std::vector<Expression *> &children, CodeGenInfo &insert) {
   std::list<std::string> args;
   for (auto &child : children) {
     args.push_back(Transpile(*child, insert));
@@ -100,7 +100,7 @@ std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(
 template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp,
-                                        CodeInsertionPoint &insert) {
+                                        CodeGenInfo &insert) {
   if (exp.function.has_scalar_funcition_info) {
     // ScalarFunction &function = exp.function;
     const ScalarFunctionInfo &function_info = exp.function.function_info;
@@ -125,7 +125,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp,
 template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const BoundComparisonExpression &exp,
-                                        CodeInsertionPoint &insert) {
+                                        CodeGenInfo &insert) {
   switch (exp.GetExpressionType()) {
   case ExpressionType::COMPARE_EQUAL:
     return fmt::format("Equals::Operation({}, {})",
@@ -164,7 +164,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundComparisonExpression &exp,
 template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp,
-                                        CodeInsertionPoint &insert) {
+                                        CodeGenInfo &insert) {
   ASSERT(exp.children.size() == 2,
          "Conjunction expression should have 2 children.");
   switch (exp.GetExpressionType()) {
@@ -184,7 +184,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp,
 template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp,
-                                        CodeInsertionPoint &insert) {
+                                        CodeGenInfo &insert) {
   if (exp.bound_cast.has_function_info) {
     return CodeGenScalarFunctionInfo(exp.bound_cast.function_info,
                                      {exp.child.get()}, insert);
@@ -197,7 +197,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp,
 template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp,
-                                        CodeInsertionPoint &insert) {
+                                        CodeGenInfo &insert) {
   switch (exp.GetExpressionType()) {
   case ExpressionType::OPERATOR_NOT:
     ASSERT(exp.children.size() == 1, "NOT operator should have 1 child.");
@@ -213,7 +213,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp,
 template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
-                                        CodeInsertionPoint &insert) {
+                                        CodeGenInfo &insert) {
   if (exp.value.type().IsNumeric() or
       exp.value.type() == LogicalType::BOOLEAN) {
     return exp.value.ToString();
@@ -224,14 +224,14 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
 template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp,
-                                        CodeInsertionPoint &insert) {
+                                        CodeGenInfo &insert) {
   return get_var_name(exp.GetName());
 }
 
 template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const Expression &exp,
-                                        CodeInsertionPoint &insert) {
+                                        CodeGenInfo &insert) {
   switch (exp.GetExpressionClass()) {
   case ExpressionClass::BOUND_FUNCTION:
     return Transpile(exp.Cast<BoundFunctionExpression>(), insert);
@@ -265,8 +265,7 @@ BoundExpressionCodeGenerator::Transpile(const Expression &exp,
  * not used
  */
 void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
-  int tmp;
-  CodeInsertionPoint insert(tmp);
+  CodeGenInfo insert;
   res = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
   return;
 }
@@ -277,18 +276,19 @@ void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
  */
 
 void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op,
-                                                 CodeInsertionPoint &insert) {
+                                                 CodeGenInfo &insert) {
   ASSERT(op.expressions.size() == 1,
          "Expression of the root operator should be 1.");
   res = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
   // std::cout<<ret<<std::endl;
+  header = insert.toString();
   return;
 }
 
 std::string LogicalOperatorCodeGenerator::run(
     Connection &con, const std::string &query,
     const std::vector<pair<const std::string &, const VarInfo &>> &vars,
-    CodeInsertionPoint &insert) {
+    CodeGenInfo &insert) {
   std::string create_stmt = "create table tmp1 (";
   for (auto &var : vars) {
     create_stmt += var.first + " " + var.second.type.get_duckdb_type() + ", ";

@@ -12,6 +12,7 @@
 #include "include/fmt/core.h"
 #include "yaml-cpp/yaml.h"
 #include "utils.hpp"
+#include "logical_operator_code_generator.hpp"
 
 using namespace std;
 
@@ -29,11 +30,11 @@ public:
     vector<string> registration;
 };
 
-class CodeGenFunctionInfo{
-public:
-    int stringFunctionCount = 0;
+// class CodeGenInfo{
+// public:
+//     int stringFunctionCount = 0;
 
-};
+// };
 
 class CFGCodeGenerator {
 private:
@@ -45,7 +46,7 @@ public:
     CFGCodeGenerator(duckdb::Connection *connection)
         : connection(connection){
         };
-    void basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenFunctionInfo &function_info);
+    void basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenInfo &function_info);
     std::string extractVarFromChunk(const Function &func);
     void run(const Function &func);
 private:

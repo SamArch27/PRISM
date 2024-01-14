@@ -29,7 +29,7 @@ string CFGCodeGenerator::createReturnValue(const std::string &retName, const Typ
 /**
  * for each instruction in the basic block, generate the corresponding C++ code
 */
-void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenFunctionInfo &function_info) {
+void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenInfo &function_info) {
     string code;
     code += fmt::format("/* ==== Basic block {} start ==== */\n", bb->getLabel());
     code += fmt::format("{}:\n", bb->getLabel());
@@ -47,7 +47,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &f
             const Assignment *assign = dynamic_cast<const Assignment *>(intr->get());
             // code += fmt::format("{} = {};\n", assign->getLvalue(), assign->getRvalue());
             duckdb::LogicalOperatorCodeGenerator locg;
-            locg.VisitOperator((Expression &)*(assign->getExpr()));
+            locg.VisitOperator((Expression &)*(assign->getExpr()), function_info);
             auto [header, res] = locg.getResult();
             code += header;
             code += fmt::format("{} = {};\n", assign->getVar()->getName(), res);
@@ -55,7 +55,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &f
         else if(dynamic_cast<const ReturnInst *>(intr->get())){
             const ReturnInst *ret = dynamic_cast<const ReturnInst *>(intr->get());
             duckdb::LogicalOperatorCodeGenerator locg;
-            locg.VisitOperator((Expression &)*(ret->getExpr()));
+            locg.VisitOperator((Expression &)*(ret->getExpr()), function_info);
             auto [header, res] = locg.getResult();
             code += header;
             code += fmt::format(
@@ -66,7 +66,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &f
             const BranchInst *br = dynamic_cast<const BranchInst *>(intr->get());
             if(br->isConditional()){
                 duckdb::LogicalOperatorCodeGenerator locg;
-                locg.VisitOperator((Expression &)*(br->getCond()));
+                locg.VisitOperator((Expression &)*(br->getCond()), function_info);
                 auto [header, res] = locg.getResult();
                 code += header;
                 code += fmt::format("if({}) goto {};\n", res, br->getIfTrue()->getLabel());
@@ -119,7 +119,7 @@ void CFGCodeGenerator::run(const Function &func) {
     // std::ostringstream oss;
     // func.print(oss);
     // cout<<oss.str()<<endl;
-    CodeGenFunctionInfo function_info;
+    CodeGenInfo function_info;
 
     for(auto &bbUniq : func.getBasicBlocks()){
         basicBlockCodeGenerator(bbUniq.get(), func, function_info);
@@ -162,13 +162,13 @@ void CFGCodeGenerator::run(const Function &func) {
     }
 
     string vector_create = "";
-    if (function_info.stringFunctionCount > 0) {
+    if (function_info.vectorCount > 0) {
         vector_create = fmt::format(
             fmt::runtime(config.function["vector_create"].Scalar()),
-            fmt::arg("vector_count", function_info.stringFunctionCount));
-        for (int i = 0; i < function_info.stringFunctionCount; i++) {
-        subfunc_args += fmt::format("tmp_chunk.data[{}], ", i);
-        fbody_args += fmt::format("Vector &tmp_vec{}, ", i);
+            fmt::arg("vector_count", function_info.vectorCount));
+        for (int i = 0; i < function_info.vectorCount; i++) {
+            subfunc_args += fmt::format("tmp_chunk.data[{}], ", i);
+            fbody_args += fmt::format("Vector &tmp_vec{}, ", i);
         }
     }
 

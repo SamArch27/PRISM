@@ -4,30 +4,32 @@
 #include "duckdb/planner/logical_operator.hpp"
 #include "utils.hpp"
 
-namespace duckdb {
-struct CodeInsertionPoint {
+struct CodeGenInfo {
   vector<string> lines;
   /**
    * reference the string_function_count in FunctionInfo
    */
-  int &vector_count;
+  int vectorCount = 0;
+//   int stringFunctionCount;
 
-  CodeInsertionPoint(int &vector_count) : vector_count(vector_count) {}
-  std::string new_vector() {
-    return "tmp_vec" + std::to_string(vector_count++);
+//   CodeGenInfo(int &vectorCount) : vectorCount(vectorCount) {}
+  std::string newVector() {
+    return "tmp_vec" + std::to_string(vectorCount++);
   }
 
-  std::string to_string() {
+  std::string toString() {
     if (lines.empty())
       return "";
     return vec_join(lines, "\n") + "\n";
   }
 };
 
+namespace duckdb {
+
 struct BoundExpressionCodeGenerator {
 public:
   template <typename T>
-  static std::string Transpile(const T &exp, CodeInsertionPoint &insert) {
+  static std::string Transpile(const T &exp, CodeGenInfo &insert) {
     return "Not implemented yet!";
   }
 
@@ -36,12 +38,12 @@ private:
                                  string &function_name,
                                  std::vector<std::string> &template_args,
                                  const std::vector<Expression *> &children,
-                                 CodeInsertionPoint &insert,
+                                 CodeGenInfo &insert,
                                  std::list<std::string> &args);
   static std::string
   CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info,
                             const std::vector<Expression *> &children,
-                            CodeInsertionPoint &insert);
+                            CodeGenInfo &insert);
 };
 
 class LogicalOperatorCodeGenerator : public LogicalOperatorVisitor {
@@ -52,17 +54,17 @@ private:
 
 public:
   void VisitOperator(duckdb::LogicalOperator &op) override;
-  void VisitOperator(duckdb::LogicalOperator &op, CodeInsertionPoint &insert);
+  void VisitOperator(duckdb::LogicalOperator &op, CodeGenInfo &insert);
   std::pair<std::string, std::string> getResult() {
     return {header, res};
   }
   std::string
   run(Connection &con, const std::string &query,
       const std::vector<pair<const std::string &, const VarInfo &>> &vars,
-      CodeInsertionPoint &insert);
+      CodeGenInfo &insert);
 };
 
 template <>
 std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp,
-                                                    CodeInsertionPoint &insert);
+                                                    CodeGenInfo &insert);
 } // namespace duckdb
