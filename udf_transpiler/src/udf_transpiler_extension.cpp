@@ -45,21 +45,15 @@ inline string Udf_transpilerPragmaFun(ClientContext &context,
   std::string code, registration;
   auto compiler = Compiler(&con, buffer.str());
   compiler.run(code, registration);
-  // for(const auto &func : compiler.getFunctions()){
-  //   cout << func.name << endl;
-  //   cout << func.code << endl;
-  // }
-  // cout<<ret[0]<<endl;
-  // cout<<ret[1]<<endl;
   udf_count++;
   std::cout << "Transpiling the UDF..." << std::endl;
   insert_def_and_reg(code, registration, udf_count);
   // compile the template
   std::cout << "Compiling the UDF..." << std::endl;
-  compile_udf(udf_count);
+  compile_udf();
   // load the compiled library
   cout << "Installing and loading the UDF..." << endl;
-  load_udf(con, udf_count);
+  load_udf(con);
   return "select '' as 'Transpilation Done.';";
 }
 
@@ -78,14 +72,12 @@ inline string Udf_CodeGeneratorPragmaFun(ClientContext &context,
   }
   YAMLConfig config;
   Connection con(*db_instance);
-  // Transpiler transpiler(buffer.str(), &config, con);
-  // std::vector<std::string> ret = transpile_plpgsql_udf_str(buffer.str());
-  // std::vector<std::string> ret = transpiler.run();
-  // cout<<ret[0]<<endl;
-  // cout<<ret[1]<<endl;
+  std::string code, registration;
+  auto compiler = Compiler(&con, buffer.str());
+  compiler.run(code, registration);
   udf_count++;
   cout << "Transpiling the UDF..." << endl;
-  // insert_def_and_reg(ret[0], ret[1], udf_count);
+  insert_def_and_reg(code, registration, udf_count);
   return "select '' as 'Code Generation Done.';";
 }
 
@@ -94,29 +86,23 @@ inline string Udf_CodeGeneratorPragmaFun(ClientContext &context,
  */
 inline string Udf_BuilderPragmaFun(ClientContext &context,
                                    const FunctionParameters &parameters) {
-  if (udf_count == 0) {
-    udf_count = 1;
-  }
   cout << "Compiling the UDF..." << endl;
-  compile_udf(udf_count);
+  compile_udf();
   // load the compiled library
   cout << "Installing and loading the UDF..." << endl;
   Connection con(*db_instance);
-  load_udf(con, udf_count);
+  load_udf(con);
   return "select '' as 'Building and linking Done.';";
 }
 
 inline string Udaf_BuilderPragmaFun(ClientContext &context,
                                     const FunctionParameters &parameters) {
-  if (udf_count == 0) {
-    udf_count = 1;
-  }
   cout << "Compiling the UDAF..." << endl;
-  compile_udaf(udf_count);
+  compile_udaf();
   // load the compiled library
   cout << "Installing and loading the UDF..." << endl;
   Connection con(*db_instance);
-  load_udaf(con, udf_count);
+  load_udaf(con);
   return "select '' as 'Building and linking Done.';";
 }
 

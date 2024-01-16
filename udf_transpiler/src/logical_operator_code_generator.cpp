@@ -49,9 +49,6 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
       args.push_front(insert.newVector());
       break;
     case ScalarFunctionInfo::NumericCastWrapper:
-      // udf_todo
-      // insert.lines.push_back(fmt::format("auto {} = {};", args.back(),
-      // args.back()));
       function_name = "NumericCastHelper";
       template_args.push_back(get_struct_name(function_info.cpp_name));
       break;
@@ -70,7 +67,7 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
   return;
 }
 
-std::string BoundExpressionCodeGenerator::CodeGenScalarFunctionInfo(
+std::string BoundExpressionCodeGenerator::CodeGenScalarFunction(
     const ScalarFunctionInfo &function_info,
     const std::vector<Expression *> &children, CodeGenInfo &insert) {
   std::list<std::string> args;
@@ -108,7 +105,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp,
     for (size_t i = 0; i < exp.children.size(); i++) {
       children[i] = exp.children[i].get();
     }
-    return CodeGenScalarFunctionInfo(function_info, children, insert);
+    return CodeGenScalarFunction(function_info, children, insert);
   } else {
     std::list<std::string> args;
     for (auto &child : exp.children) {
@@ -186,7 +183,7 @@ std::string
 BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp,
                                         CodeGenInfo &insert) {
   if (exp.bound_cast.has_function_info) {
-    return CodeGenScalarFunctionInfo(exp.bound_cast.function_info,
+    return CodeGenScalarFunction(exp.bound_cast.function_info,
                                      {exp.child.get()}, insert);
   }
   return fmt::format("[CAST {} AS {}]", Transpile(*exp.child, insert),
@@ -262,7 +259,7 @@ BoundExpressionCodeGenerator::Transpile(const Expression &exp,
 }
 
 /**
- * not used
+ * 
  */
 void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
   CodeGenInfo insert;
@@ -274,7 +271,6 @@ void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
  * traverse the logical operator tree and generate the code into member res
  *
  */
-
 void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op,
                                                  CodeGenInfo &insert) {
   ASSERT(op.expressions.size() == 1,

@@ -140,23 +140,33 @@ void insert_def_and_reg(const string &defs, const string &regs, int udf_count) {
   out2.close();
 }
 
-void compile_udf(int udf_count) {
-  string cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
+void compile_udf() {
+  // string cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
+  string cmd = "cd " + current_dir + "/../" + ";make udfs";
   cout << exec(cmd.c_str()) << endl;
 }
 
-void compile_udaf(int udf_count) {
+void compile_udaf() {
   string cmd = "cd " + current_dir + "/../" + ";make udafs";
   cout << cmd << endl;
   cout << exec(cmd.c_str()) << endl;
 }
 
-void load_udf(duckdb::Connection &connection, int udf_count) {
+/**
+ * will load the udf*.duckdb_extension file that is last created
+*/
+void load_udf(duckdb::Connection &connection) {
+  // find the current udf_count
+  string cmd = "cd " + current_dir + "/../build/udfs/extension/udf1/;ls -t | grep -o '^udf.*\\.duckdb_extension$'";
+  string filename = exec(cmd.c_str());
+  filename = filename.substr(0, filename.find("\n"));                                                           
   std::string install = "install '" + current_dir +
-                        "/../build/udfs/extension/udf1/" + "udf" +
-                        std::to_string(udf_count) + ".duckdb_extension'";
+                        "/../build/udfs/extension/udf1/" 
+                        // + "udf" + std::to_string(udf_count) + ".duckdb_extension'";
+                        + filename + "'";
   std::string load = "load '" + current_dir + "/../build/udfs/extension/udf1/" +
-                     "udf" + std::to_string(udf_count) + ".duckdb_extension'";
+                    //  "udf" + std::to_string(udf_count) + ".duckdb_extension'";
+                      filename + "'";
   cout << "Running: " << install << endl;
   auto res = connection.Query(install);
   if (res->HasError()) {
@@ -169,7 +179,7 @@ void load_udf(duckdb::Connection &connection, int udf_count) {
   }
 }
 
-void load_udaf(duckdb::Connection &connection, int udf_count) {
+void load_udaf(duckdb::Connection &connection) {
   std::string install = "install '" + current_dir +
                         "/../build/udfs/extension/udf_agg/" +
                         "udf_agg.duckdb_extension'";

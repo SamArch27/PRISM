@@ -41,7 +41,7 @@ private:
                                  CodeGenInfo &insert,
                                  std::list<std::string> &args);
   static std::string
-  CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info,
+  CodeGenScalarFunction(const ScalarFunctionInfo &function_info,
                             const std::vector<Expression *> &children,
                             CodeGenInfo &insert);
 };
