@@ -239,7 +239,7 @@ public:
     bindings.emplace(name, arguments.back().get());
   }
 
-  void addVariable(const std::string &name, Own<Type> type,
+  void addVariable(const std::string &name, Own<Type>&& type,
                    Own<Expression> expr) {
     auto var = Make<Variable>(name, std::move(type));
     variables.emplace_back(std::move(var));

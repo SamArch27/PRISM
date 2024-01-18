@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <utility>
 
 std::ostream &operator<<(std::ostream &os, const Expression &expr) {
   ExpressionPrinter printer(os);
@@ -395,14 +396,15 @@ void Compiler::run(std::string &code, std::string &registration) {
                              getTypeFromPostgresName(variableType));
       } else {
         // If the declared variable has a default value (i.e. DECLARE x = 0;)
-        // then get it (otherwise assign to NULL)
+        // then get it (otherwise assign to the default value of the type)
+        auto varType = getTypeFromPostgresName(variableType);
         std::string defaultVal =
             variable.contains("default_val")
                 ? variable["default_val"]["PLpgSQL_expr"]["query"]
                       .get<std::string>()
-                : "NULL";
+                : varType->defaultValue(false);
         function.addVariable(variableName,
-                             getTypeFromPostgresName(variableType),
+                             std::move(varType),
                              bindExpression(function, defaultVal));
       }
     }
@@ -430,25 +432,30 @@ Own<Expression> Compiler::bindExpression(const Function &function,
   std::stringstream createTableString;
   createTableString << "CREATE TABLE tmp(";
   std::stringstream insertTableString;
+  std::stringstream insertTableSecondRow;
   insertTableString << "INSERT INTO tmp VALUES(";
+  insertTableSecondRow << "(";
 
   bool first = true;
   for (const auto &[name, variable] : function.getAllBindings()) {
     auto type = variable->getType();
     createTableString << (first ? "" : ", ");
     insertTableString << (first ? "" : ", ");
+    insertTableSecondRow << (first ? "" : ", ");
     if (first) {
       first = false;
     }
     createTableString << name << " " << *type;
     insertTableString << "(NULL) ";
+    insertTableSecondRow << type->defaultValue(true);
   }
   createTableString << ");";
-  insertTableString << ");";
+  insertTableString << "),";
+  insertTableSecondRow << ");";
 
   // Create commands
   std::string createTableCommand = createTableString.str();
-  std::string insertTableCommand = insertTableString.str();
+  std::string insertTableCommand = insertTableString.str() + insertTableSecondRow.str();
   std::string selectExpressionCommand = "SELECT " + expression + " FROM tmp;";
   std::string dropTableCommand = "DROP TABLE tmp;";
 

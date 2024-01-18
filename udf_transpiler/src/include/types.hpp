@@ -116,6 +116,7 @@ public:
   // no need to consider decimal case here
   virtual std::string getDuckDBType() const = 0;
   virtual std::string getCppType() const = 0;
+  virtual std::string defaultValue(bool singleQuote) const = 0;
   std::string getDuckDBLogicalType() const {
     return "LogicalType::" + getDuckDBType();
   }
@@ -175,6 +176,15 @@ public:
       ERROR("Width larger than 38.");
   }
 
+  std::string defaultValue(bool singleQuote) const {
+    if(singleQuote){
+      return "''";
+    }
+    else{
+      return "\"\"";
+    }
+  }
+
   int getWidth() const { return width; }
   int getScale() const { return scale; }
 
@@ -216,6 +226,10 @@ public:
     std::stringstream ss;
     ss << cppTag;
     return ss.str();
+  }
+
+  std::string defaultValue(bool singleQuote) const override{
+    return "0";
   }
 
 private:
