@@ -106,6 +106,31 @@ inline string Udaf_BuilderPragmaFun(ClientContext &context,
   return "select '' as 'Building and linking Done.';";
 }
 
+inline string LOCodeGenPragmaFun(ClientContext &_context,
+                                   const FunctionParameters &parameters){
+  auto sql = parameters.values[0].GetValue<string>();   
+  LogicalOperatorCodeGenerator locg;
+  // CodeGenInfo insert;
+  Connection con(*db_instance);
+  auto context = con.context.get();
+  // bool mem = context->config.enable_optimizer;
+  context->config.enable_optimizer = false;
+  try{
+    auto plan = context->ExtractPlan(sql);
+    locg.VisitOperator(*plan);
+  }
+  catch (Exception &e){
+    // context->config.enable_optimizer = mem;
+    throw e;
+    return "select '" + e.GetStackTrace(5) + "' as 'Partial Evaluation Failed.';";
+  }
+  // context->config.enable_optimizer = mem;
+  cout<<locg.getResult().first<<endl;
+  cout<<endl;
+  cout<<locg.getResult().second<<endl;
+  return "select '' as 'Partial Evaluation Done.';";
+}
+
 static void LoadInternal(DatabaseInstance &instance) {
   // auto udf_transpiler_scalar_function = ScalarFunction("udf_transpiler",
   // {LogicalType::VARCHAR},
@@ -124,6 +149,9 @@ static void LoadInternal(DatabaseInstance &instance) {
   auto udaf_builder_pragma_function =
       PragmaFunction::PragmaCall("build_agg", Udaf_BuilderPragmaFun, {});
   ExtensionUtil::RegisterFunction(instance, udaf_builder_pragma_function);
+  auto lo_codegen_pragma_function =
+      PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun, {LogicalType::VARCHAR});
+  ExtensionUtil::RegisterFunction(instance, lo_codegen_pragma_function);
   // auto itos_scalar_function = ScalarFunction("itos", {LogicalType::INTEGER},
   // 													 LogicalType::VARCHAR,
   // itos); ExtensionUtil::RegisterFunction(instance, itos_scalar_function);

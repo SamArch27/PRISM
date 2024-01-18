@@ -119,7 +119,7 @@ vector<string> CFGCodeGenerator::run(const Function &func) {
     // std::ostringstream oss;
     // func.print(oss);
     // cout<<oss.str()<<endl;
-    CodeGenInfo function_info;
+    CodeGenInfo function_info(func);
 
     for(auto &bbUniq : func.getBasicBlocks()){
         basicBlockCodeGenerator(bbUniq.get(), func, function_info);

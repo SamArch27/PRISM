@@ -23,6 +23,91 @@ string get_struct_name(const string &struct_operation) {
   return struct_operation.substr(0, struct_operation.find("::"));
 }
 
+std::string pow10String(int scale_difference){
+  std::string ret = "1";
+  for(int i = 0; i < scale_difference; i++){
+    ret += "0";
+  }
+  return ret;
+}
+
+void decimalDecimalCastHandler(
+    const ScalarFunctionInfo &function_info, string &function_name,
+    std::vector<std::string> &template_args,
+    const std::vector<Expression *> &children, CodeGenInfo &insert,
+    std::list<std::string> &args){
+  ASSERT(function_info.width_scale != std::make_pair((uint8_t)0, (uint8_t)0) && function_info.width_scale2 != std::make_pair((uint8_t)0, (uint8_t)0),
+             "DecimalCastWrapper should have two width_scale sets.");
+  // recreate the source and target type
+  int source_scale = function_info.width_scale.second;
+  int source_width = function_info.width_scale.first;
+  int target_scale = function_info.width_scale2.second;
+  int target_width = function_info.width_scale2.first;
+  LogicalType source_type = LogicalType::DECIMAL(source_width, source_scale);
+  LogicalType target_type = LogicalType::DECIMAL(target_width, target_scale);
+  cout<<source_width<<", "<<source_scale<<endl;
+  cout<<target_width<<", "<<target_scale<<endl;
+  string source_physical = ScalarFunctionInfo::DecimalTypeToCppType(source_width, source_scale);
+  string target_physical = ScalarFunctionInfo::DecimalTypeToCppType(target_width, target_scale);
+  if(target_scale >= source_scale){
+    // scale up
+    idx_t scale_difference = target_scale - source_scale;
+    auto multiply_factor = pow10String(scale_difference);
+    idx_t res_width = target_width - scale_difference;
+    if(source_width < res_width){
+      function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+      template_args.push_back(source_physical);
+      template_args.push_back(target_physical);
+    }
+    else{
+      // DecimalScaleUpCheckOperator
+      // evaluate the child first
+      string newVar = insert.newTmpVar();
+      insert.lines.push_back(fmt::format("auto {} = {};", newVar, args.front()));
+      args.pop_front();
+      args.push_front(newVar);
+      string limit = pow10String(res_width);
+      insert.lines.push_back(fmt::format("\
+      if ({input} >= {limit} || {input} <= -{limit}){{\n\
+        throw std::runtime_error(\"Numeric value out of range\");\n\
+      }}\
+      ", fmt::arg("input", newVar), fmt::arg("limit", limit)));
+      function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+      template_args.push_back(source_physical);
+      template_args.push_back(target_physical);
+    }
+  }
+  else{ 
+    // scale down
+    idx_t scale_difference = source_scale - target_scale;
+    auto multiply_factor = pow10String(scale_difference);
+    idx_t res_width = target_width + scale_difference;
+    if(source_width < res_width){
+      // udf_todo: possibly a source of result difference
+      function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);
+      template_args.push_back(source_physical);
+      template_args.push_back(target_physical);
+    }
+    else{
+      // DecimalScaleUpCheckOperator
+      // evaluate the child first
+      string newVar = insert.newTmpVar();
+      insert.lines.push_back(fmt::format("auto {} = {};", newVar, args.front()));
+      args.pop_front();
+      args.push_front(newVar);
+      string limit = pow10String(res_width);
+      insert.lines.push_back(fmt::format("\
+      if ({input} >= {limit} || {input} <= -{limit}){{\n\
+        throw std::runtime_error(\"Numeric value out of range\");\n\
+      }}\
+      ", fmt::arg("input", newVar), fmt::arg("limit", limit)));
+      function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);
+      template_args.push_back(source_physical);
+      template_args.push_back(target_physical);
+    }
+  }
+}
+
 /**
  * currently only support vector front and back
  */
@@ -35,12 +120,15 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
     switch (special_case) {
     case ScalarFunctionInfo::BinaryNumericDivideWrapper:
       // udf_todo
+      EXCEPTION("BinaryNumericDivideWrapper not implemented yet.");
       break;
     case ScalarFunctionInfo::BinaryZeroIsNullWrapper:
       // udf_todo
+      EXCEPTION("BinaryZeroIsNullWrapper not implemented yet.");
       break;
     case ScalarFunctionInfo::BinaryZeroIsNullHugeintWrapper:
       // udf_todo
+      EXCEPTION("BinaryZeroIsNullHugeintWrapper not implemented yet.");
       break;
     case ScalarFunctionInfo::VectorBackWrapper:
       args.push_back(insert.newVector());
@@ -48,17 +136,33 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
     case ScalarFunctionInfo::VectorFrontWrapper:
       args.push_front(insert.newVector());
       break;
+    case ScalarFunctionInfo::SubStringAutoLengthWrapper:
+      // udf_todo
+      EXCEPTION("SubStringAutoLengthWrapper not implemented yet.");
+      break;
     case ScalarFunctionInfo::NumericCastWrapper:
       function_name = "NumericCastHelper";
       template_args.push_back(get_struct_name(function_info.cpp_name));
       break;
     case ScalarFunctionInfo::DecimalCastWrapper:
-      ASSERT(function_info.width_scale != std::make_pair(0, 0),
+      ASSERT(function_info.width_scale != std::make_pair((uint8_t)0, (uint8_t)0),
              "DecimalCastWrapper should have width_scale set.");
       function_name = "DecimalCastHelper";
       template_args.push_back(get_struct_name(function_info.cpp_name));
       args.push_back(std::to_string(function_info.width_scale.first));
       args.push_back(std::to_string(function_info.width_scale.second));
+      break;
+    case ScalarFunctionInfo::ErrorCastWrapper:
+      // udf_todo
+      EXCEPTION("ErrorCastWrapper not implemented yet.");
+      break;
+    case ScalarFunctionInfo::DecimalVectorBackWrapper:
+      // udf_todo
+      EXCEPTION("DecimalVectorBackWrapper not implemented yet.");
+      break;
+    case ScalarFunctionInfo::DecimalDeciamlCastWrapper:
+      // udf_todo
+      decimalDecimalCastHandler(function_info, function_name, template_args, children, insert, args);
       break;
     default: break;
     }
@@ -262,8 +366,9 @@ BoundExpressionCodeGenerator::Transpile(const Expression &exp,
  * 
  */
 void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
-  CodeGenInfo insert;
-  res = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
+  auto func = newFunction("tmp");
+  CodeGenInfo insert(func);
+  VisitOperator(op, insert);
   return;
 }
 
@@ -275,6 +380,7 @@ void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op,
                                                  CodeGenInfo &insert) {
   ASSERT(op.expressions.size() == 1,
          "Expression of the root operator should be 1.");
+  insert.lines.clear();
   res = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
   // std::cout<<ret<<std::endl;
   header = insert.toString();

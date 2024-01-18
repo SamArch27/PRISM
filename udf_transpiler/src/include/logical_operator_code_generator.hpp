@@ -3,24 +3,38 @@
 #include "duckdb/main/connection.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "utils.hpp"
+#include "cfg.hpp"
 
 struct CodeGenInfo {
+public:
+  CodeGenInfo(const Function &_func): function(_func) {}
+  const Function &function;
   vector<string> lines;
   /**
    * reference the string_function_count in FunctionInfo
    */
   int vectorCount = 0;
-//   int stringFunctionCount;
+
+  int tmpVarCount = 0;
 
 //   CodeGenInfo(int &vectorCount) : vectorCount(vectorCount) {}
   std::string newVector() {
-    return "tmp_vec" + std::to_string(vectorCount++);
+    // make sure it is does not already exist
+    string name = "tmp_vec" + std::to_string(vectorCount++);
+    if(function.hasBinding(name)) return newVector();
+    return name;
   }
 
   std::string toString() {
     if (lines.empty())
       return "";
     return vec_join(lines, "\n") + "\n";
+  }
+
+  std::string newTmpVar() {
+    string name = "tmp_var" + std::to_string(tmpVarCount++);
+    if(function.hasBinding(name)) return newTmpVar();
+    return name;
   }
 };
 
