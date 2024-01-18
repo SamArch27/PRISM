@@ -69,7 +69,7 @@ void decimalDecimalCastHandler(
       string limit = pow10String(res_width);
       insert.lines.push_back(fmt::format("\
       if ({input} >= {limit} || {input} <= -{limit}){{\n\
-        throw std::runtime_error(\"Numeric value out of range\");\n\
+        throw CastException(\"Numeric value out of range\");\n\
       }}\
       ", fmt::arg("input", newVar), fmt::arg("limit", limit)));
       function_name = fmt::format("{} * Cast::Operation", multiply_factor);
@@ -98,7 +98,7 @@ void decimalDecimalCastHandler(
       string limit = pow10String(res_width);
       insert.lines.push_back(fmt::format("\
       if ({input} >= {limit} || {input} <= -{limit}){{\n\
-        throw std::runtime_error(\"Numeric value out of range\");\n\
+        throw CastException(\"Numeric value out of range\");\n\
       }}\
       ", fmt::arg("input", newVar), fmt::arg("limit", limit)));
       function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);
@@ -109,7 +109,7 @@ void decimalDecimalCastHandler(
 }
 
 /**
- * currently only support vector front and back
+ * 
  */
 void BoundExpressionCodeGenerator::SpecialCaseHandler(
     const ScalarFunctionInfo &function_info, string &function_name,
@@ -161,7 +161,6 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
       EXCEPTION("DecimalVectorBackWrapper not implemented yet.");
       break;
     case ScalarFunctionInfo::DecimalDeciamlCastWrapper:
-      // udf_todo
       decimalDecimalCastHandler(function_info, function_name, template_args, children, insert, args);
       break;
     default: break;

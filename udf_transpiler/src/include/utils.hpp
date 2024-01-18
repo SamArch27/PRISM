@@ -12,12 +12,13 @@
 #include <include/fmt/core.h>
 #include <regex>
 #include <yaml-cpp/yaml.h>
+#include "duckdb/common/exception.hpp"
 using namespace std;
 
 #define ASSERT(condition, message)                                             \
   do {                                                                         \
     if (!(condition)) {                                                        \
-      std::cerr << "Assertion `" #condition "` failed in " << __FILE__         \
+      std::cout << "Assertion `" #condition "` failed in " << __FILE__         \
                 << " line " << __LINE__ << ": " << message << std::endl;       \
       throw exception();                                                       \
     }                                                                          \
@@ -25,16 +26,16 @@ using namespace std;
 
 #define ERROR(message)                                                         \
   do {                                                                         \
-    std::cerr << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
+    std::cout << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
               << ")" << std::endl;                                             \
     std::terminate();                                                          \
   } while (false)
 
 #define EXCEPTION(message)                                                     \
   do {                                                                         \
-    std::cerr << "Exception: " << message << " (" << __FILE__ << ":"           \
+    std::cout << "Exception: " << message << " (" << __FILE__ << ":"           \
               << __LINE__ << ")" << std::endl;                                 \
-    throw exception();                                                         \
+    throw duckdb::ParserException("See the above message.");                 \                                       
   } while (false)
 
 template <class A> using Own = std::unique_ptr<A>;

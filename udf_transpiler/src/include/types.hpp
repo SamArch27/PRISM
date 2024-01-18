@@ -177,12 +177,7 @@ public:
   }
 
   std::string defaultValue(bool singleQuote) const {
-    if(singleQuote){
-      return "''";
-    }
-    else{
-      return "\"\"";
-    }
+    return "0";
   }
 
   int getWidth() const { return width; }
@@ -229,7 +224,18 @@ public:
   }
 
   std::string defaultValue(bool singleQuote) const override{
-    return "0";
+    if(isNumeric()){
+      return "0";
+    }
+    else if(isBLOB()){
+      if(singleQuote)
+        return "''";
+      else
+        return "\"\"";
+    }
+    else{
+      ERROR("Cannot get default value for non-numeric and non-BLOB type!");
+    }
   }
 
 private:

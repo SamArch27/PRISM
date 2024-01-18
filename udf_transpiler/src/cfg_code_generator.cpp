@@ -43,6 +43,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &f
     }
     for(BasicBlock::InstIterator intr = bb->begin(); intr != bb->end(); intr++){
         // const Instruction &inst = *intr->get();
+        try{
         if(dynamic_cast<const Assignment *>(intr->get())){
             const Assignment *assign = dynamic_cast<const Assignment *>(intr->get());
             // code += fmt::format("{} = {};\n", assign->getLvalue(), assign->getRvalue());
@@ -79,6 +80,11 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &f
         else{
             ERROR("Instruction does not fall into a specific type.");
         }
+        }catch(const std::exception &e){
+            std::stringstream ss;
+            ss << e.what() << "When compiling instruction: " << *intr;
+            throw duckdb::ParserException(ss.str());
+        }
     }
 end:
     // std::cout<<code<<endl;
@@ -108,7 +114,7 @@ std::string CFGCodeGenerator::extractVarFromChunk(const Function &func){
         auto &var = vars[i];
         code += fmt::format("{} {};\n", var->getType()->getCppType(),
                                 var->getName());
-        code += fmt::format("bool {}_null = false;\n", var->getName());
+        code += fmt::format("bool {}_null = {};\n", var->getName(), var->isNULL ? "true" : "false");
     }
 
     return code;

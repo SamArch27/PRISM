@@ -121,7 +121,7 @@ inline string LOCodeGenPragmaFun(ClientContext &_context,
   }
   catch (Exception &e){
     // context->config.enable_optimizer = mem;
-    throw e;
+    EXCEPTION(e.what());
     return "select '" + e.GetStackTrace(5) + "' as 'Partial Evaluation Failed.';";
   }
   // context->config.enable_optimizer = mem;

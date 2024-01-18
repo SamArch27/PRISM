@@ -385,7 +385,7 @@ void Compiler::run(std::string &code, std::string &registration) {
         if (function.hasBinding(variableName)) {
           continue;
         }
-        ERROR(fmt::format(
+        EXCEPTION(fmt::format(
             "Error: Variable {} in cursor loop must be declared first",
             variableName));
         continue;
@@ -402,10 +402,11 @@ void Compiler::run(std::string &code, std::string &registration) {
             variable.contains("default_val")
                 ? variable["default_val"]["PLpgSQL_expr"]["query"]
                       .get<std::string>()
-                : varType->defaultValue(false);
+                : varType->defaultValue(true);
         function.addVariable(variableName,
                              std::move(varType),
-                             bindExpression(function, defaultVal));
+                             bindExpression(function, defaultVal),
+                             !variable.contains("default_val"));
       }
     }
 
@@ -484,7 +485,7 @@ Own<Expression> Compiler::bindExpression(const Function &function,
   catch(const std::exception& e)
   {
     connection->Query(dropTableCommand);
-    throw e;
+    EXCEPTION(e.what());
     return nullptr;
   }
   // DROP tmp

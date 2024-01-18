@@ -28,8 +28,8 @@ std::ostream &operator<<(std::ostream &os, const Expression &expr);
 
 class Variable {
 public:
-  Variable(const std::string &name, Own<Type> type)
-      : name(name), type(std::move(type)) {}
+  Variable(const std::string &name, Own<Type> type, bool _isNULL = true)
+      : name(name), type(std::move(type)), isNULL(_isNULL) {}
 
   std::string getName() const { return name; }
   const Type *getType() const { return type.get(); }
@@ -38,6 +38,8 @@ public:
     var.print(os);
     return os;
   }
+
+  bool isNULL;
 
 protected:
   void print(std::ostream &os) const { os << *type << " " << name; }
@@ -240,8 +242,8 @@ public:
   }
 
   void addVariable(const std::string &name, Own<Type>&& type,
-                   Own<Expression> expr) {
-    auto var = Make<Variable>(name, std::move(type));
+                   Own<Expression> expr, bool isNULL) {
+    auto var = Make<Variable>(name, std::move(type), isNULL);
     variables.emplace_back(std::move(var));
     bindings.emplace(name, variables.back().get());
 
