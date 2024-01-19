@@ -118,6 +118,8 @@ public:
   virtual std::string getCppType() const = 0;
   virtual std::string defaultValue(bool singleQuote) const = 0;
   std::string getDuckDBLogicalType() const {
+    // if(dynamic_cast<const DecimalType*>(this))
+    //   return "LogicalType::Decimal";
     return "LogicalType::" + getDuckDBType();
   }
   bool isNumeric() const { return NumricTypes.count(duckdbTag); }
@@ -159,7 +161,8 @@ public:
   }
 
   std::string getDuckDBType() const override{
-    ERROR("Calling DecimalType::getDuckDBType()!");
+    // ERROR("Calling DecimalType::getDuckDBType()!");
+    return fmt::format("DECIMAL({}, {})", width, scale);
   }
 
   std::string getCppType() const override{
