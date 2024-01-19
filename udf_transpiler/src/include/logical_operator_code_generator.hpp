@@ -1,52 +1,84 @@
 #pragma once
-#include "duckdb/planner/logical_operator.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/connection.hpp"
+#include "duckdb/planner/logical_operator.hpp"
 #include "utils.hpp"
+#include "cfg.hpp"
 
-namespace duckdb
-{
-struct CodeInsertionPoint{
-    vector<string> lines;
-    /**
-     * reference the string_function_count in FunctionInfo
-    */
-    int &vector_count;
+struct CodeGenInfo {
+public:
+  CodeGenInfo(const Function &_func): function(_func) {}
+  const Function &function;
+  vector<string> lines;
+  /**
+   * reference the string_function_count in FunctionInfo
+   */
+  int vectorCount = 0;
 
-    CodeInsertionPoint(int &vector_count) : vector_count(vector_count){}
-    std::string new_vector(){
-        return "tmp_vec"+std::to_string(vector_count++);
-    }
+  int tmpVarCount = 0;
 
-    std::string to_string(){
-        if(lines.empty())
-            return "";
-        return vec_join(lines, "\n")+"\n";
-    }
+//   CodeGenInfo(int &vectorCount) : vectorCount(vectorCount) {}
+  std::string newVector() {
+    // make sure it is does not already exist
+    string name = "tmp_vec" + std::to_string(vectorCount++);
+    if(function.hasBinding(name)) return newVector();
+    return name;
+  }
+
+  std::string toString() {
+    if (lines.empty())
+      return "";
+    return vec_join(lines, "\n") + "\n";
+  }
+
+  std::string newTmpVar() {
+    string name = "tmp_var" + std::to_string(tmpVarCount++);
+    if(function.hasBinding(name)) return newTmpVar();
+    return name;
+  }
 };
 
-struct BoundExpressionCodeGenerator{
+namespace duckdb {
+
+struct BoundExpressionCodeGenerator {
 public:
-    template <typename T>
-    static std::string Transpile(const T &exp, CodeInsertionPoint &insert) {
-        return "Not implemented yet!";
-    }
+  template <typename T>
+  static std::string Transpile(const T &exp, CodeGenInfo &insert) {
+    return "Not implemented yet!";
+  }
+
 private:
-    static void SpecialCaseHandler(const ScalarFunctionInfo &function_info, string &function_name, std::vector<std::string> &template_args, const std::vector<Expression *> &children, CodeInsertionPoint &insert, std::list<std::string> &args);
-    static std::string CodeGenScalarFunctionInfo(const ScalarFunctionInfo &function_info, const std::vector<Expression *> &children, CodeInsertionPoint &insert);
+  static void SpecialCaseHandler(const ScalarFunctionInfo &function_info,
+                                 string &function_name,
+                                 std::vector<std::string> &template_args,
+                                 const std::vector<Expression *> &children,
+                                 CodeGenInfo &insert,
+                                 std::list<std::string> &args);
+  static std::string
+  CodeGenScalarFunction(const ScalarFunctionInfo &function_info,
+                            const std::vector<Expression *> &children,
+                            CodeGenInfo &insert);
 };
 
-class LogicalOperatorCodeGenerator : public LogicalOperatorVisitor
-{
+class LogicalOperatorCodeGenerator : public LogicalOperatorVisitor {
 private:
-    std::string res;
+  // header is the code that should be inserted before the query
+  std::string header;
+  std::string res;
+
 public:
-    void VisitOperator(duckdb::LogicalOperator &op) override;
-    void VisitOperator(duckdb::LogicalOperator &op, CodeInsertionPoint &insert);
-    std::string run(Connection &con, const std::string &query, const std::vector<pair<const std::string &, const VarInfo &>> &vars, CodeInsertionPoint &insert);
+  void VisitOperator(duckdb::LogicalOperator &op) override;
+  void VisitOperator(duckdb::LogicalOperator &op, CodeGenInfo &insert);
+  std::pair<std::string, std::string> getResult() {
+    return {header, res};
+  }
+  std::string
+  run(Connection &con, const std::string &query,
+      const std::vector<pair<const std::string &, const VarInfo &>> &vars,
+      CodeGenInfo &insert);
 };
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp, CodeInsertionPoint &insert);
+std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp,
+                                                    CodeGenInfo &insert);
 } // namespace duckdb
-

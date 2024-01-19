@@ -16,3 +16,4 @@ test/python/__pycache__/
 .Rhistory
 
 *.duckdb
+header_file/duckdb/

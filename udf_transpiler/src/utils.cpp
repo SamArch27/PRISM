@@ -104,7 +104,7 @@ void UDFType::resolve_type(string type_name, const string &udf_str) {
   } else {
     if (alias_to_duckdb_type.count(type_name)) {
       duckdb_type = alias_to_duckdb_type.at(type_name);
-      std::cout << duckdb_type << std::endl;
+      // std::cout << duckdb_type << std::endl;
     } else {
       ERROR(fmt::format("Unknown type: {}", type_name));
     }

@@ -1,6 +1,7 @@
 #pragma once
 #include <cassert>
 #include <iostream>
+#include <list>
 #include <numeric>
 #include <string>
 #include <unordered_map>
@@ -11,30 +12,48 @@
 #include <include/fmt/core.h>
 #include <regex>
 #include <yaml-cpp/yaml.h>
+#include "duckdb/common/exception.hpp"
 using namespace std;
 
 #define ASSERT(condition, message)                                             \
   do {                                                                         \
     if (!(condition)) {                                                        \
-      std::cerr << "Assertion `" #condition "` failed in " << __FILE__         \
+      std::cout << "Assertion `" #condition "` failed in " << __FILE__         \
                 << " line " << __LINE__ << ": " << message << std::endl;       \
-      std::exit(EXIT_FAILURE);                                                 \
+      throw exception();                                                       \
     }                                                                          \
   } while (false)
 
 #define ERROR(message)                                                         \
   do {                                                                         \
-    std::cerr << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
+    std::cout << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
               << ")" << std::endl;                                             \
     std::terminate();                                                          \
   } while (false)
 
 #define EXCEPTION(message)                                                     \
   do {                                                                         \
-    std::cerr << "Exception: " << message << " (" << __FILE__ << ":"           \
+    std::cout << "Exception: " << message << " (" << __FILE__ << ":"           \
               << __LINE__ << ")" << std::endl;                                 \
-    throw exception();                                                         \
+    throw duckdb::ParserException("See the above message.");                 \                                       
   } while (false)
+
+template <class A> using Own = std::unique_ptr<A>;
+template <typename A, typename B = A, typename... Args>
+Own<A> Make(Args &&... xs) {
+  return std::make_unique<B>(std::forward<Args>(xs)...);
+}
+template <typename A> using List = std::list<A>;
+
+template <typename A> using Vec = std::vector<A>;
+
+template <typename A> using VecOwn = std::vector<Own<A>>;
+
+template <typename A> using ListOwn = std::list<Own<A>>;
+
+template <typename A> using Opt = std::optional<A>;
+
+template <typename A, typename B> using Map = std::unordered_map<A, B>;
 
 template <typename T>
 std::string vec_join(std::vector<T> &vec, std::string sep) {

@@ -1,83 +1,90 @@
+
 #pragma once
 
+#include "duckdb/main/connection.hpp"
+#include "duckdb/planner/logical_operator.hpp"
 #include "types.hpp"
 #include "utils.hpp"
+#include <functional>
 #include <include/fmt/core.h>
 #include <json.hpp>
 #include <memory>
+#include <optional>
+#include <queue>
 #include <regex>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
-
-struct FunctionMetadata {
-
-  FunctionMetadata(const std::string &functionName,
-                   std::unique_ptr<Type> returnType)
-      : functionName(functionName), returnType(std::move(returnType)) {}
-
-  std::string functionName;
-  std::unique_ptr<Type> returnType;
-};
-
-class Value;
-class BasicBlock;
-struct Variable;
-
-/* Variable */
-
-/*
-struct Variable
-{
-    Variable(bool initialized, const std::string& type, const std::string& name)
-: initialize(initialized), type(type), name(name) {};
-
-    bool initialized;
-    UDFType type;
-    std::string name;
-}
-*/
-
-/* Instructions */
-
-class Instruction {};
-
-class Assignment : public Instruction {
-  Variable *lhs;
-  Value *rhs;
-};
-
-class BranchInst : public Instruction {
-  bool is_conditional;
-  Value *cond;
-  BasicBlock *true_target;
-  BasicBlock *false_target;
-};
-
-class ReturnInst : public Instruction {
-  Value *value;
-};
-
-/* BasicBlock */
-
-class BasicBlock {
-  std::vector<Instruction> instructions;
-};
-
-/* ControlFlowGraph */
-
-class ControlFlowGraph {
-  std::vector<BasicBlock> blocks;
-  std::unordered_map<BasicBlock *, std::vector<BasicBlock *>> preds;
-  std::unordered_map<BasicBlock *, std::vector<BasicBlock *>> succs;
-};
+#include "cfg.hpp"
 
 /* Compiler */
 
 using json = nlohmann::json;
 
+struct Continuations {
+  Continuations(BasicBlock *fallthrough, BasicBlock *loopHeader,
+                BasicBlock *loopExit, BasicBlock *functionExit)
+      : fallthrough(fallthrough), loopHeader(loopHeader), loopExit(loopExit),
+        functionExit(functionExit) {}
+
+  BasicBlock *fallthrough;
+  BasicBlock *loopHeader;
+  BasicBlock *loopExit;
+  BasicBlock *functionExit;
+};
+
 class Compiler {
 public:
-  Compiler(const std::string &udfs, bool optimize = true);
+  using WidthScale = std::pair<int, int>;
+  using StringPair = std::pair<std::string, std::string>;
+
+  Compiler(duckdb::Connection *connection, const std::string &programText)
+      : connection(connection), programText(programText) {}
+
+  void buildCFG(Function &function, const json &ast);
+
+  std::vector<std::string> generateCode(const Function &function);
+
+  BasicBlock *constructAssignmentCFG(const json &assignment, Function &function,
+                                     List<json> &statements,
+                                     const Continuations &continuations);
+
+  BasicBlock *constructReturnCFG(const json &returnJson, Function &function,
+                                 List<json> &statements,
+                                 const Continuations &continuations);
+
+  BasicBlock *constructIfCFG(const json &ifJson, Function &function,
+                             List<json> &statements,
+                             const Continuations &continuations);
+
+  BasicBlock *constructIfElseCFG(const json &ifElseJson, Function &function,
+                                 List<json> &statements,
+                                 const Continuations &continuations);
+
+  BasicBlock *constructIfElseIfCFG(const json &ifElseIfJson, Function &function,
+                                   List<json> &statements,
+                                   const Continuations &continuations);
+
+  BasicBlock *constructWhileCFG(const json &whileJson, Function &function,
+                                List<json> &statements,
+                                const Continuations &continuations);
+
+  BasicBlock *constructLoopCFG(const json &loopJson, Function &function,
+                               List<json> &statements,
+                               const Continuations &continuations);
+
+  BasicBlock *constructForLoopCFG(const json &forJson, Function &function,
+                                  List<json> &statements,
+                                  const Continuations &continuations);
+
+  BasicBlock *constructExitCFG(const json &exitJson, Function &function,
+                               List<json> &statements,
+                               const Continuations &continuations);
+
+  BasicBlock *constructCFG(Function &function, List<json> &statements,
+                           const Continuations &continuations);
+  void run(std::string &code, std::string &registration);
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;
@@ -86,26 +93,22 @@ public:
       "RETURNS\\s+(\\w+ *(\\((\\d+, *)?\\d+\\))?)";
   static constexpr char FUNCTION_NAME_PATTERN[] =
       "CREATE\\s+FUNCTION\\s+(\\w+)";
-
-  std::vector<std::string> getGeneratedCppFunctions();
-  std::string getGeneratedPLpgSQLFunctions();
+  static constexpr char ASSIGNMENT_PATTERN[] = "\\:?\\=";
 
 private:
-  json parseJson(const std::string &udfs) const;
-  std::vector<FunctionMetadata>
-  getFunctionMetadata(const std::string &udfs) const;
+  json parseJson() const;
+  std::string getJsonExpr(const json &json);
+  List<json> getJsonList(const json &body);
+  Vec<Function> getFunctions() const;
 
-  /*
-  void addVariable(const std::string &t, const std::string &name)
-  {
-      auto v = Variable(t, name);
-      variables.push_back(v);
-      bindings.insert({name,&v});
-  }
-  */
+  Own<Expression> bindExpression(const Function &function,
+                                 const std::string &expression);
+  static StringPair unpackAssignment(const string &assignment);
+  static Opt<WidthScale> getDecimalWidthScale(const std::string &type);
+  static PostgresTypeTag getPostgresTag(const std::string &name);
+  Own<Type> getTypeFromPostgresName(const std::string &name) const;
+  std::string resolveTypeName(const std::string &type) const;
 
-  std::size_t variable_id = 0;
-  std::unordered_map<std::string, Variable *> bindings;
-  std::vector<Variable *> variables;
-  ControlFlowGraph cfg;
+  duckdb::Connection *connection;
+  std::string programText;
 };

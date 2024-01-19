@@ -726,7 +726,6 @@ namespace duckdb
 		for (int base_idx = 0; base_idx < count; base_idx++)
 		{
 			auto numstates_index = numstates_data.sel->get_index(base_idx);
-
 			Value temp_result;
 			bool temp_result_null = false;
 			udf9b_body(numstates.GetValue(numstates_index), !numstates_data.validity.RowIsValid(numstates_index), temp_result, temp_result_null);

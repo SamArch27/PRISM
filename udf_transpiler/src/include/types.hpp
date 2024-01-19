@@ -2,8 +2,7 @@
 #include "utils.hpp"
 #define FMT_HEADER_ONLY
 #include <iostream>
-#include <optional>
-#include <utility>
+#include <set>
 
 enum class PostgresTypeTag {
   BIGINT,
@@ -97,32 +96,45 @@ std::ostream &operator<<(std::ostream &os, CppTypeTag);
 
 class Type {
 public:
-  static std::unique_ptr<Type> getTypeFromPostgresName(const std::string &name,
-                                                       const std::string &udfs);
+  const static inline std::set<DuckdbTypeTag> NumricTypes = {
+    DuckdbTypeTag::BOOLEAN, DuckdbTypeTag::TINYINT, DuckdbTypeTag::SMALLINT,
+    DuckdbTypeTag::INTEGER, DuckdbTypeTag::BIGINT, DuckdbTypeTag::DATE, 
+    DuckdbTypeTag::TIME, DuckdbTypeTag::TIMESTAMP, DuckdbTypeTag::UBIGINT,
+    DuckdbTypeTag::UINTEGER, DuckdbTypeTag::DOUBLE
+  };
+
+  const static inline std::set<DuckdbTypeTag> BLOBTypes = {
+    DuckdbTypeTag::BLOB, DuckdbTypeTag::VARCHAR
+  };
+
   DuckdbTypeTag getDuckDBTag() const { return duckdbTag; }
   CppTypeTag getCppTag() const { return cppTag; }
   friend std::ostream &operator<<(std::ostream &os, const Type &type) {
     type.print(os);
     return os;
   }
+  // no need to consider decimal case here
+  virtual std::string getDuckDBType() const = 0;
+  virtual std::string getCppType() const = 0;
+  virtual std::string defaultValue(bool singleQuote) const = 0;
+  std::string getDuckDBLogicalType() const {
+    // if(dynamic_cast<const DecimalType*>(this))
+    //   return "LogicalType::Decimal";
+    return "LogicalType::" + getDuckDBType();
+  }
+  bool isNumeric() const { return NumricTypes.count(duckdbTag); }
+  bool isBLOB() const { return BLOBTypes.count(duckdbTag); }
 
 protected:
   Type(DuckdbTypeTag duckdbTag, CppTypeTag cppTag)
       : duckdbTag(duckdbTag), cppTag(cppTag) {}
 
   virtual void print(std::ostream &os) const = 0;
+
   DuckdbTypeTag lookupDuckdbTag(PostgresTypeTag pgTag) const;
 
   DuckdbTypeTag duckdbTag;
   CppTypeTag cppTag;
-
-private:
-  using WidthScale = std::pair<int, int>;
-  static std::optional<WidthScale>
-  getDecimalWidthScale(const std::string &type);
-  static PostgresTypeTag getPostgresTag(const std::string &name);
-  static std::string resolveTypeName(const std::string &type,
-                                     const std::string &udfs);
 };
 
 class DecimalType : public Type {
@@ -148,14 +160,37 @@ public:
     return os;
   }
 
-  virtual void print(std::ostream &os) const {
-    os << fmt::format("DECIMAL({}, {})", width, scale);
+  std::string getDuckDBType() const override{
+    // ERROR("Calling DecimalType::getDuckDBType()!");
+    return fmt::format("DECIMAL({}, {})", width, scale);
+  }
+
+  std::string getCppType() const override{
+    ASSERT(width > 0, "Width of decimal should be > 0.");
+    if (width <= 4)
+      return "int16_t";
+    else if (width <= 9)
+      return "int32_t";
+    else if (width <= 18)
+      return "int64_t";
+    else if (width <= 38)
+      return "duckdb::hugeint_t";
+    else
+      ERROR("Width larger than 38.");
+  }
+
+  std::string defaultValue(bool singleQuote) const {
+    return "0";
   }
 
   int getWidth() const { return width; }
   int getScale() const { return scale; }
 
 private:
+  void print(std::ostream &os) const override {
+    os << fmt::format("DECIMAL({}, {})", width, scale);
+  }
+
   CppTypeTag lookupCppTag(DuckdbTypeTag duckdbTag, int width) const;
 
   int width;
@@ -179,8 +214,34 @@ public:
     return os;
   }
 
-  virtual void print(std::ostream &os) const { os << duckdbTag; }
+  std::string getDuckDBType() const override{
+    std::stringstream ss;
+    ss << duckdbTag;
+    return ss.str();
+  }
+
+  std::string getCppType() const override{
+    std::stringstream ss;
+    ss << cppTag;
+    return ss.str();
+  }
+
+  std::string defaultValue(bool singleQuote) const override{
+    if(isNumeric()){
+      return "0";
+    }
+    else if(isBLOB()){
+      if(singleQuote)
+        return "''";
+      else
+        return "\"\"";
+    }
+    else{
+      ERROR("Cannot get default value for non-numeric and non-BLOB type!");
+    }
+  }
 
 private:
+  void print(std::ostream &os) const override { os << duckdbTag; }
   CppTypeTag lookupCppTag(DuckdbTypeTag duckdbTag) const;
 };

@@ -66,5 +66,6 @@ inline T DecimalCastHelper(S input, int width, int scale) {
  * TryCastToTimestampSec
  * TryCastToTimestampMS
  * TryCast
+ * Cast
 */
 #include "duckdb/common/operator/cast_operators.hpp"

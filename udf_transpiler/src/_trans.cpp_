@@ -18,7 +18,7 @@ void Transpiler::parse_assignment(const string &query, string &lvalue,
 }
 
 string Transpiler::translate_query(json &query,
-                                   duckdb::CodeInsertionPoint &insert,
+                                   CodeGenInfo &insert,
                                    UDFType *expected_type,
                                    bool query_is_assignment = false) {
   ASSERT(query.is_string(), "Query statement should be a string.");
@@ -32,7 +32,7 @@ string Transpiler::translate_query(json &query,
 
     // QueryTranspiler query_transpiler(function_info.get(), rvalue,
     // expected_type, config, catalog); result = query_transpiler.run();
-    // duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+    // CodeGenInfo insert(function_info->string_function_count);
     duckdb::LogicalOperatorCodeGenerator code_generator;
     result += fmt::format("{} = ", get_var_name(lvalue));
     result += code_generator.run(connection, "select " + rvalue,
@@ -40,7 +40,7 @@ string Transpiler::translate_query(json &query,
   } else {
     // QueryTranspiler query_transpiler(function_info.get(), query,
     // expected_type, config, catalog); result = query_transpiler.run();
-    // duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+    // CodeGenInfo insert(function_info->string_function_count);
     duckdb::LogicalOperatorCodeGenerator code_generator;
     // string quer
     result = code_generator.run(connection, "select " + query.get<string>(),
@@ -52,7 +52,7 @@ string Transpiler::translate_query(json &query,
 }
 
 string Transpiler::translate_expr(json &expr,
-                                  duckdb::CodeInsertionPoint &insert,
+                                  CodeGenInfo &insert,
                                   UDFType *expected_type,
                                   bool query_is_assignment = false) {
   if (expr.contains("query") and expr.size() == 1) {
@@ -71,7 +71,7 @@ string Transpiler::translate_expr(json &expr,
 string Transpiler::translate_assign_stmt(json &assign) {
   ASSERT(assign["expr"].contains("PLpgSQL_expr"),
          "Assignment must be in form of expression.");
-  duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+  CodeGenInfo insert(function_info->string_function_count);
   auto res = translate_expr(assign["expr"]["PLpgSQL_expr"], insert, NULL, true);
   return insert.to_string() + res + ";\n";
 }
@@ -81,7 +81,7 @@ string Transpiler::translate_return_stmt(json &stmt) {
   ASSERT(stmt.size() == 2, "Return_stmt should only have lineno and expr.");
   ASSERT(stmt["expr"].contains("PLpgSQL_expr"),
          "Return_stmt expression should have PLpgSQL_expr.");
-  duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+  CodeGenInfo insert(function_info->string_function_count);
   string ret = fmt::format(
       "{};\nreturn;\n", function_info->func_return_type.create_duckdb_value(
                             config->function["return_name"].Scalar(),
@@ -91,7 +91,7 @@ string Transpiler::translate_return_stmt(json &stmt) {
 }
 
 string Transpiler::translate_cond_stmt(json &cond_stmt,
-                                       duckdb::CodeInsertionPoint &insert) {
+                                       CodeGenInfo &insert) {
   ASSERT(cond_stmt.contains("PLpgSQL_expr"),
          "cond stmt should contain PLpgSQL_expr.");
   string tmp = "BOOL";
@@ -102,7 +102,7 @@ string Transpiler::translate_cond_stmt(json &cond_stmt,
 
 string Transpiler::translate_if_stmt(json &if_stmt) {
   ASSERT(if_stmt.contains("cond"), "if stmt should have cond.");
-  duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+  CodeGenInfo insert(function_info->string_function_count);
   string cond_expr = translate_cond_stmt(if_stmt["cond"], insert);
   string then_body = "";
   string elseifs = "";
@@ -177,7 +177,7 @@ string Transpiler::translate_for_stmt(json &for_stmt) {
 
   UDFType tmp_int_type(for_var_type, udf_str);
   string step_size = "1";
-  duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+  CodeGenInfo insert(function_info->string_function_count);
   if (for_stmt.contains("step")) {
     step_size = translate_expr(for_stmt["step"]["PLpgSQL_expr"], insert,
                                &tmp_int_type, false);
@@ -207,7 +207,7 @@ string Transpiler::translate_for_stmt(json &for_stmt) {
 
 string Transpiler::translate_while_stmt(json &while_stmt) {
   string body = translate_body(while_stmt["body"]);
-  duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+  CodeGenInfo insert(function_info->string_function_count);
   string condition = translate_cond_stmt(while_stmt["cond"], insert);
   return insert.to_string() +
          fmt::format(fmt::runtime(config->control["while"].Scalar()),
@@ -299,7 +299,7 @@ std::string Transpiler::get_function_vars(json &datums, string &udf_str) {
                                name, extract_data_from_value);
     } else {
       if (var.contains("default_val")) {
-        duckdb::CodeInsertionPoint insert(function_info->string_function_count);
+        CodeGenInfo insert(function_info->string_function_count);
         string query_result = translate_expr(var["default_val"]["PLpgSQL_expr"],
                                              insert, &var_info.type, false);
         vars_init += insert.to_string() +
@@ -323,6 +323,7 @@ std::string Transpiler::get_function_vars(json &datums, string &udf_str) {
 vector<string> Transpiler::translate_function(json &ast, string &udf_str) {
 
   string vars_init = get_function_vars(ast["datums"], udf_str);
+
   // for(auto i : function_info->func_args){
   //     std::cout<<i.first<<i.second.type.duckdb_type<<i.second.init<<std::endl;
   // }
@@ -339,19 +340,23 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str) {
                     fmt::arg("var_name", name),
                     fmt::arg("i", function_info->func_args[name].id));
     function_args += "\n";
+
     arg_indexes +=
         fmt::format(fmt::runtime(config->function["argindex"].Scalar()),
                     fmt::arg("var_name", name));
     arg_indexes += "\n";
+
     subfunc_args +=
         fmt::format(fmt::runtime(config->function["subfunc_arg"].Scalar()),
                     fmt::arg("var_name", name));
     subfunc_args += ", ";
+
     fbody_args +=
         fmt::format(fmt::runtime(config->function["fbody_arg"].Scalar()),
                     fmt::arg("i", function_info->func_args[name].id),
                     fmt::arg("var_name", name));
     fbody_args += ", ";
+
     // count++;
     check_null.push_back(name + "_null");
   }
@@ -360,7 +365,7 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str) {
   if (function_info->string_function_count > 0) {
     vector_create = fmt::format(
         fmt::runtime(config->function["vector_create"].Scalar()),
-        fmt::arg("vector_count", function_info->string_function_count));
+        fmt::arg("vectorCount", function_info->string_function_count));
     for (int i = 0; i < function_info->string_function_count; i++) {
       subfunc_args += fmt::format("tmp_chunk.data[{}], ", i);
       fbody_args += fmt::format("Vector &tmp_vec{}, ", i);
@@ -410,7 +415,8 @@ vector<string> Transpiler::translate_function(json &ast, string &udf_str) {
  */
 vector<string> Transpiler::run() {
 
-  auto compiler = Compiler(udf_str);
+  auto compiler = Compiler(&connection, udf_str);
+  compiler.run();
 
   // collect the function return types
   std::vector<std::string> return_types;
