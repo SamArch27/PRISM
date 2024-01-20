@@ -42,6 +42,7 @@ public:
   Compiler(duckdb::Connection *connection, const std::string &programText)
       : connection(connection), programText(programText) {}
 
+  void buildCursorLoopCFG(Function &function, const json &ast);
   void buildCFG(Function &function, const json &ast);
 
   std::vector<std::string> generateCode(const Function &function);
@@ -82,6 +83,11 @@ public:
                                List<json> &statements,
                                const Continuations &continuations);
 
+  BasicBlock *constructCursorLoopCFG(const json &cursorLoopJson,
+                                     Function &function,
+                                     List<json> &statements,
+                                     const Continuations &continuations);                               
+
   BasicBlock *constructCFG(Function &function, List<json> &statements,
                            const Continuations &continuations);
   void run(std::string &code, std::string &registration);
@@ -92,7 +98,7 @@ public:
   static constexpr char RETURN_TYPE_PATTERN[] =
       "RETURNS\\s+(\\w+ *(\\((\\d+, *)?\\d+\\))?)";
   static constexpr char FUNCTION_NAME_PATTERN[] =
-      "CREATE\\s+FUNCTION\\s+(\\w+)";
+      "CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+(\\w+)";
   static constexpr char ASSIGNMENT_PATTERN[] = "\\:?\\=";
 
 private:
@@ -111,4 +117,5 @@ private:
 
   duckdb::Connection *connection;
   std::string programText;
+  YAMLConfig config;
 };

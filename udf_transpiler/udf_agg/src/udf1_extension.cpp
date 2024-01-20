@@ -14,7 +14,7 @@
 #include "duckdb/function/aggregate/distributive_functions.hpp"
 #include "duckdb/planner/expression/bound_aggregate_expression.hpp"
 
-#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
+#include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
 
 #include <iostream>
 

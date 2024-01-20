@@ -68,7 +68,7 @@ release:
 	cmake --build build/release --config Release
 
 start_duckdb:
-	./build/release/duckdb -unsigned -cmd "install './build/udfs/extension/profiler/profiler.duckdb_extension'; load './build/udfs/extension/profiler/profiler.duckdb_extension';"
+	./build/release/duckdb -unsigned -cmd "install './build/release/extension/profiler/profiler.duckdb_extension'; load './build/release/extension/profiler/profiler.duckdb_extension';"
 
 # Client build
 debug_js: CLIENT_FLAGS=-DBUILD_NODE=1 -DBUILD_JSON_EXTENSION=1

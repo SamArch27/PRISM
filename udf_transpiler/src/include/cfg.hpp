@@ -214,6 +214,15 @@ private:
   bool conditional;
 };
 
+class CursorLoop{
+public:
+    // the nth cursor loop
+    int id;
+    // cfg created by the compiler
+    VecOwn<BasicBlock> basicBlocks;
+    // more info
+};
+
 class Function {
 public:
   Function(const std::string &functionName, Own<Type> returnType)
@@ -325,6 +334,7 @@ public:
   }
 
   const VecOwn<BasicBlock> &getBasicBlocks() const { return basicBlocks; }
+  VecOwn<CursorLoop> cursorLoops;
 
 // protected:
   void print(std::ostream &os) const {
@@ -358,7 +368,42 @@ public:
     os << "}" << std::endl;
   }
 
+  void newState(){
+    states.emplace_back(labelNumber, basicBlocks);
+    basicBlocks.clear();
+    labelNumber = 0;
+  }
+
+  /**
+   * Clear the current state and restore the previous state in the stack
+  */
+  void popState(){
+    basicBlocks.clear();
+    auto &state = states.back();
+    labelNumber = state.labelNumber;
+    for(auto &bb : state.basicBlocks){
+      cout<<"Pushing: "<<*bb<<endl;
+      basicBlocks.push_back(std::move(bb));
+    }
+    // basicBlocks = state.basicBlocks;
+    states.pop_back();
+  }
+
 private:
+  class CompilationState{
+  public:
+    std::size_t labelNumber;
+    VecOwn<BasicBlock> basicBlocks;
+    // more things to memorize later
+    CompilationState(std::size_t _labelNumber, VecOwn<BasicBlock> &_basicBlocks)
+      : labelNumber(_labelNumber){
+        for(auto &bb : _basicBlocks){
+          cout<<"Pushing: "<<*bb<<endl;
+          this->basicBlocks.push_back(std::move(bb));
+        }
+      }
+  };
+  std::list<CompilationState> states;
   std::size_t labelNumber;
   std::string functionName;
   Own<Type> returnType;
@@ -367,6 +412,7 @@ private:
   VecOwn<Assignment> declarations;
   Map<std::string, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
+  
 };
 
 /**

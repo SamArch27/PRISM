@@ -179,7 +179,7 @@ public:
       ERROR("Width larger than 38.");
   }
 
-  std::string defaultValue(bool singleQuote) const {
+  std::string defaultValue(bool singleQuote) const override {
     return "0";
   }
 

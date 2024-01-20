@@ -242,6 +242,7 @@ public:
   YAML::Node query;
   YAML::Node function;
   YAML::Node control;
+  YAML::Node aggify;
   YAMLConfig();
 };
 

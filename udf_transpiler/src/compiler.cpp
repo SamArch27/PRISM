@@ -3,6 +3,7 @@
 #include "pg_query.h"
 #include "utils.hpp"
 #include "cfg_code_generator.hpp"
+#include "aggify_code_generator.hpp"
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -204,6 +205,29 @@ BasicBlock *Compiler::constructExitCFG(const json &exitJson, Function &function,
   }
 }
 
+BasicBlock *Compiler::constructCursorLoopCFG(const json &cursorLoopJson,
+                                     Function &function,
+                                     List<json> &statements,
+                                     const Continuations &continuations){
+  auto newBlock = function.makeBasicBlock();
+  // CursorLoop cursorLoop(function.cursorLoops.size());
+  function.newState();
+  buildCursorLoopCFG(function, cursorLoopJson);
+  function.mergeBasicBlocks();
+  // function.print(std::cout); 
+  AggifyCodeGenerator aggifyCodeGenerator(config);
+  aggifyCodeGenerator.run(function, cursorLoopJson);
+
+
+
+  // restore the function back to original 
+  function.popState();
+  // udf_todo: replace the cursor loop with custom aggregate
+  newBlock->addInstruction(
+      Make<BranchInst>(constructCFG(function, statements, continuations)));                                    
+  return newBlock;                                    
+}
+
 BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
                                    const Continuations &continuations) {
   if (statements.empty()) {
@@ -251,8 +275,13 @@ BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
                             statements, continuations);
   }
 
+  if (statement.contains("PLpgSQL_stmt_fors")) {
+    return constructCursorLoopCFG(statement["PLpgSQL_stmt_fors"], function,
+                                  statements, continuations);
+  }
+
   // We don't have an assignment so we are starting a new basic block
-  ERROR(fmt::format("Unknown statement type: {}", statement));
+  ERROR(fmt::format("Unknown statement type: {}", statement.dump()));
   return nullptr;
 }
 
@@ -267,6 +296,21 @@ List<json> Compiler::getJsonList(const json &body) {
   }
   return res;
 };
+
+void Compiler::buildCursorLoopCFG(Function &function, const json &ast){
+  const auto &body = ast["body"];
+  auto *entryBlock = function.makeBasicBlock("entry");
+  auto *functionExitBlock = function.makeBasicBlock("exit");
+
+  // Get the statements from the body
+  auto statements = getJsonList(body);
+
+  // Connect "entry" block to initial block
+  auto initialContinuations =
+      Continuations(functionExitBlock, nullptr, nullptr, functionExitBlock);
+  entryBlock->addInstruction(Make<BranchInst>(
+      constructCFG(function, statements, initialContinuations)));
+}
 
 void Compiler::buildCFG(Function &function, const json &ast) {
   const auto &body =
@@ -350,6 +394,7 @@ void Function::mergeBasicBlocks() {
 void Compiler::run(std::string &code, std::string &registration) {
 
   auto asts = parseJson();
+  cout<<asts<<endl;
   auto functions = getFunctions();
 
   auto header = "PLpgSQL_function";
@@ -368,9 +413,10 @@ void Compiler::run(std::string &code, std::string &registration) {
     bool readingArguments = true;
 
     for (const auto &datum : datums) {
-
-      ASSERT(datum.contains("PLpgSQL_var"),
-             "Datum does not contain PLpgSQL_var.");
+      if(!datum.contains("PLpgSQL_var"))
+        continue; // one case is when there is a cursor loop, so it will be PLpgSQL_row
+      // ASSERT(datum.contains("PLpgSQL_var"),
+      //        "Datum does not contain PLpgSQL_var.");
       auto variable = datum["PLpgSQL_var"];
       std::string variableName = variable["refname"];
       if (variableName == "found") {
@@ -418,12 +464,10 @@ void Compiler::run(std::string &code, std::string &registration) {
     // 2. Delete Yuchen's code
     // 3. Aggify
 
-    for (const auto &function : functions) {
-      std::cout << function << std::endl;
-      auto res = generateCode(function);
-      code += res[0] + "\n";
-      registration += res[1] + "\n";
-    }
+    std::cout << function << std::endl;
+    auto res = generateCode(function);
+    code += res[0] + "\n";
+    registration += res[1] + "\n";
   }
 }
 
@@ -657,6 +701,10 @@ std::string Compiler::resolveTypeName(const std::string &type) const {
  * Initialize a CFGCodeGenerator and run it through the function
 */
 std::vector<std::string> Compiler::generateCode(const Function &func){
-  CFGCodeGenerator codeGenerator(connection);
-  return codeGenerator.run(func);
+  
+  // AggifyCodeGenerator aggifyCodeGenerator(config, );
+
+  CFGCodeGenerator codeGenerator(config, connection);
+  auto res = codeGenerator.run(func);
+  return res;
 }

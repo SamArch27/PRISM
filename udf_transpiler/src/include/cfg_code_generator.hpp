@@ -40,12 +40,12 @@ public:
 class CFGCodeGenerator {
 private:
     CodeContainer2 container;
-    YAMLConfig config;
+    const YAMLConfig &config;
     // need a connection to DuckDB to get the query plans
     duckdb::Connection *connection;
 public:
-    CFGCodeGenerator(duckdb::Connection *connection)
-        : connection(connection){
+    CFGCodeGenerator(const YAMLConfig &_config, duckdb::Connection *_connection)
+        : config(_config), connection(_connection){
         };
     void basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenInfo &function_info);
     std::string extractVarFromChunk(const Function &func);
