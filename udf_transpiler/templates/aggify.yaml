@@ -1,0 +1,145 @@
+c1: |-
+  class TYPE{i}, 
+
+c2: |-
+  const TYPE{i} *__restrict data{i}, 
+
+c3: |-
+  const SelectionVector &sel{i}, 
+
+c4: |-
+  ValidityMask &validity{i}, 
+
+c5: |-
+  !validity{i}.AllValid() || 
+
+c6: |
+  idx_t idx{i} = sel{i}.get_index(i);
+
+c7: |-
+  validity{i}.RowIsValid(idx{i}) && 
+
+c8: |-
+  data{i}[idx{i}], 
+
+c9: |-
+  true, 
+
+c10: |-
+  validity{i}.RowIsValid(idx{i}), 
+
+c11: |-
+  Vector &vec{i}, 
+
+c12: |-
+  data{i}, 
+
+c13: |
+  vec{i}.ToUnifiedFormat(count, data{i});
+
+c14: 
+  UnifiedVectorFormat::GetData<TYPE{i}>(data{i}),  
+
+c15: |-
+  *data{i}.sel, 
+
+c16: |-
+  data{i}.validity, 
+
+c17: |-
+  inputs[{i}], 
+
+c18: |-
+  TYPE{i}, 
+
+viableFuncTemplate: |
+  template <class STATE_TYPE, {c1}, class OP>
+  static inline void Viable{id}ScatterLoop(AggregateInputData &aggr_input_data, {c2},
+                                        STATE_TYPE **__restrict states, idx_t count,
+                                        {c3}, const SelectionVector &ssel,
+                                        {c4}) {{
+    if (OP::IgnoreNull() && ({c5})) {{
+      for (idx_t i = 0; i < count; i++) {{
+        {c6}
+        auto sidx = ssel.get_index(i);
+        if ({c7}) {{
+          OP::template Operation<{c18}, STATE_TYPE, OP>(*states[sidx], {c8}, {c9});
+        }}
+      }}
+    }} else {{
+      for (idx_t i = 0; i < count; i++) {{
+        {c6}
+        auto sidx = ssel.get_index(i);
+        OP::template Operation<{c18}, STATE_TYPE, OP>(*states[sidx], {c8}, {c10});
+      }}
+    }}
+  }}
+  template <class STATE_TYPE, {c1}, class OP>
+  static void Viable{id}Scatter(AggregateInputData &aggr_input_data, {c11}, Vector &states,
+                             idx_t count) {{
+    UnifiedVectorFormat {c12}, sdata;
+
+    {c13}
+    states.ToUnifiedFormat(count, sdata);
+
+    ViableScatterLoop<STATE_TYPE, {c18}, OP>(
+        aggr_input_data, {c14}, (STATE_TYPE **)sdata.data, count, {c15}, *sdata.sel, {c16});
+  }}
+
+  template <class STATE_TYPE, {c1}, class OP>
+  static inline void Viable{id}ScatterUpdate(Vector inputs[], AggregateInputData &aggr_input_data, idx_t input_count,
+                                          Vector &states, idx_t count) {{
+    D_ASSERT(input_count == 3);
+    ViableScatter<STATE_TYPE, {c18}, OP>(aggr_input_data, {c17}, states, count);
+  }}
+
+stateDefition: |
+  {type} {name};
+
+operationArg: |-
+  const TYPE{i} &{name}, 
+
+operationNullArg: |-
+  bool {name}_isnull, 
+
+varInit: |
+  state.{name} = {name};
+
+customAggregateTemplate: |
+  struct AggState{id}
+  {{
+    bool isInitialized;
+    // int32_t count;
+    {stateDefition}
+  }};
+
+  struct CustomAggOperation{id}
+  {{
+    template <class STATE>
+    static void Initialize(STATE &state)
+    {{
+      state.isInitialized = false;
+    }}
+
+    template <{c1}, class STATE, class OP>
+    static void Operation(STATE &state, {operationArgs}, {operationNullArgs})
+    {{
+      if(state.isInitialized == false){{
+        state.isInitialized = true;
+        {varInit}
+      }}
+      {body}
+    }}
+
+    template <class TARGET_TYPE, class STATE>
+    static void Finalize(STATE &state, TARGET_TYPE &target, AggregateFinalizeData &finalize_data)
+    {{
+      // todo
+      // target = state.count;
+    }}
+
+    static bool IgnoreNull()
+    {{
+      return false;
+    }}
+  }};

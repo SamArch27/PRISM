@@ -122,5 +122,6 @@ update:
 
 run:
 	./build/release/duckdb -unsigned
+	
 
 

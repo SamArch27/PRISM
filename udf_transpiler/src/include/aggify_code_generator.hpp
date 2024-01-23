@@ -9,19 +9,19 @@
 #include "utils.hpp"
 #include "cfg.hpp"
 #include "types.hpp"
+#include "cfg_code_generator.hpp"
 using namespace std;
 using json = nlohmann::json;
 
-class AggifyCodeGenerator {
+class AggifyCodeGenerator : public CFGCodeGenerator{
 private:
-    const YAMLConfig &config;
+    // const YAMLConfig &config;
     // const json &ast;
     // const Function &func;
 public:
-    vector<string> code;
     AggifyCodeGenerator(const YAMLConfig &_config)
-        : config(_config) { 
+        : CFGCodeGenerator(_config){
     }
 
-    vector<string> run(const Function &func, const json &ast);
+    vector<string> run(const Function &func, const json &ast, size_t id);
 };

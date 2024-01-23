@@ -389,6 +389,14 @@ public:
     states.pop_back();
   }
 
+  void addCustomAgg(const string &agg){
+    custom_aggs.push_back(agg);
+  }
+
+  const vector<string> &getCustomAggs() const{
+    return custom_aggs;
+  }
+
 private:
   class CompilationState{
   public:
@@ -412,7 +420,7 @@ private:
   VecOwn<Assignment> declarations;
   Map<std::string, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
-  
+  vector<string> custom_aggs;
 };
 
 /**

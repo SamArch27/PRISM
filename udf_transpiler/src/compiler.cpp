@@ -216,9 +216,8 @@ BasicBlock *Compiler::constructCursorLoopCFG(const json &cursorLoopJson,
   function.mergeBasicBlocks();
   // function.print(std::cout); 
   AggifyCodeGenerator aggifyCodeGenerator(config);
-  aggifyCodeGenerator.run(function, cursorLoopJson);
-
-
+  auto res = aggifyCodeGenerator.run(function, cursorLoopJson, function.getCustomAggs().size());
+  function.addCustomAgg(res[0]);
 
   // restore the function back to original 
   function.popState();
@@ -704,7 +703,7 @@ std::vector<std::string> Compiler::generateCode(const Function &func){
   
   // AggifyCodeGenerator aggifyCodeGenerator(config, );
 
-  CFGCodeGenerator codeGenerator(config, connection);
+  CFGCodeGenerator codeGenerator(config);
   auto res = codeGenerator.run(func);
   return res;
 }
