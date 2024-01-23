@@ -37,8 +37,8 @@ c12: |-
 c13: |
   vec{i}.ToUnifiedFormat(count, data{i});
 
-c14: 
-  UnifiedVectorFormat::GetData<TYPE{i}>(data{i}),  
+c14: |-
+  UnifiedVectorFormat::GetData<TYPE{i}>(data{i}), 
 
 c15: |-
   *data{i}.sel, 
@@ -52,9 +52,16 @@ c17: |-
 c18: |-
   TYPE{i}, 
 
-viableFuncTemplate: |
+c19: |-
+  const LogicalType &input_type{i}, 
+
+c20: |-
+  input_type{i}, 
+
+
+varyingFuncTemplate: |
   template <class STATE_TYPE, {c1}, class OP>
-  static inline void Viable{id}ScatterLoop(AggregateInputData &aggr_input_data, {c2},
+  static inline void Varying{id}ScatterLoop(AggregateInputData &aggr_input_data, {c2},
                                         STATE_TYPE **__restrict states, idx_t count,
                                         {c3}, const SelectionVector &ssel,
                                         {c4}) {{
@@ -75,22 +82,34 @@ viableFuncTemplate: |
     }}
   }}
   template <class STATE_TYPE, {c1}, class OP>
-  static void Viable{id}Scatter(AggregateInputData &aggr_input_data, {c11}, Vector &states,
+  static void Varying{id}Scatter(AggregateInputData &aggr_input_data, {c11}, Vector &states,
                              idx_t count) {{
     UnifiedVectorFormat {c12}, sdata;
 
     {c13}
     states.ToUnifiedFormat(count, sdata);
 
-    ViableScatterLoop<STATE_TYPE, {c18}, OP>(
+    Varying{id}ScatterLoop<STATE_TYPE, {c18}, OP>(
         aggr_input_data, {c14}, (STATE_TYPE **)sdata.data, count, {c15}, *sdata.sel, {c16});
   }}
 
   template <class STATE_TYPE, {c1}, class OP>
-  static inline void Viable{id}ScatterUpdate(Vector inputs[], AggregateInputData &aggr_input_data, idx_t input_count,
+  static inline void Varying{id}ScatterUpdate(Vector inputs[], AggregateInputData &aggr_input_data, idx_t input_count,
                                           Vector &states, idx_t count) {{
     D_ASSERT(input_count == 3);
-    ViableScatter<STATE_TYPE, {c18}, OP>(aggr_input_data, {c17}, states, count);
+    Varying{id}Scatter<STATE_TYPE, {c18}, OP>(aggr_input_data, {c17}, states, count);
+  }}
+
+  template <class STATE, {c1}, class RESULT_TYPE, class OP>
+  AggregateFunction
+  Varying{id}BaseAggregate({c19}, LogicalType return_type,
+             FunctionNullHandling null_handling = FunctionNullHandling::DEFAULT_NULL_HANDLING)
+  {{
+    return AggregateFunction(
+      {{{c20}}}, return_type, AggregateFunction::StateSize<STATE>,
+      AggregateFunction::StateInitialize<STATE, OP>, Varying{id}ScatterUpdate<STATE, {c18}, OP>,
+      nullptr, AggregateFunction::StateFinalize<STATE, RESULT_TYPE, OP>,
+      null_handling, nullptr);
   }}
 
 stateDefition: |
@@ -143,3 +162,14 @@ customAggregateTemplate: |
       return false;
     }}
   }};
+  
+inputType: |-
+  {type}, 
+
+inputLogicalType: |-
+  {type}, 
+
+registration: |
+  auto custom_agg{id} = Varying{id}BaseAggregate<AggState{id}, {inputTypes}, {outputType}, CustomAggOperation{id}>({inputLogicalTypes}, {outputLogicalType}, FunctionNullHandling::SPECIAL_HANDLING);
+  custom_agg{id}.name = "custom_agg{id}";
+  ExtensionUtil::RegisterFunction(instance, custom_agg{id});

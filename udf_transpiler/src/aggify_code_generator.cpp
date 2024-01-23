@@ -14,9 +14,10 @@ vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast, s
     // except for cursor variables, assume now that all others variables are used in cursor loop
     
     string code;
-    string viableFuncTemplate = config.aggify["viableFuncTemplate"].Scalar();
-    string c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18;
+    string varyingFuncTemplate = config.aggify["varyingFuncTemplate"].Scalar();
+    string c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20;
     string stateDefition, operationArgs, operationNullArgs, varInit;
+    string inputTypes, inputLogicalTypes;
     size_t count = 0;
     size_t stateVarCount = 0;
     const auto &allBindings = func.getAllBindings();
@@ -58,19 +59,35 @@ vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast, s
 
         c18 += fmt::format(fmt::runtime(config.aggify["c18"].Scalar()),
                         fmt::arg("i", count));
+        
+        c19 += fmt::format(fmt::runtime(config.aggify["c19"].Scalar()),
+                        fmt::arg("i", count));
+
+        c20 += fmt::format(fmt::runtime(config.aggify["c20"].Scalar()),
+                        fmt::arg("i", count));
+
+        operationArgs += fmt::format(fmt::runtime(config.aggify["operationArg"].Scalar()),
+                        fmt::arg("i", count), 
+                        fmt::arg("name", p.first));
+
+        operationNullArgs += fmt::format(fmt::runtime(config.aggify["operationNullArg"].Scalar()),
+                    fmt::arg("i", count), 
+                    fmt::arg("name", p.first));
+        
+
+        inputTypes += fmt::format(fmt::runtime(config.aggify["inputType"].Scalar()),
+                    fmt::arg("i", count), 
+                    fmt::arg("type", p.second->getType()->getCppType()));
+                
+
+        inputLogicalTypes += fmt::format(fmt::runtime(config.aggify["inputLogicalType"].Scalar()),
+                    fmt::arg("i", count), 
+                    fmt::arg("type", p.second->getType()->getDuckDBLogicalType()));
 
         if(cursorVars.count(p.first) == 0){
             // is state variable
             stateDefition += fmt::format(fmt::runtime(config.aggify["stateDefition"].Scalar()),
                         fmt::arg("type", p.second->getType()->getCppType()), 
-                        fmt::arg("name", p.first));
-            
-            operationArgs += fmt::format(fmt::runtime(config.aggify["operationArg"].Scalar()),
-                        fmt::arg("i", stateVarCount), 
-                        fmt::arg("name", p.first));
-
-            operationNullArgs += fmt::format(fmt::runtime(config.aggify["operationNullArg"].Scalar()),
-                        fmt::arg("i", stateVarCount), 
                         fmt::arg("name", p.first));
 
             varInit += fmt::format(fmt::runtime(config.aggify["varInit"].Scalar()),
@@ -97,9 +114,14 @@ vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast, s
     c16 = c16.substr(0, c16.size()-2);
     c17 = c17.substr(0, c17.size()-2);
     c18 = c18.substr(0, c18.size()-2);
+    c19 = c19.substr(0, c19.size()-2);
+    c20 = c20.substr(0, c20.size()-2);
 
     operationArgs = operationArgs.substr(0, operationArgs.size()-2);
     operationNullArgs = operationNullArgs.substr(0, operationNullArgs.size()-2);
+
+    inputTypes = inputTypes.substr(0, inputTypes.size()-2);
+    inputLogicalTypes = inputLogicalTypes.substr(0, inputLogicalTypes.size()-2);
     
     // code gen the body
     CodeGenInfo function_info(func);
@@ -109,7 +131,7 @@ vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast, s
 
     string body = vec_join(container.basicBlockCodes, "\n");
 
-    code = fmt::format(fmt::runtime(viableFuncTemplate),
+    code = fmt::format(fmt::runtime(varyingFuncTemplate),
                         fmt::arg("id", id),
                         fmt::arg("c1", c1),
                         fmt::arg("c2", c2),
@@ -128,7 +150,9 @@ vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast, s
                         fmt::arg("c15", c15),
                         fmt::arg("c16", c16),
                         fmt::arg("c17", c17),
-                        fmt::arg("c18", c18));
+                        fmt::arg("c18", c18),
+                        fmt::arg("c19", c19),
+                        fmt::arg("c20", c20));
 
     code += fmt::format(fmt::runtime(config.aggify["customAggregateTemplate"].Scalar()),
                         fmt::arg("id", id),
@@ -139,6 +163,13 @@ vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast, s
                         fmt::arg("varInit", varInit),
                         fmt::arg("body", body));
     
+    string registration = fmt::format(fmt::runtime(config.aggify["registration"].Scalar()),
+                        fmt::arg("id", id),
+                        fmt::arg("inputTypes", inputTypes),
+                        fmt::arg("outputType", func.getReturnType()->getCppType()),
+                        fmt::arg("inputLogicalTypes", inputLogicalTypes),
+                        fmt::arg("outputLogicalType", func.getReturnType()->getDuckDBLogicalType()));
+    
     cout<<code<<endl;
-    return {code};
+    return {code, registration};
 }

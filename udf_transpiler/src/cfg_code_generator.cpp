@@ -210,5 +210,11 @@ vector<string> CFGCodeGenerator::run(const Function &func) {
     std::cout<<container.body<<std::endl;
     std::cout<<container.main<<std::endl;
     std::cout<<container.registration<<std::endl;
-    return {vec_join(func.getCustomAggs(), "\n") + container.body + "\n" + container.main, container.registration};
+    string customAggs;
+    string customAggsReg;
+    for(auto &agg : func.getCustomAggs()){
+        customAggs += agg[0] + "\n";
+        customAggsReg += agg[1] + "\n";
+    }
+    return {customAggs + container.body + "\n" + container.main, customAggsReg + container.registration};
 }

@@ -217,7 +217,7 @@ BasicBlock *Compiler::constructCursorLoopCFG(const json &cursorLoopJson,
   // function.print(std::cout); 
   AggifyCodeGenerator aggifyCodeGenerator(config);
   auto res = aggifyCodeGenerator.run(function, cursorLoopJson, function.getCustomAggs().size());
-  function.addCustomAgg(res[0]);
+  function.addCustomAgg(res);
 
   // restore the function back to original 
   function.popState();
