@@ -6,6 +6,7 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/cast/cast_function_set.hpp"
 #include "duckdb/function/scalar_function.hpp"
+#include "duckdb/main/config.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/extension_util.hpp"
 #include "duckdb/main/relation/query_relation.hpp"
@@ -108,19 +109,35 @@ inline string Udaf_BuilderPragmaFun(ClientContext &context,
 
 inline string LOCodeGenPragmaFun(ClientContext &_context,
                                    const FunctionParameters &parameters){
-  auto sql = parameters.values[0].GetValue<string>();   
+  auto sql = parameters.values[0].GetValue<string>();  
+  auto enable_optimizer = parameters.values[1].GetValue<bool>(); 
   LogicalOperatorCodeGenerator locg;
   // CodeGenInfo insert;
   Connection con(*db_instance);
   auto context = con.context.get();
   // bool mem = context->config.enable_optimizer;
-  context->config.enable_optimizer = false;
+  context->config.enable_optimizer = enable_optimizer;
+  // if(enable_optimizer) context->config.disableStatisticsPropagation = true;
+  auto &config = DBConfig::GetConfig(*context);
+  std::set<OptimizerType> disable_optimizers_should_delete;
+
+  if(enable_optimizer){
+    if(config.options.disabled_optimizers.count(OptimizerType::STATISTICS_PROPAGATION) == 0)
+      disable_optimizers_should_delete.insert(OptimizerType::STATISTICS_PROPAGATION);
+    config.options.disabled_optimizers.insert(OptimizerType::STATISTICS_PROPAGATION);
+  }
+
   try{
     auto plan = context->ExtractPlan(sql);
     locg.VisitOperator(*plan);
+    for(auto &type : disable_optimizers_should_delete){
+      config.options.disabled_optimizers.erase(type);
+    }
   }
   catch (Exception &e){
-    // context->config.enable_optimizer = mem;
+    for(auto &type : disable_optimizers_should_delete){
+      config.options.disabled_optimizers.erase(type);
+    }
     EXCEPTION(e.what());
     return "select '" + e.GetStackTrace(5) + "' as 'Partial Evaluation Failed.';";
   }
@@ -150,7 +167,7 @@ static void LoadInternal(DatabaseInstance &instance) {
       PragmaFunction::PragmaCall("build_agg", Udaf_BuilderPragmaFun, {});
   ExtensionUtil::RegisterFunction(instance, udaf_builder_pragma_function);
   auto lo_codegen_pragma_function =
-      PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun, {LogicalType::VARCHAR});
+      PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun, {LogicalType::VARCHAR, LogicalType::INTEGER});
   ExtensionUtil::RegisterFunction(instance, lo_codegen_pragma_function);
   // auto itos_scalar_function = ScalarFunction("itos", {LogicalType::INTEGER},
   // 													 LogicalType::VARCHAR,
