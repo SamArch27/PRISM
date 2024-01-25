@@ -316,7 +316,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
                                         CodeGenInfo &insert) {
   if (exp.value.type().IsNumeric() or
       exp.value.type() == LogicalType::BOOLEAN) {
-    return exp.value.ToString();
+    return fmt::format("({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type), exp.value.ToString());
   }
   return fmt::format("\"{}\"", exp.value.ToString());
 }

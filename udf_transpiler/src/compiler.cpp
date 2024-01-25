@@ -8,6 +8,8 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include "duckdb/main/config.hpp"
+#include "duckdb/main/connection.hpp"
 
 std::ostream &operator<<(std::ostream &os, const Expression &expr) {
   ExpressionPrinter printer(os);
@@ -516,17 +518,30 @@ Own<Expression> Compiler::bindExpression(const Function &function,
   }
 
   auto connectionContext = connection->context.get();
-  connectionContext->config.enable_optimizer = false;
+  connectionContext->config.enable_optimizer = true;
+  // connectionContext->config.disableStatisticsPropagation = true;
+  auto &config = duckdb::DBConfig::GetConfig(*connectionContext);
+  std::set<duckdb::OptimizerType> disable_optimizers_should_delete;
 
+  if(config.options.disabled_optimizers.count(duckdb::OptimizerType::STATISTICS_PROPAGATION) == 0)
+    disable_optimizers_should_delete.insert(duckdb::OptimizerType::STATISTICS_PROPAGATION);
+  config.options.disabled_optimizers.insert(duckdb::OptimizerType::STATISTICS_PROPAGATION);
+  
   // SELECT <expr> FROM tmp
   duckdb::unique_ptr<duckdb::LogicalOperator> boundExpression;
   try
   {
     boundExpression =
       connectionContext->ExtractPlan(selectExpressionCommand);
+    for(auto &type : disable_optimizers_should_delete){
+      config.options.disabled_optimizers.erase(type);
+    }
   }
   catch(const std::exception& e)
   {
+    for(auto &type : disable_optimizers_should_delete){
+      config.options.disabled_optimizers.erase(type);
+    }
     connection->Query(dropTableCommand);
     EXCEPTION(e.what());
     return nullptr;
