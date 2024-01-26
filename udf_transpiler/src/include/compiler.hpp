@@ -34,13 +34,20 @@ struct Continuations {
   BasicBlock *functionExit;
 };
 
+struct CompilationResult{
+  bool success;
+  // stdstd::vector<std::string>> result;
+  std::string code;
+  std::string registration;
+};
+
 class Compiler {
 public:
   using WidthScale = std::pair<int, int>;
   using StringPair = std::pair<std::string, std::string>;
 
-  Compiler(duckdb::Connection *connection, const std::string &programText)
-      : connection(connection), programText(programText) {}
+  Compiler(duckdb::Connection *connection, const std::string &programText, size_t &_udf_count)
+      : connection(connection), programText(programText), udf_count(_udf_count) {}
 
   void buildCursorLoopCFG(Function &function, const json &ast);
   void buildCFG(Function &function, const json &ast);
@@ -90,7 +97,7 @@ public:
 
   BasicBlock *constructCFG(Function &function, List<json> &statements,
                            const Continuations &continuations);
-  void run(std::string &code, std::string &registration);
+  CompilationResult run();
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;
@@ -102,6 +109,7 @@ public:
   static constexpr char ASSIGNMENT_PATTERN[] = "\\:?\\=";
 
 private:
+  size_t &udf_count;
   json parseJson() const;
   std::string getJsonExpr(const json &json);
   List<json> getJsonList(const json &body);

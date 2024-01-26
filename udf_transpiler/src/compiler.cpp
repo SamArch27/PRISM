@@ -10,6 +10,7 @@
 #include <utility>
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
+#include "file.hpp"
 
 std::ostream &operator<<(std::ostream &os, const Expression &expr) {
   ExpressionPrinter printer(os);
@@ -219,7 +220,15 @@ BasicBlock *Compiler::constructCursorLoopCFG(const json &cursorLoopJson,
   // function.print(std::cout); 
   AggifyCodeGenerator aggifyCodeGenerator(config);
   auto res = aggifyCodeGenerator.run(function, cursorLoopJson, function.getCustomAggs().size());
-  function.addCustomAgg(res);
+  udf_count++;
+  insert_def_and_reg(res[0], res[1], udf_count);
+  // compile the template
+  std::cout << "Compiling the UDAF..." << std::endl;
+  compile_udf();
+  // load the compiled library
+  cout << "Installing and loading the UDAF..." << endl;
+  load_udf(*connection);
+  // function.addCustomAgg(res);
 
   // restore the function back to original 
   function.popState();
@@ -392,7 +401,7 @@ void Function::mergeBasicBlocks() {
   });
 }
 
-void Compiler::run(std::string &code, std::string &registration) {
+CompilationResult Compiler::run() {
 
   auto asts = parseJson();
   cout<<asts<<endl;
@@ -467,8 +476,7 @@ void Compiler::run(std::string &code, std::string &registration) {
 
     std::cout << function << std::endl;
     auto res = generateCode(function);
-    code += res[0] + "\n";
-    registration += res[1] + "\n";
+    return {true, res[0], res[1]};
   }
 }
 
