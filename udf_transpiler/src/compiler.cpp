@@ -422,6 +422,8 @@ CompilationResult Compiler::run() {
 
     bool readingArguments = true;
 
+    std::vector<std::pair<std::string, std::string>> pendingInitialization;
+
     for (const auto &datum : datums) {
       if(!datum.contains("PLpgSQL_var"))
         continue; // one case is when there is a cursor loop, so it will be PLpgSQL_row
@@ -461,13 +463,22 @@ CompilationResult Compiler::run() {
                 : varType->defaultValue(true);
         function.addVariable(variableName,
                              std::move(varType),
-                             bindExpression(function, defaultVal),
                              !variable.contains("default_val"));
+        pendingInitialization.emplace_back(variableName, defaultVal);
       }
+    }
+    
+    makeDuckDBContext(function);
+    
+    for(auto &init : pendingInitialization){
+      auto var = function.getBinding(init.first);
+      auto expr = bindExpression(function, init.second);
+      function.addVarInitialization(var, std::move(expr));
     }
 
     buildCFG(function, ast);
     function.mergeBasicBlocks();
+    destroyDuckDBContext();
 
     // TODO:
     // 1. Lower to C++
@@ -480,9 +491,18 @@ CompilationResult Compiler::run() {
   }
 }
 
-RHSBoundExpression Compiler::bindExpression(const Function &function,
-                                         const std::string &expression) {
+void Compiler::destroyDuckDBContext(){
+  std::string dropTableCommand = "DROP TABLE tmp;";
+  auto res = connection->Query(dropTableCommand);
+  if (res->HasError()) {
+    EXCEPTION(res->GetError());
+  }
+}
 
+/**
+ * create a 
+*/
+void Compiler::makeDuckDBContext(const Function &function){
   std::stringstream createTableString;
   createTableString << "CREATE TABLE tmp(";
   std::stringstream insertTableString;
@@ -510,8 +530,6 @@ RHSBoundExpression Compiler::bindExpression(const Function &function,
   // Create commands
   std::string createTableCommand = createTableString.str();
   std::string insertTableCommand = insertTableString.str() + insertTableSecondRow.str();
-  std::string selectExpressionCommand = "SELECT " + expression + " FROM tmp;";
-  std::string dropTableCommand = "DROP TABLE tmp;";
 
   // CREATE TABLE
   auto res = connection->Query(createTableCommand);
@@ -522,9 +540,15 @@ RHSBoundExpression Compiler::bindExpression(const Function &function,
   // INSERT (NULL,NULL,...)
   res = connection->Query(insertTableCommand);
   if (res->HasError()) {
+    destroyDuckDBContext();
     EXCEPTION(res->GetError());
   }
+}
 
+RHSBoundExpression Compiler::bindExpression(const Function &function,
+                                         const std::string &expression) {
+
+  std::string selectExpressionCommand = "SELECT " + expression + " FROM tmp;";                                        
   auto connectionContext = connection->context.get();
   connectionContext->config.enable_optimizer = true;
   // connectionContext->config.disableStatisticsPropagation = true;
@@ -550,12 +574,10 @@ RHSBoundExpression Compiler::bindExpression(const Function &function,
     for(auto &type : disable_optimizers_should_delete){
       config.options.disabled_optimizers.erase(type);
     }
-    connection->Query(dropTableCommand);
+    destroyDuckDBContext();
     EXCEPTION(e.what());
     // return nullptr;
   }
-  // DROP tmp
-  connection->Query(dropTableCommand);
   return {expression, std::move(boundExpression)};
 }
 

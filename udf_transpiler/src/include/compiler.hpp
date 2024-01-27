@@ -110,6 +110,8 @@ public:
 
 private:
   size_t &udf_count;
+  void makeDuckDBContext(const Function &function);
+  void destroyDuckDBContext();
   json parseJson() const;
   std::string getJsonExpr(const json &json);
   List<json> getJsonList(const json &body);

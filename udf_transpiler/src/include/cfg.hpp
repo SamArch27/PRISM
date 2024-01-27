@@ -258,12 +258,17 @@ public:
   }
 
   void addVariable(const std::string &name, Own<Type>&& type,
-                   RHSBoundExpression expr, bool isNULL) {
+                   bool isNULL) {
     auto var = Make<Variable>(name, std::move(type), isNULL);
     variables.emplace_back(std::move(var));
     bindings.emplace(name, variables.back().get());
 
-    auto assignment = Make<Assignment>(variables.back().get(), std::move(expr));
+    // auto assignment = Make<Assignment>(variables.back().get(), std::move(expr));
+    // declarations.emplace_back(std::move(assignment));
+  }
+
+  void addVarInitialization(const Variable *var, RHSBoundExpression expr){
+    auto assignment = Make<Assignment>(var, std::move(expr));
     declarations.emplace_back(std::move(assignment));
   }
 
