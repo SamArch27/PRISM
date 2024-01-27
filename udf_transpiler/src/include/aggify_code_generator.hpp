@@ -13,6 +13,9 @@
 using namespace std;
 using json = nlohmann::json;
 
+/**
+ * It should be able to register the custom aggregate to DuckDB
+*/
 class AggifyCodeGenerator : public CFGCodeGenerator{
 private:
     // const YAMLConfig &config;

@@ -115,7 +115,7 @@ private:
   List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
 
-  Own<Expression> bindExpression(const Function &function,
+  RHSBoundExpression bindExpression(const Function &function,
                                  const std::string &expression);
   static StringPair unpackAssignment(const string &assignment);
   static Opt<WidthScale> getDecimalWidthScale(const std::string &type);

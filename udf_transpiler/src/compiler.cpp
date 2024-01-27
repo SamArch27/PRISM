@@ -480,7 +480,7 @@ CompilationResult Compiler::run() {
   }
 }
 
-Own<Expression> Compiler::bindExpression(const Function &function,
+RHSBoundExpression Compiler::bindExpression(const Function &function,
                                          const std::string &expression) {
 
   std::stringstream createTableString;
@@ -552,11 +552,11 @@ Own<Expression> Compiler::bindExpression(const Function &function,
     }
     connection->Query(dropTableCommand);
     EXCEPTION(e.what());
-    return nullptr;
+    // return nullptr;
   }
   // DROP tmp
   connection->Query(dropTableCommand);
-  return std::move(boundExpression);
+  return {expression, std::move(boundExpression)};
 }
 
 json Compiler::parseJson() const {
