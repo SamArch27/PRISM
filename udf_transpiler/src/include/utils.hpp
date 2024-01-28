@@ -20,7 +20,7 @@ using namespace std;
     if (!(condition)) {                                                        \
       std::cout << "Assertion `" #condition "` failed in " << __FILE__         \
                 << " line " << __LINE__ << ": " << message << std::endl;       \
-      throw exception();                                                       \
+      std::terminate();                                                       \
     }                                                                          \
   } while (false)
 

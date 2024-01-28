@@ -11,6 +11,7 @@
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
 #include "file.hpp"
+#include "used_variable_finder.hpp"
 
 std::ostream &operator<<(std::ostream &os, const Expression &expr) {
   ExpressionPrinter printer(os);
@@ -37,6 +38,11 @@ BasicBlock *Compiler::constructReturnCFG(const json &returnJson,
                                          Function &function,
                                          List<json> &statements,
                                          const Continuations &continuations) {
+  if(!returnJson.contains("expr")){
+    destroyDuckDBContext();
+    EXCEPTION("There is a path without return value.");
+    return nullptr;
+  }
   auto newBlock = function.makeBasicBlock();
   std::string ret = getJsonExpr(returnJson["expr"]);
   newBlock->addInstruction(Make<ReturnInst>(bindExpression(function, ret),
@@ -545,10 +551,19 @@ void Compiler::makeDuckDBContext(const Function &function){
   }
 }
 
-RHSBoundExpression Compiler::bindExpression(const Function &function,
-                                         const std::string &expression) {
-
-  std::string selectExpressionCommand = "SELECT " + expression + " FROM tmp;";                                        
+CompilerExpression Compiler::bindExpression(const Function &function,
+                                         const std::string &expr) {
+  std::string selectExpressionCommand;
+  std::string expression = toUpper(expr);
+  if(expression.find("SELECT") == std::string::npos)                                        
+    selectExpressionCommand = "SELECT " + expression + " FROM tmp;";                                        
+  else{
+    // insert tmp to the from clause
+    auto fromPos = expression.find(" FROM ");
+    selectExpressionCommand = expression.insert(fromPos + 6, " tmp, ");
+    // selectExpressionCommand = 
+  }
+  // cout<<"selectExpressionCommand: "<<selectExpressionCommand<<endl;
   auto connectionContext = connection->context.get();
   connectionContext->config.enable_optimizer = true;
   // connectionContext->config.disableStatisticsPropagation = true;
@@ -561,10 +576,11 @@ RHSBoundExpression Compiler::bindExpression(const Function &function,
   
   // SELECT <expr> FROM tmp
   duckdb::unique_ptr<duckdb::LogicalOperator> boundExpression;
+  shared_ptr<duckdb::Binder> plannerBinder;
   try
   {
     boundExpression =
-      connectionContext->ExtractPlan(selectExpressionCommand);
+      connectionContext->ExtractPlan(selectExpressionCommand, true, plannerBinder);
     for(auto &type : disable_optimizers_should_delete){
       config.options.disabled_optimizers.erase(type);
     }
@@ -578,7 +594,11 @@ RHSBoundExpression Compiler::bindExpression(const Function &function,
     EXCEPTION(e.what());
     // return nullptr;
   }
-  return {expression, std::move(boundExpression)};
+  
+  duckdb::UsedVariableFinder usedVariableFinder("tmp", plannerBinder);
+  usedVariableFinder.VisitOperator(*boundExpression);
+  // cout<<"used variables: "<<vec_join(usedVariableFinder.usedVariables, ", ")<<endl;
+  return {expression, std::move(boundExpression), usedVariableFinder.usedVariables};
 }
 
 json Compiler::parseJson() const {

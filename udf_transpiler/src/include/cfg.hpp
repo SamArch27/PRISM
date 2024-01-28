@@ -26,10 +26,11 @@ using Expression = duckdb::LogicalOperator;
 
 std::ostream &operator<<(std::ostream &os, const Expression &expr);
 
-struct RHSBoundExpression{
+struct CompilerExpression{
 public:
   std::string rawSQL;
   Own<Expression> logicalOperator;
+  vector<string> usedVariables;
 };
 
 
@@ -73,10 +74,11 @@ protected:
 
 class Assignment : public Instruction {
 public:
-  Assignment(const Variable *var, RHSBoundExpression expr)
+  Assignment(const Variable *var, CompilerExpression expr)
       : Instruction(), var(var), expr(std::move(expr)) {}
 
   const Variable *getVar() const { return var; }
+  const CompilerExpression &getCompilerExpr() const { return expr; }
   const Expression *getExpr() const { return expr.logicalOperator.get(); }
   friend std::ostream &operator<<(std::ostream &os,
                                   const Assignment &assignment) {
@@ -91,7 +93,7 @@ protected:
 
 private:
   const Variable *var;
-  RHSBoundExpression expr;
+  CompilerExpression expr;
 };
 
 class BasicBlock {
@@ -144,7 +146,7 @@ private:
 
 class ReturnInst : public Instruction {
 public:
-  ReturnInst(RHSBoundExpression expr, BasicBlock *exitBlock)
+  ReturnInst(CompilerExpression expr, BasicBlock *exitBlock)
       : Instruction(), expr(std::move(expr)), exitBlock(exitBlock) {}
   friend std::ostream &operator<<(std::ostream &os,
                                   const ReturnInst &returnInst) {
@@ -162,13 +164,13 @@ protected:
   }
 
 private:
-  RHSBoundExpression expr;
+  CompilerExpression expr;
   BasicBlock *exitBlock;
 };
 
 class BranchInst : public Instruction {
 public:
-  BranchInst(BasicBlock *ifTrue, BasicBlock *ifFalse, RHSBoundExpression cond)
+  BranchInst(BasicBlock *ifTrue, BasicBlock *ifFalse, CompilerExpression cond)
       : Instruction(), ifTrue(ifTrue), ifFalse(ifFalse), cond(std::move(cond)),
         conditional(true) {}
   BranchInst(BasicBlock *ifTrue)
@@ -217,7 +219,7 @@ protected:
 private:
   BasicBlock *ifTrue;
   BasicBlock *ifFalse;
-  RHSBoundExpression cond;
+  CompilerExpression cond;
   bool conditional;
 };
 
@@ -267,7 +269,7 @@ public:
     // declarations.emplace_back(std::move(assignment));
   }
 
-  void addVarInitialization(const Variable *var, RHSBoundExpression expr){
+  void addVarInitialization(const Variable *var, CompilerExpression expr){
     auto assignment = Make<Assignment>(var, std::move(expr));
     declarations.emplace_back(std::move(assignment));
   }

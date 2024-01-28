@@ -1,14 +1,12 @@
 CREATE FUNCTION unsupported_func(cid integer) RETURNS VARCHAR AS $$
 DECLARE
-    users_rec RECORD;
+    users_rec int;
     full_name varchar;
 BEGIN
-    SELECT INTO users_rec * FROM users WHERE user_id=3;
-
-    IF users_rec.homepage IS NULL THEN
-        -- user entered no homepage, return "http://"
-
-        RETURN "http://";
+    users_rec := (SELECT catalog_name FROM temp.information_schema.schemata WHERE cid=catalog_name);
+    IF users_rec = 0 THEN
+        RETURN 'http://';
     END IF;
+    -- RETURN '';
 END;$$
 LANGUAGE PLPGSQL;
