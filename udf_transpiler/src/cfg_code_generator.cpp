@@ -47,6 +47,9 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb, const Function &f
         if(dynamic_cast<const Assignment *>(intr->get())){
             const Assignment *assign = dynamic_cast<const Assignment *>(intr->get());
             // code += fmt::format("{} = {};\n", assign->getLvalue(), assign->getRvalue());
+            if(toUpper(assign->getCompilerExpr().rawSQL).find(" FROM ") != string::npos){
+                ERROR("FROM clause should not be compiled.");
+            }
             duckdb::LogicalOperatorCodeGenerator locg;
             locg.VisitOperator((Expression &)*(assign->getExpr()), function_info);
             auto [header, res] = locg.getResult();
@@ -210,5 +213,11 @@ vector<string> CFGCodeGenerator::run(const Function &func) {
     std::cout<<container.body<<std::endl;
     std::cout<<container.main<<std::endl;
     std::cout<<container.registration<<std::endl;
+    // string customAggs;
+    // string customAggsReg;
+    // for(auto &agg : func.getCustomAggs()){
+    //     customAggs += agg[0] + "\n";
+    //     customAggsReg += agg[1] + "\n";
+    // }
     return {container.body + "\n" + container.main, container.registration};
 }

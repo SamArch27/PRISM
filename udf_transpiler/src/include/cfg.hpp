@@ -26,6 +26,14 @@ using Expression = duckdb::LogicalOperator;
 
 std::ostream &operator<<(std::ostream &os, const Expression &expr);
 
+struct CompilerExpression{
+public:
+  std::string rawSQL;
+  Own<Expression> logicalOperator;
+  vector<string> usedVariables;
+};
+
+
 class Variable {
 public:
   Variable(const std::string &name, Own<Type> type, bool _isNULL = true)
@@ -66,11 +74,12 @@ protected:
 
 class Assignment : public Instruction {
 public:
-  Assignment(const Variable *var, Own<Expression> expr)
+  Assignment(const Variable *var, CompilerExpression expr)
       : Instruction(), var(var), expr(std::move(expr)) {}
 
   const Variable *getVar() const { return var; }
-  const Expression *getExpr() const { return expr.get(); }
+  const CompilerExpression &getCompilerExpr() const { return expr; }
+  const Expression *getExpr() const { return expr.logicalOperator.get(); }
   friend std::ostream &operator<<(std::ostream &os,
                                   const Assignment &assignment) {
     assignment.print(os);
@@ -80,11 +89,11 @@ public:
   Vec<BasicBlock *> getSuccessors() const override { return {}; }
 
 protected:
-  void print(std::ostream &os) const override { os << *var << " = " << *expr; }
+  void print(std::ostream &os) const override { os << *var << " = " << *getExpr(); }
 
 private:
   const Variable *var;
-  Own<Expression> expr;
+  CompilerExpression expr;
 };
 
 class BasicBlock {
@@ -137,7 +146,7 @@ private:
 
 class ReturnInst : public Instruction {
 public:
-  ReturnInst(Own<Expression> expr, BasicBlock *exitBlock)
+  ReturnInst(CompilerExpression expr, BasicBlock *exitBlock)
       : Instruction(), expr(std::move(expr)), exitBlock(exitBlock) {}
   friend std::ostream &operator<<(std::ostream &os,
                                   const ReturnInst &returnInst) {
@@ -147,25 +156,25 @@ public:
 
   bool isTerminator() const override { return true; }
   Vec<BasicBlock *> getSuccessors() const override { return {exitBlock}; }
-  inline Expression *getExpr() const { return expr.get(); }
+  inline Expression *getExpr() const { return expr.logicalOperator.get(); }
 
 protected:
   void print(std::ostream &os) const override {
-    os << "RETURN " << *expr << ";";
+    os << "RETURN " << *getExpr() << ";";
   }
 
 private:
-  Own<Expression> expr;
+  CompilerExpression expr;
   BasicBlock *exitBlock;
 };
 
 class BranchInst : public Instruction {
 public:
-  BranchInst(BasicBlock *ifTrue, BasicBlock *ifFalse, Own<Expression> cond)
+  BranchInst(BasicBlock *ifTrue, BasicBlock *ifFalse, CompilerExpression cond)
       : Instruction(), ifTrue(ifTrue), ifFalse(ifFalse), cond(std::move(cond)),
         conditional(true) {}
   BranchInst(BasicBlock *ifTrue)
-      : Instruction(), ifTrue(ifTrue), ifFalse(nullptr), cond(nullptr),
+      : Instruction(), ifTrue(ifTrue), ifFalse(nullptr), cond({}),
         conditional(false) {}
 
   friend std::ostream &operator<<(std::ostream &os,
@@ -189,7 +198,7 @@ public:
 
   BasicBlock *getIfTrue() const { return ifTrue; }
   BasicBlock *getIfFalse() const { return ifFalse; }
-  Expression *getCond() const { return cond.get(); }
+  Expression *getCond() const { return cond.logicalOperator.get(); }
 
 protected:
   void print(std::ostream &os) const override {
@@ -200,7 +209,7 @@ protected:
     }
 
     if (conditional) {
-      os << *cond;
+      os << *getCond();
       os << " [" << ifTrue->getLabel() << "," << ifFalse->getLabel() << "]";
     } else {
       os << " [" << ifTrue->getLabel() << "] ";
@@ -210,8 +219,17 @@ protected:
 private:
   BasicBlock *ifTrue;
   BasicBlock *ifFalse;
-  Own<Expression> cond;
+  CompilerExpression cond;
   bool conditional;
+};
+
+class CursorLoop{
+public:
+    // the nth cursor loop
+    int id;
+    // cfg created by the compiler
+    VecOwn<BasicBlock> basicBlocks;
+    // more info
 };
 
 class Function {
@@ -242,12 +260,17 @@ public:
   }
 
   void addVariable(const std::string &name, Own<Type>&& type,
-                   Own<Expression> expr, bool isNULL) {
+                   bool isNULL) {
     auto var = Make<Variable>(name, std::move(type), isNULL);
     variables.emplace_back(std::move(var));
     bindings.emplace(name, variables.back().get());
 
-    auto assignment = Make<Assignment>(variables.back().get(), std::move(expr));
+    // auto assignment = Make<Assignment>(variables.back().get(), std::move(expr));
+    // declarations.emplace_back(std::move(assignment));
+  }
+
+  void addVarInitialization(const Variable *var, CompilerExpression expr){
+    auto assignment = Make<Assignment>(var, std::move(expr));
     declarations.emplace_back(std::move(assignment));
   }
 
@@ -325,6 +348,7 @@ public:
   }
 
   const VecOwn<BasicBlock> &getBasicBlocks() const { return basicBlocks; }
+  VecOwn<CursorLoop> cursorLoops;
 
 // protected:
   void print(std::ostream &os) const {
@@ -358,7 +382,50 @@ public:
     os << "}" << std::endl;
   }
 
+  void newState(){
+    states.emplace_back(labelNumber, basicBlocks);
+    basicBlocks.clear();
+    labelNumber = 0;
+  }
+
+  /**
+   * Clear the current state and restore the previous state in the stack
+  */
+  void popState(){
+    basicBlocks.clear();
+    auto &state = states.back();
+    labelNumber = state.labelNumber;
+    for(auto &bb : state.basicBlocks){
+      cout<<"Pushing: "<<*bb<<endl;
+      basicBlocks.push_back(std::move(bb));
+    }
+    // basicBlocks = state.basicBlocks;
+    states.pop_back();
+  }
+
+  void addCustomAgg(const vector<string> &agg){
+    custom_aggs.push_back(agg);
+  }
+
+  const vector<vector<string>> &getCustomAggs() const{
+    return custom_aggs;
+  }
+
 private:
+  class CompilationState{
+  public:
+    std::size_t labelNumber;
+    VecOwn<BasicBlock> basicBlocks;
+    // more things to memorize later
+    CompilationState(std::size_t _labelNumber, VecOwn<BasicBlock> &_basicBlocks)
+      : labelNumber(_labelNumber){
+        for(auto &bb : _basicBlocks){
+          cout<<"Pushing: "<<*bb<<endl;
+          this->basicBlocks.push_back(std::move(bb));
+        }
+      }
+  };
+  std::list<CompilationState> states;
   std::size_t labelNumber;
   std::string functionName;
   Own<Type> returnType;
@@ -367,6 +434,7 @@ private:
   VecOwn<Assignment> declarations;
   Map<std::string, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
+  vector<vector<string>> custom_aggs;
 };
 
 /**

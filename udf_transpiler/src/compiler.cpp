@@ -3,12 +3,17 @@
 #include "pg_query.h"
 #include "utils.hpp"
 #include "cfg_code_generator.hpp"
+#include "aggify_code_generator.hpp"
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <utility>
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
+#include "file.hpp"
+#include "used_variable_finder.hpp"
+#include "aggify_dfa.hpp"
+
 
 std::ostream &operator<<(std::ostream &os, const Expression &expr) {
   ExpressionPrinter printer(os);
@@ -35,6 +40,11 @@ BasicBlock *Compiler::constructReturnCFG(const json &returnJson,
                                          Function &function,
                                          List<json> &statements,
                                          const Continuations &continuations) {
+  if(!returnJson.contains("expr")){
+    destroyDuckDBContext();
+    EXCEPTION("There is a path without return value.");
+    return nullptr;
+  }
   auto newBlock = function.makeBasicBlock();
   std::string ret = getJsonExpr(returnJson["expr"]);
   newBlock->addInstruction(Make<ReturnInst>(bindExpression(function, ret),
@@ -206,6 +216,43 @@ BasicBlock *Compiler::constructExitCFG(const json &exitJson, Function &function,
   }
 }
 
+BasicBlock *Compiler::constructCursorLoopCFG(const json &cursorLoopJson,
+                                     Function &function,
+                                     List<json> &statements,
+                                     const Continuations &continuations){
+  auto newBlock = function.makeBasicBlock();
+  // CursorLoop cursorLoop(function.cursorLoops.size());
+  function.newState();
+  buildCursorLoopCFG(function, cursorLoopJson);
+  function.mergeBasicBlocks();
+
+  AggifyDFA aggifyDFA(function);
+
+  // function.print(std::cout); 
+  AggifyCodeGenerator aggifyCodeGenerator(config);
+  auto res = aggifyCodeGenerator.run(function, cursorLoopJson, aggifyDFA, function.getCustomAggs().size());
+  udf_count++;
+  insert_def_and_reg(res[0], res[1], udf_count);
+  // compile the template
+  std::cout << "Compiling the UDAF..." << std::endl;
+  compile_udf();
+  // load the compiled library
+  cout << "Installing and loading the UDAF..." << endl;
+  load_udf(*connection);
+  // function.addCustomAgg(res);
+
+  // restore the function back to original 
+  function.popState();
+
+  // udf_todo: replace the cursor loop with custom aggregate
+  std::string customAggCaller = res[2];
+  cout<<"customAggCaller: "<<customAggCaller<<endl;
+  newBlock->addInstruction(Make<Assignment>(aggifyDFA.getReturnVar(), bindExpression(function, customAggCaller)));
+  newBlock->addInstruction(
+      Make<BranchInst>(constructCFG(function, statements, continuations)));                                    
+  return newBlock;                                    
+}
+
 BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
                                    const Continuations &continuations) {
   if (statements.empty()) {
@@ -253,8 +300,13 @@ BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
                             statements, continuations);
   }
 
+  if (statement.contains("PLpgSQL_stmt_fors")) {
+    return constructCursorLoopCFG(statement["PLpgSQL_stmt_fors"], function,
+                                  statements, continuations);
+  }
+
   // We don't have an assignment so we are starting a new basic block
-  ERROR(fmt::format("Unknown statement type: {}", statement));
+  ERROR(fmt::format("Unknown statement type: {}", statement.dump()));
   return nullptr;
 }
 
@@ -269,6 +321,21 @@ List<json> Compiler::getJsonList(const json &body) {
   }
   return res;
 };
+
+void Compiler::buildCursorLoopCFG(Function &function, const json &ast){
+  const auto &body = ast["body"];
+  auto *entryBlock = function.makeBasicBlock("entry");
+  auto *functionExitBlock = function.makeBasicBlock("exit");
+
+  // Get the statements from the body
+  auto statements = getJsonList(body);
+
+  // Connect "entry" block to initial block
+  auto initialContinuations =
+      Continuations(functionExitBlock, nullptr, nullptr, functionExitBlock);
+  entryBlock->addInstruction(Make<BranchInst>(
+      constructCFG(function, statements, initialContinuations)));
+}
 
 void Compiler::buildCFG(Function &function, const json &ast) {
   const auto &body =
@@ -349,9 +416,10 @@ void Function::mergeBasicBlocks() {
   });
 }
 
-void Compiler::run(std::string &code, std::string &registration) {
+CompilationResult Compiler::run() {
 
   auto asts = parseJson();
+  cout<<asts<<endl;
   auto functions = getFunctions();
 
   auto header = "PLpgSQL_function";
@@ -369,10 +437,13 @@ void Compiler::run(std::string &code, std::string &registration) {
 
     bool readingArguments = true;
 
-    for (const auto &datum : datums) {
+    std::vector<std::pair<std::string, std::string>> pendingInitialization;
 
-      ASSERT(datum.contains("PLpgSQL_var"),
-             "Datum does not contain PLpgSQL_var.");
+    for (const auto &datum : datums) {
+      if(!datum.contains("PLpgSQL_var"))
+        continue; // one case is when there is a cursor loop, so it will be PLpgSQL_row
+      // ASSERT(datum.contains("PLpgSQL_var"),
+      //        "Datum does not contain PLpgSQL_var.");
       auto variable = datum["PLpgSQL_var"];
       std::string variableName = variable["refname"];
       if (variableName == "found") {
@@ -407,31 +478,46 @@ void Compiler::run(std::string &code, std::string &registration) {
                 : varType->defaultValue(true);
         function.addVariable(variableName,
                              std::move(varType),
-                             bindExpression(function, defaultVal),
                              !variable.contains("default_val"));
+        pendingInitialization.emplace_back(variableName, defaultVal);
       }
+    }
+    
+    makeDuckDBContext(function);
+    
+    for(auto &init : pendingInitialization){
+      auto var = function.getBinding(init.first);
+      auto expr = bindExpression(function, init.second);
+      function.addVarInitialization(var, std::move(expr));
     }
 
     buildCFG(function, ast);
     function.mergeBasicBlocks();
+    destroyDuckDBContext();
 
     // TODO:
     // 1. Lower to C++
     // 2. Delete Yuchen's code
     // 3. Aggify
 
-    for (const auto &function : functions) {
-      std::cout << function << std::endl;
-      auto res = generateCode(function);
-      code += res[0] + "\n";
-      registration += res[1] + "\n";
-    }
+    std::cout << function << std::endl;
+    auto res = generateCode(function);
+    return {true, res[0], res[1]};
   }
 }
 
-Own<Expression> Compiler::bindExpression(const Function &function,
-                                         const std::string &expression) {
+void Compiler::destroyDuckDBContext(){
+  std::string dropTableCommand = "DROP TABLE tmp;";
+  auto res = connection->Query(dropTableCommand);
+  if (res->HasError()) {
+    EXCEPTION(res->GetError());
+  }
+}
 
+/**
+ * create a 
+*/
+void Compiler::makeDuckDBContext(const Function &function){
   std::stringstream createTableString;
   createTableString << "CREATE TABLE tmp(";
   std::stringstream insertTableString;
@@ -459,8 +545,6 @@ Own<Expression> Compiler::bindExpression(const Function &function,
   // Create commands
   std::string createTableCommand = createTableString.str();
   std::string insertTableCommand = insertTableString.str() + insertTableSecondRow.str();
-  std::string selectExpressionCommand = "SELECT " + expression + " FROM tmp;";
-  std::string dropTableCommand = "DROP TABLE tmp;";
 
   // CREATE TABLE
   auto res = connection->Query(createTableCommand);
@@ -471,9 +555,24 @@ Own<Expression> Compiler::bindExpression(const Function &function,
   // INSERT (NULL,NULL,...)
   res = connection->Query(insertTableCommand);
   if (res->HasError()) {
+    destroyDuckDBContext();
     EXCEPTION(res->GetError());
   }
+}
 
+CompilerExpression Compiler::bindExpression(const Function &function,
+                                         const std::string &expr) {
+  std::string selectExpressionCommand;
+  std::string expression = toUpper(expr);
+  if(expression.find("SELECT") == std::string::npos)                                        
+    selectExpressionCommand = "SELECT " + expression + " FROM tmp;";                                        
+  else{
+    // insert tmp to the from clause
+    auto fromPos = expression.find(" FROM ");
+    selectExpressionCommand = expression.insert(fromPos + 6, " tmp, ");
+    // selectExpressionCommand = 
+  }
+  // cout<<"selectExpressionCommand: "<<selectExpressionCommand<<endl;
   auto connectionContext = connection->context.get();
   connectionContext->config.enable_optimizer = true;
   // connectionContext->config.disableStatisticsPropagation = true;
@@ -486,10 +585,12 @@ Own<Expression> Compiler::bindExpression(const Function &function,
   
   // SELECT <expr> FROM tmp
   duckdb::unique_ptr<duckdb::LogicalOperator> boundExpression;
+  shared_ptr<duckdb::Binder> plannerBinder;
   try
   {
     boundExpression =
-      connectionContext->ExtractPlan(selectExpressionCommand);
+      connectionContext->ExtractPlan(selectExpressionCommand, true, plannerBinder);
+
     for(auto &type : disable_optimizers_should_delete){
       config.options.disabled_optimizers.erase(type);
     }
@@ -499,13 +600,17 @@ Own<Expression> Compiler::bindExpression(const Function &function,
     for(auto &type : disable_optimizers_should_delete){
       config.options.disabled_optimizers.erase(type);
     }
-    connection->Query(dropTableCommand);
+
+    destroyDuckDBContext();
+
     EXCEPTION(e.what());
-    return nullptr;
+    // return nullptr;
   }
-  // DROP tmp
-  connection->Query(dropTableCommand);
-  return std::move(boundExpression);
+  
+  duckdb::UsedVariableFinder usedVariableFinder("tmp", plannerBinder);
+  usedVariableFinder.VisitOperator(*boundExpression);
+  // cout<<"used variables: "<<vec_join(usedVariableFinder.usedVariables, ", ")<<endl;
+  return {expression, std::move(boundExpression), usedVariableFinder.usedVariables};
 }
 
 json Compiler::parseJson() const {
@@ -672,6 +777,10 @@ std::string Compiler::resolveTypeName(const std::string &type) const {
  * Initialize a CFGCodeGenerator and run it through the function
 */
 std::vector<std::string> Compiler::generateCode(const Function &func){
-  CFGCodeGenerator codeGenerator(connection);
-  return codeGenerator.run(func);
+  
+  // AggifyCodeGenerator aggifyCodeGenerator(config, );
+
+  CFGCodeGenerator codeGenerator(config);
+  auto res = codeGenerator.run(func);
+  return res;
 }

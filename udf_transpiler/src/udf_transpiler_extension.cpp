@@ -26,7 +26,7 @@
 
 namespace duckdb {
 duckdb::DuckDB *db_instance;
-int udf_count = 0;
+size_t udf_count = 0;
 
 inline string Udf_transpilerPragmaFun(ClientContext &context,
                                       const FunctionParameters &parameters) {
@@ -43,12 +43,12 @@ inline string Udf_transpilerPragmaFun(ClientContext &context,
 
   // Transpiler transpiler(buffer.str(), &config, con);
   // std::vector<std::string> ret = transpiler.run();
-  std::string code, registration;
-  auto compiler = Compiler(&con, buffer.str());
-  compiler.run(code, registration);
+  // std::string code, registration;
+  auto compiler = Compiler(&con, buffer.str(), udf_count);
+  auto res = compiler.run();
   udf_count++;
   std::cout << "Transpiling the UDF..." << std::endl;
-  insert_def_and_reg(code, registration, udf_count);
+  insert_def_and_reg(res.code, res.registration, udf_count);
   // compile the template
   std::cout << "Compiling the UDF..." << std::endl;
   compile_udf();
@@ -74,11 +74,11 @@ inline string Udf_CodeGeneratorPragmaFun(ClientContext &context,
   YAMLConfig config;
   Connection con(*db_instance);
   std::string code, registration;
-  auto compiler = Compiler(&con, buffer.str());
-  compiler.run(code, registration);
+  auto compiler = Compiler(&con, buffer.str(), udf_count);
+  auto res = compiler.run();
   udf_count++;
   cout << "Transpiling the UDF..." << endl;
-  insert_def_and_reg(code, registration, udf_count);
+  insert_def_and_reg(res.code, res.registration, udf_count);
   return "select '' as 'Code Generation Done.';";
 }
 

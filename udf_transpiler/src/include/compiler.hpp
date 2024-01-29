@@ -34,14 +34,22 @@ struct Continuations {
   BasicBlock *functionExit;
 };
 
+struct CompilationResult{
+  bool success;
+  // stdstd::vector<std::string>> result;
+  std::string code;
+  std::string registration;
+};
+
 class Compiler {
 public:
   using WidthScale = std::pair<int, int>;
   using StringPair = std::pair<std::string, std::string>;
 
-  Compiler(duckdb::Connection *connection, const std::string &programText)
-      : connection(connection), programText(programText) {}
+  Compiler(duckdb::Connection *connection, const std::string &programText, size_t &_udf_count)
+      : connection(connection), programText(programText), udf_count(_udf_count) {}
 
+  void buildCursorLoopCFG(Function &function, const json &ast);
   void buildCFG(Function &function, const json &ast);
 
   std::vector<std::string> generateCode(const Function &function);
@@ -82,9 +90,14 @@ public:
                                List<json> &statements,
                                const Continuations &continuations);
 
+  BasicBlock *constructCursorLoopCFG(const json &cursorLoopJson,
+                                     Function &function,
+                                     List<json> &statements,
+                                     const Continuations &continuations);                               
+
   BasicBlock *constructCFG(Function &function, List<json> &statements,
                            const Continuations &continuations);
-  void run(std::string &code, std::string &registration);
+  CompilationResult run();
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;
@@ -92,16 +105,19 @@ public:
   static constexpr char RETURN_TYPE_PATTERN[] =
       "RETURNS\\s+(\\w+ *(\\((\\d+, *)?\\d+\\))?)";
   static constexpr char FUNCTION_NAME_PATTERN[] =
-      "CREATE\\s+FUNCTION\\s+(\\w+)";
+      "CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+(\\w+)";
   static constexpr char ASSIGNMENT_PATTERN[] = "\\:?\\=";
 
 private:
+  size_t &udf_count;
+  void makeDuckDBContext(const Function &function);
+  void destroyDuckDBContext();
   json parseJson() const;
   std::string getJsonExpr(const json &json);
   List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
 
-  Own<Expression> bindExpression(const Function &function,
+  CompilerExpression bindExpression(const Function &function,
                                  const std::string &expression);
   static StringPair unpackAssignment(const string &assignment);
   static Opt<WidthScale> getDecimalWidthScale(const std::string &type);
@@ -111,4 +127,5 @@ private:
 
   duckdb::Connection *connection;
   std::string programText;
+  YAMLConfig config;
 };

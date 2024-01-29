@@ -1,0 +1,180 @@
+c1: |-
+  class TYPE{i}, 
+
+c2: |-
+  TYPE{i} *__restrict data{i}, 
+
+c3: |-
+  const SelectionVector &sel{i}, 
+
+c4: |-
+  ValidityMask &validity{i}, 
+
+c5: |-
+  !validity{i}.AllValid() || 
+
+c6: |
+  idx_t idx{i} = sel{i}.get_index(i);
+
+c7: |-
+  validity{i}.RowIsValid(idx{i}) && 
+
+c8: |-
+  data{i}[idx{i}], 
+
+c9: |-
+  true, 
+
+c10: |-
+  validity{i}.RowIsValid(idx{i}), 
+
+c11: |-
+  Vector &vec{i}, 
+
+c12: |-
+  data{i}, 
+
+c13: |
+  vec{i}.ToUnifiedFormat(count, data{i});
+
+c14: |-
+  UnifiedVectorFormat::GetDataNoConst<TYPE{i}>(data{i}), 
+
+c15: |-
+  *data{i}.sel, 
+
+c16: |-
+  data{i}.validity, 
+
+c17: |-
+  inputs[{i}], 
+
+c18: |-
+  TYPE{i}, 
+
+c19: |-
+  const LogicalType &input_type{i}, 
+
+c20: |-
+  input_type{i}, 
+
+
+varyingFuncTemplate: |
+  template <class STATE_TYPE, {c1}, class OP>
+  static inline void Varying{id}ScatterLoop(AggregateInputData &aggr_input_data, {c2},
+                                        STATE_TYPE **__restrict states, idx_t count,
+                                        {c3}, const SelectionVector &ssel,
+                                        {c4}) {{
+    if (OP::IgnoreNull() && ({c5})) {{
+      for (idx_t i = 0; i < count; i++) {{
+        {c6}
+        auto sidx = ssel.get_index(i);
+        if ({c7}) {{
+          OP::template Operation<{c18}, STATE_TYPE, OP>(*states[sidx], {c8}, {c9});
+        }}
+      }}
+    }} else {{
+      for (idx_t i = 0; i < count; i++) {{
+        {c6}
+        auto sidx = ssel.get_index(i);
+        OP::template Operation<{c18}, STATE_TYPE, OP>(*states[sidx], {c8}, {c10});
+      }}
+    }}
+  }}
+  template <class STATE_TYPE, {c1}, class OP>
+  static void Varying{id}Scatter(AggregateInputData &aggr_input_data, {c11}, Vector &states,
+                             idx_t count) {{
+    UnifiedVectorFormat {c12}, sdata;
+
+    {c13}
+    states.ToUnifiedFormat(count, sdata);
+
+    Varying{id}ScatterLoop<STATE_TYPE, {c18}, OP>(
+        aggr_input_data, {c14}, (STATE_TYPE **)sdata.data, count, {c15}, *sdata.sel, {c16});
+  }}
+
+  template <class STATE_TYPE, {c1}, class OP>
+  static inline void Varying{id}ScatterUpdate(Vector inputs[], AggregateInputData &aggr_input_data, idx_t input_count,
+                                          Vector &states, idx_t count) {{
+    D_ASSERT(input_count == 3);
+    Varying{id}Scatter<STATE_TYPE, {c18}, OP>(aggr_input_data, {c17}, states, count);
+  }}
+
+  template <class STATE, {c1}, class RESULT_TYPE, class OP>
+  AggregateFunction
+  Varying{id}BaseAggregate({c19}, LogicalType return_type,
+             FunctionNullHandling null_handling = FunctionNullHandling::DEFAULT_NULL_HANDLING)
+  {{
+    return AggregateFunction(
+      {{{c20}}}, return_type, AggregateFunction::StateSize<STATE>,
+      AggregateFunction::StateInitialize<STATE, OP>, Varying{id}ScatterUpdate<STATE, {c18}, OP>,
+      nullptr, AggregateFunction::StateFinalize<STATE, RESULT_TYPE, OP>,
+      null_handling, nullptr);
+  }}
+
+stateDefition: |
+  {type} {name};
+
+operationArg: |-
+  TYPE{i} &{name}, 
+
+operationNullArg: |-
+  bool {name}_isnull, 
+
+varInit: |
+  state.{name} = {name};
+
+customAggregateTemplate: |
+  struct AggState{id}
+  {{
+    bool isInitialized;
+    // int32_t count;
+    {stateDefition}
+  }};
+
+  struct CustomAggOperation{id}
+  {{
+    template <class STATE>
+    static void Initialize(STATE &state)
+    {{
+      state.isInitialized = false;
+    }}
+
+    template <{c1}, class STATE, class OP>
+    static void Operation(STATE &state, {operationArgs}, {operationNullArgs})
+    {{
+      if(state.isInitialized == false){{
+        state.isInitialized = true;
+        {varInit}
+      }}
+      {body}
+    }}
+
+    template <class TARGET_TYPE, class STATE>
+    static void Finalize(STATE &state, TARGET_TYPE &target, AggregateFinalizeData &finalize_data)
+    {{
+      // todo
+      // target = state.count;
+    }}
+
+    static bool IgnoreNull()
+    {{
+      return false;
+    }}
+  }};
+  
+inputType: |-
+  {type}, 
+
+inputLogicalType: |-
+  {type}, 
+
+registration: |
+  auto custom_agg{id} = Varying{id}BaseAggregate<AggState{id}, {inputTypes}, {outputType}, CustomAggOperation{id}>({inputLogicalTypes}, {outputLogicalType}, FunctionNullHandling::SPECIAL_HANDLING);
+  custom_agg{id}.name = "custom_agg{id}";
+  ExtensionUtil::RegisterFunction(instance, custom_agg{id});
+
+caller: |-
+  (SELECT CASE WHEN count(*) > 0 THEN
+        custom_agg{id}({funcArgs}) ELSE ANY_VALUE({returnVarName}) END
+        FROM ({cursorQuery}) aggify_tmp)

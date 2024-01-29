@@ -1,8 +1,17 @@
-CREATE FUNCTION f_update(revenue DECIMAL(25,5), fetched_price DECIMAL(12, 2),
-    fetched_discount DECIMAL(12, 2))
-    RETURNS BIGINT AS
+CREATE FUNCTION OrdersByCustomer(ckey integer)
+    RETURNS integer
+    STABLE AS
 $$
+DECLARE
+    custkey integer := ckey;
+    okey    bigint;
+    adsf   integer;
+    val     integer := 0;
 BEGIN
-    RETURN revenue + fetched_price * (1 - fetched_discount);
+    FOR okey IN (SELECT O_ORDERKEY FROM orders WHERE O_CUSTKEY = custkey)
+        LOOP
+            val := val + 1;
+        END LOOP;
+    RETURN val;
 END;
 $$ LANGUAGE plpgsql;

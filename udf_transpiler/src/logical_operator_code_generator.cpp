@@ -9,6 +9,7 @@
 #include "duckdb/planner/expression/bound_function_expression.hpp"
 #include "duckdb/planner/expression/bound_operator_expression.hpp"
 #include "duckdb/planner/expression/bound_reference_expression.hpp"
+#include "duckdb/planner/expression/bound_columnref_expression.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "duckdb/planner/logical_operator_visitor.hpp"
 #define FMT_HEADER_ONLY
@@ -330,6 +331,13 @@ BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp,
 
 template <>
 std::string
+BoundExpressionCodeGenerator::Transpile(const BoundColumnRefExpression &exp,
+                                        CodeGenInfo &insert) {
+  return get_var_name(exp.GetName());
+}
+
+template <>
+std::string
 BoundExpressionCodeGenerator::Transpile(const Expression &exp,
                                         CodeGenInfo &insert) {
   switch (exp.GetExpressionClass()) {
@@ -353,6 +361,9 @@ BoundExpressionCodeGenerator::Transpile(const Expression &exp,
     break;
   case ExpressionClass::BOUND_REF:
     return Transpile(exp.Cast<BoundReferenceExpression>(), insert);
+    break;
+  case ExpressionClass::BOUND_COLUMN_REF:
+    return Transpile(exp.Cast<BoundColumnRefExpression>(), insert);
     break;
   default:
     return fmt::format("[{}: {}]", exp.ToString(),

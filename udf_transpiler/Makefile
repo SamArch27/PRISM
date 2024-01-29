@@ -49,23 +49,26 @@ udfs:
 	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF1_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=0 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
 	cmake --build build/udfs --config Release
 
-UDF_UDF_AGG_EXTENSION_FLAGS=-DDUCKDB_EXTENSION_NAMES="udf_agg" -DDUCKDB_EXTENSION_UDF_AGG_PATH="$(PROJ_DIR)udf_agg" -DDUCKDB_EXTENSION_UDF_AGG_INCLUDE_PATH="$(PROJ_DIR)udf_agg/src/include"
+UDF_UDF_AGG_EXTENSION_FLAGS=-DBUILD_MAIN_DUCKDB_LIBRARY=0 -DDISABLE_BUILTIN_EXTENSIONS=1 -DDUCKDB_EXTENSION_NAMES="udf_agg" -DDUCKDB_EXTENSION_UDF_AGG_PATH="$(PROJ_DIR)udf_agg" -DDUCKDB_EXTENSION_UDF_AGG_INCLUDE_PATH="$(PROJ_DIR)udf_agg/src/include"
 udafs:
 	mkdir -p build/udfs
-	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF_AGG_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
+	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF_AGG_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=0 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
 	cmake --build build/udfs --config Release
 
 PROFILER_EXTENSION_FLAGS=-DDUCKDB_EXTENSION_NAMES="profiler" -DDUCKDB_EXTENSION_PROFILER_PATH="$(PROJ_DIR)profiler" -DDUCKDB_EXTENSION_PROFILER_INCLUDE_PATH="$(PROJ_DIR)profiler/src/include"
 profile:
-	mkdir -p build/udfs
-	cmake $(GENERATOR) $(FORCE_COLOR) $(PROFILER_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
-	cmake --build build/udfs --config Release
+	mkdir -p build/release
+	cmake $(GENERATOR) $(FORCE_COLOR) $(PROFILER_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/release
+	cmake --build build/release --config Release
 
 release:
 	- make udfs
 	mkdir -p build/release
 	cmake $(GENERATOR) $(FORCE_COLOR) $(EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release ${BUILD_FLAGS} -S ./duckdb/ -B build/release && \
 	cmake --build build/release --config Release
+
+start_duckdb:
+	./build/release/duckdb -unsigned -cmd "install './build/release/extension/profiler/profiler.duckdb_extension'; load './build/release/extension/profiler/profiler.duckdb_extension';"
 
 # Client build
 debug_js: CLIENT_FLAGS=-DBUILD_NODE=1 -DBUILD_JSON_EXTENSION=1
@@ -119,5 +122,6 @@ update:
 
 run:
 	./build/release/duckdb -unsigned
+	
 
 

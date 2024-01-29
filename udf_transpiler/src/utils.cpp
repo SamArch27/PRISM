@@ -3,7 +3,7 @@
 #include <yaml-cpp/yaml.h>
 
 template <>
-std::string vec_join(std::vector<std::string> &vec, std::string sep) {
+std::string vec_join(const std::vector<std::string> &vec, std::string sep) {
   std::string result = "";
   for (auto &item : vec) {
     result += item + sep;
@@ -189,6 +189,7 @@ YAMLConfig::YAMLConfig() {
   query = YAML::LoadFile(current_dir + "/../templates/query.yaml");
   function = YAML::LoadFile(current_dir + "/../templates/function.yaml");
   control = YAML::LoadFile(current_dir + "/../templates/control.yaml");
+  aggify = YAML::LoadFile(current_dir + "/../templates/aggify.yaml");
 }
 
 /**

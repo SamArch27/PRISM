@@ -20,7 +20,7 @@ using namespace std;
     if (!(condition)) {                                                        \
       std::cout << "Assertion `" #condition "` failed in " << __FILE__         \
                 << " line " << __LINE__ << ": " << message << std::endl;       \
-      throw exception();                                                       \
+      std::terminate();                                                       \
     }                                                                          \
   } while (false)
 
@@ -56,12 +56,12 @@ template <typename A> using Opt = std::optional<A>;
 template <typename A, typename B> using Map = std::unordered_map<A, B>;
 
 template <typename T>
-std::string vec_join(std::vector<T> &vec, std::string sep) {
+std::string vec_join(const std::vector<T> &vec, std::string sep) {
   ERROR("vec_join not implemented for this type");
 }
 
 template <>
-std::string vec_join(std::vector<std::string> &vec, std::string sep);
+std::string vec_join(const std::vector<std::string> &vec, std::string sep);
 
 template <typename T>
 std::string list_join(std::list<T> &any_list, std::string sep) {
@@ -242,6 +242,7 @@ public:
   YAML::Node query;
   YAML::Node function;
   YAML::Node control;
+  YAML::Node aggify;
   YAMLConfig();
 };
 
