@@ -14,6 +14,7 @@
 #include "used_variable_finder.hpp"
 #include "aggify_dfa.hpp"
 
+
 std::ostream &operator<<(std::ostream &os, const Expression &expr) {
   ExpressionPrinter printer(os);
   printer.VisitOperator(expr);
@@ -589,6 +590,7 @@ CompilerExpression Compiler::bindExpression(const Function &function,
   {
     boundExpression =
       connectionContext->ExtractPlan(selectExpressionCommand, true, plannerBinder);
+
     for(auto &type : disable_optimizers_should_delete){
       config.options.disabled_optimizers.erase(type);
     }
@@ -598,7 +600,9 @@ CompilerExpression Compiler::bindExpression(const Function &function,
     for(auto &type : disable_optimizers_should_delete){
       config.options.disabled_optimizers.erase(type);
     }
+
     destroyDuckDBContext();
+
     EXCEPTION(e.what());
     // return nullptr;
   }
