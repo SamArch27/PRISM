@@ -176,5 +176,5 @@ registration: |
 
 caller: |-
   (SELECT CASE WHEN count(*) > 0 THEN
-        custom_agg{id}({funcArgs}) ELSE {returnVarName} END
+        custom_agg{id}({funcArgs}) ELSE ANY_VALUE({returnVarName}) END
         FROM ({cursorQuery}) aggify_tmp)
