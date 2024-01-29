@@ -12,6 +12,7 @@
 #include "duckdb/main/connection.hpp"
 #include "file.hpp"
 #include "used_variable_finder.hpp"
+#include "aggify_dfa.hpp"
 
 std::ostream &operator<<(std::ostream &os, const Expression &expr) {
   ExpressionPrinter printer(os);
@@ -223,9 +224,12 @@ BasicBlock *Compiler::constructCursorLoopCFG(const json &cursorLoopJson,
   function.newState();
   buildCursorLoopCFG(function, cursorLoopJson);
   function.mergeBasicBlocks();
+
+  AggifyDFA aggifyDFA(function);
+
   // function.print(std::cout); 
   AggifyCodeGenerator aggifyCodeGenerator(config);
-  auto res = aggifyCodeGenerator.run(function, cursorLoopJson, function.getCustomAggs().size());
+  auto res = aggifyCodeGenerator.run(function, cursorLoopJson, aggifyDFA, function.getCustomAggs().size());
   udf_count++;
   insert_def_and_reg(res[0], res[1], udf_count);
   // compile the template
@@ -238,7 +242,11 @@ BasicBlock *Compiler::constructCursorLoopCFG(const json &cursorLoopJson,
 
   // restore the function back to original 
   function.popState();
+
   // udf_todo: replace the cursor loop with custom aggregate
+  std::string customAggCaller = res[2];
+  cout<<"customAggCaller: "<<customAggCaller<<endl;
+  newBlock->addInstruction(Make<Assignment>(aggifyDFA.getReturnVar(), bindExpression(function, customAggCaller)));
   newBlock->addInstruction(
       Make<BranchInst>(constructCFG(function, statements, continuations)));                                    
   return newBlock;                                    
