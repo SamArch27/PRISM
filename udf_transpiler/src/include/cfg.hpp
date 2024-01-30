@@ -26,6 +26,8 @@ using LogicalPlan = duckdb::LogicalOperator;
 
 std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr);
 
+// Expression can be a Phi function
+
 class SelectExpression {
 public:
   SelectExpression(const std::string &rawSQL, Own<LogicalPlan> logicalPlan,
@@ -88,6 +90,35 @@ public:
 
 protected:
   virtual void print(std::ostream &os) const = 0;
+};
+
+class PhiNode : public Instruction {
+public:
+  PhiNode(const Variable *var, const Vec<const Variable *> &arguments)
+      : var(var), arguments(arguments) {}
+
+  friend std::ostream &operator<<(std::ostream &os, const PhiNode &phiNode) {
+    phiNode.print(os);
+    return os;
+  }
+
+protected:
+  void print(std::ostream &os) const override {
+    os << *var << " = φ(";
+    bool first = true;
+    for (auto *arg : arguments) {
+      if (first) {
+        first = false;
+      } else {
+        os << ",";
+      }
+      os << arg;
+    }
+  }
+
+private:
+  const Variable *var;
+  Vec<const Variable *> arguments;
 };
 
 class Assignment : public Instruction {
