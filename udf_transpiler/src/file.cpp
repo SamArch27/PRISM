@@ -12,16 +12,15 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-using namespace std;
 
-static std::string
+static String
     filePath(__FILE__); // Get the path of the current source file
 static std::filesystem::path path(filePath);
-static std::string current_dir = path.parent_path().string();
+static String current_dir = path.parent_path().string();
 
-std::string exec(const char *cmd) {
+String exec(const char *cmd) {
   std::array<char, 128> buffer;
-  std::string result;
+  String result;
   std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
   if (!pipe) {
     throw std::runtime_error("popen() failed!");
@@ -32,18 +31,18 @@ std::string exec(const char *cmd) {
   return result;
 }
 
-void create_dir_from_dir(const string &new_dir, const string &template_dir) {
+void create_dir_from_dir(const String &new_dir, const String &template_dir) {
   // remove the old directory in new_dir
-  string cmd = "rm -rf " + new_dir;
-  cout << exec(cmd.c_str()) << endl;
+  String cmd = "rm -rf " + new_dir;
+  COUT << exec(cmd.c_str()) << ENDL;
   cmd = "cp -r " + template_dir + " " + new_dir;
-  cout << exec(cmd.c_str()) << endl;
+  COUT << exec(cmd.c_str()) << ENDL;
 }
 
-void insert_def_and_reg(const string &defs, const string &regs, int udf_count) {
+void insert_def_and_reg(const String &defs, const String &regs, int udf_count) {
   create_dir_from_dir(current_dir + "/" + UDF_EXTENSION_OUTPUT_DIR,
                       current_dir + "/" + UDF_EXTENSION_TEMPLATE_DIR);
-  string template_file =
+  String template_file =
       current_dir + "/" + UDF_EXTENSION_OUTPUT_DIR + "src/udf1_extension.cpp";
   // change the udf1_extension.cpp file
   std::ifstream t(template_file);
@@ -52,24 +51,24 @@ void insert_def_and_reg(const string &defs, const string &regs, int udf_count) {
   if (buffer.str().empty()) {
     ERROR("Template file is empty or does not exist: " + template_file);
   }
-  string template_str = buffer.str();
-  // search for the string "/* ==== Unique identifier to indicate change
+  String template_str = buffer.str();
+  // search for the String "/* ==== Unique identifier to indicate change
   // required: 9340jfsa034 ==== */"
   size_t search_start = 0;
-  string change_start_str = "/* ==== Unique identifier to indicate change "
+  String change_start_str = "/* ==== Unique identifier to indicate change "
                             "required start: 9340jfsa034 ==== */\n";
-  string change_end_str = "/* ==== Unique identifier to indicate change "
+  String change_end_str = "/* ==== Unique identifier to indicate change "
                           "required end: 9340jfsa034 ==== */\n";
   size_t change_start, change_end;
   try {
     while ((change_start = template_str.find(change_start_str, search_start)) !=
-           string::npos) {
+           String::npos) {
       change_end = template_str.find(change_end_str, change_start);
-      cout << "changing: "
+      COUT << "changing: "
            << template_str.substr(change_start, change_end - change_start)
-           << endl;
+           << ENDL;
       size_t udf_start = template_str.find("udf", change_start);
-      ASSERT(udf_start != string::npos,
+      ASSERT(udf_start != String::npos,
              "Expect to find word udf in: " +
                  template_str.substr(change_start, change_end - change_start));
       template_str =
@@ -80,23 +79,23 @@ void insert_def_and_reg(const string &defs, const string &regs, int udf_count) {
     std::cerr << e.what() << '\n';
   }
 
-  // search for the string "/* ==== Unique identifier to indicate insertion
+  // search for the String "/* ==== Unique identifier to indicate insertion
   // point start: 04rj39jds934 ==== */"
-  string start_str = "/* ==== Unique identifier to indicate insertion point "
+  String start_str = "/* ==== Unique identifier to indicate insertion point "
                      "start: 04rj39jds934 ==== */\n";
-  string end_str = "/* ==== Unique identifier to indicate insertion point end: "
+  String end_str = "/* ==== Unique identifier to indicate insertion point end: "
                    "04rj39jds934 ==== */\n";
   size_t start_pos = template_str.find(start_str);
   size_t end_pos = template_str.find(end_str);
-  if (start_pos == string::npos || end_pos == string::npos) {
+  if (start_pos == String::npos || end_pos == String::npos) {
     ERROR("Cannot find the insertion point in the template file: " +
           template_file);
   }
   // insert the definitions
-  string new_str = template_str.substr(0, start_pos + start_str.length()) +
+  String new_str = template_str.substr(0, start_pos + start_str.length()) +
                    defs + template_str.substr(end_pos);
 
-  // search for the string "/* ==== Unique identifier to indicate register
+  // search for the String "/* ==== Unique identifier to indicate register
   // insertion point start: 04rj39jds934 ==== */"
   start_str = "/* ==== Unique identifier to indicate register insertion point "
               "start: 04rj39jds934 ==== */\n";
@@ -104,7 +103,7 @@ void insert_def_and_reg(const string &defs, const string &regs, int udf_count) {
             "end: 04rj39jds934 ==== */\n";
   start_pos = new_str.find(start_str);
   end_pos = new_str.find(end_str);
-  if (start_pos == string::npos || end_pos == string::npos) {
+  if (start_pos == String::npos || end_pos == String::npos) {
     ERROR("Cannot find the insertion point in the template file: " +
           template_file);
   }
@@ -112,7 +111,7 @@ void insert_def_and_reg(const string &defs, const string &regs, int udf_count) {
   new_str = new_str.substr(0, start_pos + start_str.length()) + regs +
             new_str.substr(end_pos);
 
-  // write the new string to the template file
+  // write the new String to the template file
   std::ofstream out(template_file);
   if (out.fail()) {
     ERROR("Cannot open the template file for writing: " + template_file);
@@ -141,15 +140,15 @@ void insert_def_and_reg(const string &defs, const string &regs, int udf_count) {
 }
 
 void compile_udf() {
-  // string cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
-  string cmd = "cd " + current_dir + "/../" + ";make udfs";
-  cout << exec(cmd.c_str()) << endl;
+  // String cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
+  String cmd = "cd " + current_dir + "/../" + ";make udfs";
+  COUT << exec(cmd.c_str()) << ENDL;
 }
 
 void compile_udaf() {
-  string cmd = "cd " + current_dir + "/../" + ";make udafs";
-  cout << cmd << endl;
-  cout << exec(cmd.c_str()) << endl;
+  String cmd = "cd " + current_dir + "/../" + ";make udafs";
+  COUT << cmd << ENDL;
+  COUT << exec(cmd.c_str()) << ENDL;
 }
 
 /**
@@ -157,22 +156,22 @@ void compile_udaf() {
 */
 void load_udf(duckdb::Connection &connection) {
   // find the current udf_count
-  string cmd = "cd " + current_dir + "/../build/udfs/extension/udf1/;ls -t | grep -o '^udf.*\\.duckdb_extension$'";
-  string filename = exec(cmd.c_str());
+  String cmd = "cd " + current_dir + "/../build/udfs/extension/udf1/;ls -t | grep -o '^udf.*\\.duckdb_extension$'";
+  String filename = exec(cmd.c_str());
   filename = filename.substr(0, filename.find("\n"));                                                           
-  std::string install = "install '" + current_dir +
+  String install = "install '" + current_dir +
                         "/../build/udfs/extension/udf1/" 
                         // + "udf" + std::to_string(udf_count) + ".duckdb_extension'";
                         + filename + "'";
-  std::string load = "load '" + current_dir + "/../build/udfs/extension/udf1/" +
+  String load = "load '" + current_dir + "/../build/udfs/extension/udf1/" +
                     //  "udf" + std::to_string(udf_count) + ".duckdb_extension'";
                       filename + "'";
-  cout << "Running: " << install << endl;
+  COUT << "Running: " << install << ENDL;
   auto res = connection.Query(install);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
-  cout << "Running: " << load << endl;
+  COUT << "Running: " << load << ENDL;
   res = connection.Query(load);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
@@ -180,18 +179,18 @@ void load_udf(duckdb::Connection &connection) {
 }
 
 void load_udaf(duckdb::Connection &connection) {
-  std::string install = "install '" + current_dir +
+  String install = "install '" + current_dir +
                         "/../build/udfs/extension/udf_agg/" +
                         "udf_agg.duckdb_extension'";
-  std::string load = "load '" + current_dir +
+  String load = "load '" + current_dir +
                      "/../build/udfs/extension/udf_agg/" +
                      "udf_agg.duckdb_extension'";
-  cout << "Running: " << install << endl;
+  COUT << "Running: " << install << ENDL;
   auto res = connection.Query(install);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
-  cout << "Running: " << load << endl;
+  COUT << "Running: " << load << ENDL;
   res = connection.Query(load);
   if (res->HasError()) {
     EXCEPTION(res->GetError());

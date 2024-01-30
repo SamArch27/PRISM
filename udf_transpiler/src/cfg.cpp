@@ -1,6 +1,6 @@
 #include "cfg.hpp"
 
-Function newFunction(const std::string &functionName) {
+Function newFunction(const String &functionName) {
   return Function(functionName,
-                  make_unique<NonDecimalType>(DuckdbTypeTag::INTEGER));
+                  Make<NonDecimalType>(DuckdbTypeTag::INTEGER));
 }

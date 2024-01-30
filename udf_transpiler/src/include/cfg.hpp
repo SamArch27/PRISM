@@ -30,8 +30,8 @@ std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr);
 
 class SelectExpression {
 public:
-  SelectExpression(const std::string &rawSQL, Own<LogicalPlan> logicalPlan,
-                   const Vec<std::string> &usedVariables)
+  SelectExpression(const String &rawSQL, Own<LogicalPlan> logicalPlan,
+                   const Vec<String> &usedVariables)
       : rawSQL(rawSQL), logicalPlan(std::move(logicalPlan)),
         usedVariables(usedVariables) {}
 
@@ -41,25 +41,25 @@ public:
     return os;
   }
 
-  std::string getRawSQL() const { return rawSQL; }
+  String getRawSQL() const { return rawSQL; }
   const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
-  const Vec<std::string> &getUsedVariables() const { return usedVariables; }
+  const Vec<String> &getUsedVariables() const { return usedVariables; }
 
 protected:
   void print(std::ostream &os) const { os << rawSQL; }
 
 private:
-  std::string rawSQL;
+  String rawSQL;
   Own<LogicalPlan> logicalPlan;
-  Vec<std::string> usedVariables;
+  Vec<String> usedVariables;
 };
 
 class Variable {
 public:
-  Variable(const std::string &name, Own<Type> type, bool null = true)
+  Variable(const String &name, Own<Type> type, bool null = true)
       : name(name), type(std::move(type)), null(null) {}
 
-  std::string getName() const { return name; }
+  String getName() const { return name; }
   const Type *getType() const { return type.get(); }
   bool isNull() const { return null; }
 
@@ -72,7 +72,7 @@ protected:
   void print(std::ostream &os) const { os << *type << " " << name; }
 
 private:
-  std::string name;
+  String name;
   Own<Type> type;
   bool null;
 };
@@ -149,7 +149,7 @@ private:
 
 class BasicBlock {
 public:
-  BasicBlock(const std::string &label) : label(label) {}
+  BasicBlock(const String &label) : label(label) {}
 
   using InstIterator = ListOwn<Instruction>::iterator;
 
@@ -180,18 +180,18 @@ public:
     return last;
   }
 
-  std::string getLabel() const { return label; }
+  String getLabel() const { return label; }
 
 protected:
   void print(std::ostream &os) const {
-    os << label << ":" << std::endl;
+    os << label << ":" << ENDL;
     for (const auto &inst : instructions) {
-      os << *inst << std::endl;
+      os << *inst << ENDL;
     }
   }
 
 private:
-  std::string label;
+  String label;
   ListOwn<Instruction> instructions;
 };
 
@@ -286,7 +286,7 @@ public:
 
 class Function {
 public:
-  Function(const std::string &functionName, Own<Type> returnType)
+  Function(const String &functionName, Own<Type> returnType)
       : labelNumber(0), functionName(functionName),
         returnType(std::move(returnType)) {}
 
@@ -295,7 +295,7 @@ public:
     return os;
   }
 
-  BasicBlock *makeBasicBlock(const std::string &label) {
+  BasicBlock *makeBasicBlock(const String &label) {
     basicBlocks.emplace_back(Make<BasicBlock>(label));
     return basicBlocks.back().get();
   }
@@ -305,13 +305,13 @@ public:
     return makeBasicBlock(label);
   }
 
-  void addArgument(const std::string &name, Own<Type> type) {
+  void addArgument(const String &name, Own<Type> type) {
     auto var = Make<Variable>(name, std::move(type));
     arguments.emplace_back(std::move(var));
     bindings.emplace(name, arguments.back().get());
   }
 
-  void addVariable(const std::string &name, Own<Type> &&type, bool isNULL) {
+  void addVariable(const String &name, Own<Type> &&type, bool isNULL) {
     auto var = Make<Variable>(name, std::move(type), isNULL);
     variables.emplace_back(std::move(var));
     bindings.emplace(name, variables.back().get());
@@ -322,8 +322,8 @@ public:
     declarations.emplace_back(std::move(assignment));
   }
 
-  std::string getNextLabel() {
-    auto label = std::string("L") + std::to_string(labelNumber);
+  String getNextLabel() {
+    auto label = String("L") + std::to_string(labelNumber);
     ++labelNumber;
     return label;
   }
@@ -331,21 +331,21 @@ public:
   const VecOwn<Variable> &getVariables() const { return variables; }
   VecOwn<Assignment> takeDeclarations() { return std::move(declarations); }
 
-  std::string getFunctionName() const { return functionName; }
+  String getFunctionName() const { return functionName; }
   const Type *getReturnType() const { return returnType.get(); }
 
-  std::string getCleanedVariableName(const std::string &name) const {
+  String getCleanedVariableName(const String &name) const {
     auto cleanedName = removeSpaces(name);
     cleanedName = toLower(cleanedName);
     return cleanedName;
   }
 
-  bool hasBinding(const std::string &name) const {
+  bool hasBinding(const String &name) const {
     auto cleanedName = getCleanedVariableName(name);
     return bindings.find(cleanedName) != bindings.end();
   }
 
-  const Variable *getBinding(const std::string &name) const {
+  const Variable *getBinding(const String &name) const {
     auto cleanedName = getCleanedVariableName(name);
     ASSERT(
         hasBinding(cleanedName),
@@ -353,7 +353,7 @@ public:
     return bindings.at(cleanedName);
   }
 
-  const Map<std::string, Variable *> &getAllBindings() const {
+  const Map<String, Variable *> &getAllBindings() const {
     return bindings;
   }
 
@@ -406,34 +406,34 @@ public:
 
   // protected:
   void print(std::ostream &os) const {
-    os << "Function Name: " << functionName << std::endl;
-    os << "Return Type: " << *returnType << std::endl;
-    os << "Arguments: " << std::endl;
+    os << "Function Name: " << functionName << ENDL;
+    os << "Return Type: " << *returnType << ENDL;
+    os << "Arguments: " << ENDL;
     for (const auto &argument : arguments) {
-      os << "\t" << *argument << std::endl;
+      os << "\t" << *argument << ENDL;
     }
-    os << "Variables: " << std::endl;
+    os << "Variables: " << ENDL;
     for (const auto &variable : variables) {
-      os << "\t" << *variable << std::endl;
+      os << "\t" << *variable << ENDL;
     }
-    os << "Declarations: " << std::endl;
+    os << "Declarations: " << ENDL;
     for (const auto &declaration : declarations) {
-      os << "\t" << *declaration << std::endl;
+      os << "\t" << *declaration << ENDL;
     }
 
-    os << "Control Flow Graph: \n" << std::endl;
+    os << "Control Flow Graph: \n" << ENDL;
 
-    os << "digraph cfg {" << std::endl;
+    os << "digraph cfg {" << ENDL;
     for (const auto &block : basicBlocks) {
       os << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
       if (block->getLabel() != "exit") {
         for (auto *succ : block->getTerminator()->get()->getSuccessors()) {
           os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
-             << std::endl;
+             << ENDL;
         }
       }
     }
-    os << "}" << std::endl;
+    os << "}" << ENDL;
   }
 
   void newState() {
@@ -450,16 +450,16 @@ public:
     auto &state = states.back();
     labelNumber = state.labelNumber;
     for (auto &bb : state.basicBlocks) {
-      cout << "Pushing: " << *bb << endl;
+      COUT << "Pushing: " << *bb << ENDL;
       basicBlocks.push_back(std::move(bb));
     }
     // basicBlocks = state.basicBlocks;
     states.pop_back();
   }
 
-  void addCustomAgg(const vector<string> &agg) { custom_aggs.push_back(agg); }
+  void addCustomAgg(const Vec<String> &agg) { custom_aggs.push_back(agg); }
 
-  const vector<vector<string>> &getCustomAggs() const { return custom_aggs; }
+  const Vec<Vec<String>> &getCustomAggs() const { return custom_aggs; }
 
 private:
   class CompilationState {
@@ -470,25 +470,25 @@ private:
     CompilationState(std::size_t _labelNumber, VecOwn<BasicBlock> &_basicBlocks)
         : labelNumber(_labelNumber) {
       for (auto &bb : _basicBlocks) {
-        cout << "Pushing: " << *bb << endl;
+        COUT << "Pushing: " << *bb << ENDL;
         this->basicBlocks.push_back(std::move(bb));
       }
     }
   };
   std::list<CompilationState> states;
   std::size_t labelNumber;
-  std::string functionName;
+  String functionName;
   Own<Type> returnType;
   VecOwn<Variable> arguments;
   VecOwn<Variable> variables;
   VecOwn<Assignment> declarations;
-  Map<std::string, Variable *> bindings;
+  Map<String, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
-  vector<vector<string>> custom_aggs;
+  Vec<Vec<String>> custom_aggs;
 };
 
 /**
  * Workaround for not been able to create a fake Function object
  * in other namespaces
  */
-Function newFunction(const std::string &functionName);
+Function newFunction(const String &functionName);

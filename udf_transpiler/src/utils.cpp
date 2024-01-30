@@ -3,8 +3,8 @@
 #include <yaml-cpp/yaml.h>
 
 template <>
-std::string vec_join(const std::vector<std::string> &vec, std::string sep) {
-  std::string result = "";
+String vector_join(const Vec<String> &vec, String sep) {
+  String result = "";
   for (auto &item : vec) {
     result += item + sep;
   }
@@ -12,38 +12,38 @@ std::string vec_join(const std::vector<std::string> &vec, std::string sep) {
 }
 
 template <>
-std::string list_join(std::list<std::string> &any_list, std::string sep) {
-  std::string result = "";
+String list_join(std::list<String> &any_list, String sep) {
+  String result = "";
   for (auto &item : any_list) {
     result += item + sep;
   }
   return result.substr(0, result.size() - sep.size());
 }
 
-std::string toLower(const std::string &str) {
-  std::string lower = str;
+String toLower(const String &str) {
+  String lower = str;
   std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
   return lower;
 }
 
-std::string toUpper(const std::string &str) {
-  std::string upper = str;
+String toUpper(const String &str) {
+  String upper = str;
   std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
   return upper;
 }
 
-std::string removeSpaces(const std::string &str) {
+String removeSpaces(const String &str) {
   std::regex spaceRegex("\\s+");
   return std::regex_replace(str, spaceRegex, "");
 }
 
-std::vector<std::string> extractMatches(const std::string &text,
+Vec<String> extractMatches(const String &text,
                                         const char *pattern,
                                         std::size_t group) {
-  std::vector<std::string> res;
+  Vec<String> res;
   auto regex = std::regex(pattern, std::regex_constants::icase);
   std::smatch matched;
-  std::string str = text;
+  String str = text;
   while (std::regex_search(str, matched, regex)) {
     res.push_back(matched[group]);
     str = matched.suffix();
@@ -52,9 +52,9 @@ std::vector<std::string> extractMatches(const std::string &text,
 }
 
 YAMLConfig::YAMLConfig() {
-  std::string filePath(__FILE__); // Get the path of the current source file
+  String filePath(__FILE__); // Get the path of the current source file
   std::filesystem::path path(filePath);
-  std::string current_dir = path.parent_path().string();
+  String current_dir = path.parent_path().string();
   query = YAML::LoadFile(current_dir + "/../templates/query.yaml");
   function = YAML::LoadFile(current_dir + "/../templates/function.yaml");
   control = YAML::LoadFile(current_dir + "/../templates/control.yaml");

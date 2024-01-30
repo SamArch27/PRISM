@@ -5,7 +5,7 @@
 namespace duckdb {
 class UsedVariableFinder : LogicalOperatorVisitor {
 public:
-	UsedVariableFinder(std::string _targetTableName, shared_ptr<Binder> _plannerBinder)
+	UsedVariableFinder(String _targetTableName, std::shared_ptr<Binder> _plannerBinder)
 		: targetTableName(_targetTableName), plannerBinder(_plannerBinder) {
 	}
 
@@ -16,8 +16,8 @@ public:
 	void VisitExpression(unique_ptr<Expression> *expression) override;
 
 public:
-	std::string targetTableName;
-	std::vector<std::string> usedVariables;
-	shared_ptr<Binder> plannerBinder;
+	String targetTableName;
+	Vec<String> usedVariables;
+	std::shared_ptr<Binder> plannerBinder;
 };
 }

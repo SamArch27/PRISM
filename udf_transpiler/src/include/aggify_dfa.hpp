@@ -14,7 +14,7 @@ public:
         analyzeFunction(func);
     }
     
-    std::string getReturnVarName() const {
+    String getReturnVarName() const {
         return returnVarName;
     }
 
@@ -24,7 +24,7 @@ public:
 
 private:
     const Function &func;
-    std::string returnVarName;
+    String returnVarName;
     bool analyzeBasicBlock(BasicBlock *bb, const Function &func);
     void analyzeFunction(const Function &function);
 };

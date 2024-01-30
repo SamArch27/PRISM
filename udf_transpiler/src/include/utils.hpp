@@ -13,30 +13,6 @@
 #include <include/fmt/core.h>
 #include <regex>
 #include <yaml-cpp/yaml.h>
-using namespace std;
-
-#define ASSERT(condition, message)                                             \
-  do {                                                                         \
-    if (!(condition)) {                                                        \
-      std::cout << "Assertion `" #condition "` failed in " << __FILE__         \
-                << " line " << __LINE__ << ": " << message << std::endl;       \
-      std::terminate();                                                        \
-    }                                                                          \
-  } while (false)
-
-#define ERROR(message)                                                         \
-  do {                                                                         \
-    std::cout << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
-              << ")" << std::endl;                                             \
-    std::terminate();                                                          \
-  } while (false)
-
-#define EXCEPTION(message)                                                     \
-  do {                                                                         \
-    std::cout << "Exception: " << message << " (" << __FILE__ << ":"           \
-              << __LINE__ << ")" << std::endl;                                 \
-    throw duckdb::ParserException("See the above message.");                   \
-  } while (false)
 
 template <class A> using Own = std::unique_ptr<A>;
 template <typename A, typename B = A, typename... Args>
@@ -47,7 +23,7 @@ template <typename A> using List = std::list<A>;
 
 template <typename A> using Vec = std::vector<A>;
 
-template <typename A> using VecOwn = std::vector<Own<A>>;
+template <typename A> using VecOwn = Vec<Own<A>>;
 
 template <typename A> using ListOwn = std::list<Own<A>>;
 
@@ -55,31 +31,59 @@ template <typename A> using Opt = std::optional<A>;
 
 template <typename A, typename B> using Map = std::unordered_map<A, B>;
 
+using String = std::string;
+
+#define COUT std::cout
+#define ENDL std::endl
+
+#define ASSERT(condition, message)                                             \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      COUT << "Assertion `" #condition "` failed in " << __FILE__         \
+                << " line " << __LINE__ << ": " << message << ENDL;       \
+      std::terminate();                                                        \
+    }                                                                          \
+  } while (false)
+
+#define ERROR(message)                                                         \
+  do {                                                                         \
+    COUT << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
+              << ")" << ENDL;                                             \
+    std::terminate();                                                          \
+  } while (false)
+
+#define EXCEPTION(message)                                                     \
+  do {                                                                         \
+    COUT << "Exception: " << message << " (" << __FILE__ << ":"           \
+              << __LINE__ << ")" << ENDL;                                 \
+    throw duckdb::ParserException("See the above message.");                   \
+  } while (false)
+
 template <typename T>
-std::string vec_join(const std::vector<T> &vec, std::string sep) {
-  ERROR("vec_join not implemented for this type");
+String vector_join(const Vec<T> &vec, String sep) {
+  ERROR("vector_join not implemented for this type");
 }
 
 template <>
-std::string vec_join(const std::vector<std::string> &vec, std::string sep);
+String vector_join(const Vec<String> &vec, String sep);
 
 template <typename T>
-std::string list_join(std::list<T> &any_list, std::string sep) {
+String list_join(std::list<T> &any_list, String sep) {
   ERROR("list_join not implemented for this type");
 }
 
 template <>
-std::string list_join(std::list<std::string> &any_list, std::string sep);
+String list_join(std::list<String> &any_list, String sep);
 
-std::string toLower(const std::string &str);
-std::string toUpper(const std::string &str);
-std::string removeSpaces(const std::string &str);
+String toLower(const String &str);
+String toUpper(const String &str);
+String removeSpaces(const String &str);
 
-std::vector<std::string> extractMatches(const std::string &str,
+Vec<String> extractMatches(const String &str,
                                         const char *pattern,
                                         std::size_t group = 1);
 
-static unordered_map<string, string> alias_to_duckdb_type = {
+static Map<String, String> alias_to_duckdb_type = {
     {"UNKNOWN", "UNKNOWN"},
     {"BIGINT", "BIGINT"},
     {"INT8", "BIGINT"},
@@ -125,7 +129,7 @@ static unordered_map<string, string> alias_to_duckdb_type = {
     {"BPCHAR", "VARCHAR"},
     {"TEXT", "VARCHAR"},
     {"STRING", "VARCHAR"}};
-static unordered_map<string, string> duckdb_to_cpp_type = {
+static Map<String, String> duckdb_to_cpp_type = {
     {"BOOLEAN", "bool"},   {"TINYINT", "int8_t"},    {"SMALLINT", "int16_t"},
     {"DATE", "int32_t"},   {"TIME", "int32_t"},      {"INTEGER", "int32_t"},
     {"BIGINT", "int64_t"}, {"TIMESTAMP", "int64_t"}, {"FLOAT", "float"},

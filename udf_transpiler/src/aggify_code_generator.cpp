@@ -4,51 +4,50 @@
 
 #include "aggify_code_generator.hpp"
 #include <set>
-using namespace std;
 
 /**
  * find the column names in between the first select and from
  * split by comma
  */
-vector<string> AggifyCodeGenerator::getOrginalCursorLoopCol(const json &ast) {
-  vector<string> res;
-  string query = ast["query"]["PLpgSQL_expr"]["query"].get<std::string>();
+Vec<String> AggifyCodeGenerator::getOrginalCursorLoopCol(const json &ast) {
+  Vec<String> res;
+  String query = ast["query"]["PLpgSQL_expr"]["query"].get<String>();
   query = toUpper(query);
   size_t fromPos = query.find(" FROM ");
   size_t selectPos = query.find("SELECT ");
-  ASSERT(fromPos != string::npos && selectPos != string::npos,
+  ASSERT(fromPos != String::npos && selectPos != String::npos,
          "Cannot find FROM or SELECT in query: " + query);
-  string selectClause = query.substr(selectPos + 7, fromPos - selectPos - 7);
+  String selectClause = query.substr(selectPos + 7, fromPos - selectPos - 7);
   // split by comma
   size_t start = 0;
   size_t end = selectClause.find(",");
   do {
-    string col = selectClause.substr(start, end - start);
+    String col = selectClause.substr(start, end - start);
     // remove leading and trailing spaces
     col = col.substr(col.find_first_not_of(" "), col.find_last_not_of(" ") + 1);
     res.push_back(col);
     start = end + 1;
     end = selectClause.find(",", start);
-  } while (end != string::npos);
+  } while (end != String::npos);
   return res;
 }
 
-vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast,
+Vec<String> AggifyCodeGenerator::run(const Function &func, const json &ast,
                                         const AggifyDFA &dfaResult, size_t id) {
-  set<string> cursorVars;
+  std::set<String> cursorVars;
   for (const json &vars : ast["var"]["PLpgSQL_row"]["fields"]) {
     cursorVars.insert(vars["name"]);
   }
   // except for cursor variables, assume now that all others variables are used
   // in cursor loop
 
-  string code;
-  string varyingFuncTemplate = config.aggify["varyingFuncTemplate"].Scalar();
-  string c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16,
+  String code;
+  String varyingFuncTemplate = config.aggify["varyingFuncTemplate"].Scalar();
+  String c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16,
       c17, c18, c19, c20;
-  string stateDefition, operationArgs, operationNullArgs, varInit;
-  string inputTypes, inputLogicalTypes;
-  string funcArgs;
+  String stateDefition, operationArgs, operationNullArgs, varInit;
+  String inputTypes, inputLogicalTypes;
+  String funcArgs;
   size_t count = 0;
   size_t stateVarCount = 0;
   const auto &allBindings = func.getAllBindings();
@@ -172,7 +171,7 @@ vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast,
     basicBlockCodeGenerator(bbUniq.get(), func, function_info);
   }
 
-  string body = vec_join(container.basicBlockCodes, "\n");
+  String body = vector_join(container.basicBlockCodes, "\n");
 
   code = fmt::format(
       fmt::runtime(varyingFuncTemplate), fmt::arg("id", id), fmt::arg("c1", c1),
@@ -192,7 +191,7 @@ vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast,
       fmt::arg("operationNullArgs", operationNullArgs),
       fmt::arg("varInit", varInit), fmt::arg("body", body));
 
-  string registration = fmt::format(
+  String registration = fmt::format(
       fmt::runtime(config.aggify["registration"].Scalar()), fmt::arg("id", id),
       fmt::arg("inputTypes", inputTypes),
       fmt::arg("outputType", dfaResult.getReturnVar()->getType()->getCppType()),
@@ -200,12 +199,12 @@ vector<string> AggifyCodeGenerator::run(const Function &func, const json &ast,
       fmt::arg("outputLogicalType",
                dfaResult.getReturnVar()->getType()->getDuckDBLogicalType()));
 
-  string customAggCaller = fmt::format(
+  String customAggCaller = fmt::format(
       fmt::runtime(config.aggify["caller"].Scalar()), fmt::arg("id", id),
       fmt::arg("funcArgs", funcArgs),
       fmt::arg("returnVarName", dfaResult.getReturnVarName()),
       fmt::arg("cursorQuery",
-               ast["query"]["PLpgSQL_expr"]["query"].get<std::string>()));
-  cout << code << endl;
+               ast["query"]["PLpgSQL_expr"]["query"].get<String>()));
+  COUT << code << ENDL;
   return {code, registration, customAggCaller};
 }
