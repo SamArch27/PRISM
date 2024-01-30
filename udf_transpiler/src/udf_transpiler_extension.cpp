@@ -6,8 +6,8 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/cast/cast_function_set.hpp"
 #include "duckdb/function/scalar_function.hpp"
-#include "duckdb/main/config.hpp"
 #include "duckdb/main/client_context.hpp"
+#include "duckdb/main/config.hpp"
 #include "duckdb/main/extension_util.hpp"
 #include "duckdb/main/relation/query_relation.hpp"
 #include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
@@ -18,10 +18,10 @@
 #include <iostream>
 #include <stdio.h>
 // #include <unistd.h>
+#include "compiler.hpp"
 #include "file.hpp"
 #include "trans.hpp"
 #include "utils.hpp"
-#include "compiler.hpp"
 #include <filesystem>
 
 namespace duckdb {
@@ -108,9 +108,9 @@ inline string Udaf_BuilderPragmaFun(ClientContext &context,
 }
 
 inline string LOCodeGenPragmaFun(ClientContext &_context,
-                                   const FunctionParameters &parameters){
-  auto sql = parameters.values[0].GetValue<string>();  
-  auto enable_optimizer = parameters.values[1].GetValue<bool>(); 
+                                 const FunctionParameters &parameters) {
+  auto sql = parameters.values[0].GetValue<string>();
+  auto enable_optimizer = parameters.values[1].GetValue<bool>();
   LogicalOperatorCodeGenerator locg;
   // CodeGenInfo insert;
   Connection con(*db_instance);
@@ -121,30 +121,33 @@ inline string LOCodeGenPragmaFun(ClientContext &_context,
   auto &config = DBConfig::GetConfig(*context);
   std::set<OptimizerType> disable_optimizers_should_delete;
 
-  if(enable_optimizer){
-    if(config.options.disabled_optimizers.count(OptimizerType::STATISTICS_PROPAGATION) == 0)
-      disable_optimizers_should_delete.insert(OptimizerType::STATISTICS_PROPAGATION);
-    config.options.disabled_optimizers.insert(OptimizerType::STATISTICS_PROPAGATION);
+  if (enable_optimizer) {
+    if (config.options.disabled_optimizers.count(
+            OptimizerType::STATISTICS_PROPAGATION) == 0)
+      disable_optimizers_should_delete.insert(
+          OptimizerType::STATISTICS_PROPAGATION);
+    config.options.disabled_optimizers.insert(
+        OptimizerType::STATISTICS_PROPAGATION);
   }
 
-  try{
+  try {
     auto plan = context->ExtractPlan(sql);
     locg.VisitOperator(*plan);
-    for(auto &type : disable_optimizers_should_delete){
+    for (auto &type : disable_optimizers_should_delete) {
       config.options.disabled_optimizers.erase(type);
     }
-  }
-  catch (Exception &e){
-    for(auto &type : disable_optimizers_should_delete){
+  } catch (Exception &e) {
+    for (auto &type : disable_optimizers_should_delete) {
       config.options.disabled_optimizers.erase(type);
     }
     EXCEPTION(e.what());
-    return "select '" + e.GetStackTrace(5) + "' as 'Partial Evaluation Failed.';";
+    return "select '" + e.GetStackTrace(5) +
+           "' as 'Partial Evaluation Failed.';";
   }
   // context->config.enable_optimizer = mem;
-  cout<<locg.getResult().first<<endl;
-  cout<<endl;
-  cout<<locg.getResult().second<<endl;
+  cout << locg.getResult().first << endl;
+  cout << endl;
+  cout << locg.getResult().second << endl;
   return "select '' as 'Partial Evaluation Done.';";
 }
 
@@ -167,7 +170,8 @@ static void LoadInternal(DatabaseInstance &instance) {
       PragmaFunction::PragmaCall("build_agg", Udaf_BuilderPragmaFun, {});
   ExtensionUtil::RegisterFunction(instance, udaf_builder_pragma_function);
   auto lo_codegen_pragma_function =
-      PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun, {LogicalType::VARCHAR, LogicalType::INTEGER});
+      PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun,
+                                 {LogicalType::VARCHAR, LogicalType::INTEGER});
   ExtensionUtil::RegisterFunction(instance, lo_codegen_pragma_function);
   // auto itos_scalar_function = ScalarFunction("itos", {LogicalType::INTEGER},
   // 													 LogicalType::VARCHAR,

@@ -3,13 +3,13 @@
 #include "duckdb/optimizer/rule.hpp"
 #include "duckdb/planner/expression.hpp"
 #include "duckdb/planner/expression/bound_cast_expression.hpp"
+#include "duckdb/planner/expression/bound_columnref_expression.hpp"
 #include "duckdb/planner/expression/bound_comparison_expression.hpp"
 #include "duckdb/planner/expression/bound_conjunction_expression.hpp"
 #include "duckdb/planner/expression/bound_constant_expression.hpp"
 #include "duckdb/planner/expression/bound_function_expression.hpp"
 #include "duckdb/planner/expression/bound_operator_expression.hpp"
 #include "duckdb/planner/expression/bound_reference_expression.hpp"
-#include "duckdb/planner/expression/bound_columnref_expression.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "duckdb/planner/logical_operator_visitor.hpp"
 #define FMT_HEADER_ONLY
@@ -24,21 +24,24 @@ string get_struct_name(const string &struct_operation) {
   return struct_operation.substr(0, struct_operation.find("::"));
 }
 
-std::string pow10String(int scale_difference){
+std::string pow10String(int scale_difference) {
   std::string ret = "1";
-  for(int i = 0; i < scale_difference; i++){
+  for (int i = 0; i < scale_difference; i++) {
     ret += "0";
   }
   return ret;
 }
 
-void decimalDecimalCastHandler(
-    const ScalarFunctionInfo &function_info, string &function_name,
-    std::vector<std::string> &template_args,
-    const std::vector<Expression *> &children, CodeGenInfo &insert,
-    std::list<std::string> &args){
-  ASSERT(function_info.width_scale != std::make_pair((uint8_t)0, (uint8_t)0) && function_info.width_scale2 != std::make_pair((uint8_t)0, (uint8_t)0),
-             "DecimalCastWrapper should have two width_scale sets.");
+void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
+                               string &function_name,
+                               std::vector<std::string> &template_args,
+                               const std::vector<Expression *> &children,
+                               CodeGenInfo &insert,
+                               std::list<std::string> &args) {
+  ASSERT(function_info.width_scale != std::make_pair((uint8_t)0, (uint8_t)0) &&
+             function_info.width_scale2 !=
+                 std::make_pair((uint8_t)0, (uint8_t)0),
+         "DecimalCastWrapper should have two width_scale sets.");
   // recreate the source and target type
   int source_scale = function_info.width_scale.second;
   int source_width = function_info.width_scale.first;
@@ -46,25 +49,27 @@ void decimalDecimalCastHandler(
   int target_width = function_info.width_scale2.first;
   LogicalType source_type = LogicalType::DECIMAL(source_width, source_scale);
   LogicalType target_type = LogicalType::DECIMAL(target_width, target_scale);
-  cout<<source_width<<", "<<source_scale<<endl;
-  cout<<target_width<<", "<<target_scale<<endl;
-  string source_physical = ScalarFunctionInfo::DecimalTypeToCppType(source_width, source_scale);
-  string target_physical = ScalarFunctionInfo::DecimalTypeToCppType(target_width, target_scale);
-  if(target_scale >= source_scale){
+  cout << source_width << ", " << source_scale << endl;
+  cout << target_width << ", " << target_scale << endl;
+  string source_physical =
+      ScalarFunctionInfo::DecimalTypeToCppType(source_width, source_scale);
+  string target_physical =
+      ScalarFunctionInfo::DecimalTypeToCppType(target_width, target_scale);
+  if (target_scale >= source_scale) {
     // scale up
     idx_t scale_difference = target_scale - source_scale;
     auto multiply_factor = pow10String(scale_difference);
     idx_t res_width = target_width - scale_difference;
-    if(source_width < res_width){
+    if (source_width < res_width) {
       function_name = fmt::format("{} * Cast::Operation", multiply_factor);
       template_args.push_back(source_physical);
       template_args.push_back(target_physical);
-    }
-    else{
+    } else {
       // DecimalScaleUpCheckOperator
       // evaluate the child first
       string newVar = insert.newTmpVar();
-      insert.lines.push_back(fmt::format("auto {} = {};", newVar, args.front()));
+      insert.lines.push_back(
+          fmt::format("auto {} = {};", newVar, args.front()));
       args.pop_front();
       args.push_front(newVar);
       string limit = pow10String(res_width);
@@ -72,28 +77,29 @@ void decimalDecimalCastHandler(
       if ({input} >= {limit} || {input} <= -{limit}){{\n\
         throw CastException(\"Numeric value out of range\");\n\
       }}\
-      ", fmt::arg("input", newVar), fmt::arg("limit", limit)));
+      ",
+                                         fmt::arg("input", newVar),
+                                         fmt::arg("limit", limit)));
       function_name = fmt::format("{} * Cast::Operation", multiply_factor);
       template_args.push_back(source_physical);
       template_args.push_back(target_physical);
     }
-  }
-  else{ 
+  } else {
     // scale down
     idx_t scale_difference = source_scale - target_scale;
     auto multiply_factor = pow10String(scale_difference);
     idx_t res_width = target_width + scale_difference;
-    if(source_width < res_width){
+    if (source_width < res_width) {
       // udf_todo: possibly a source of result difference
       function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);
       template_args.push_back(source_physical);
       template_args.push_back(target_physical);
-    }
-    else{
+    } else {
       // DecimalScaleUpCheckOperator
       // evaluate the child first
       string newVar = insert.newTmpVar();
-      insert.lines.push_back(fmt::format("auto {} = {};", newVar, args.front()));
+      insert.lines.push_back(
+          fmt::format("auto {} = {};", newVar, args.front()));
       args.pop_front();
       args.push_front(newVar);
       string limit = pow10String(res_width);
@@ -101,7 +107,9 @@ void decimalDecimalCastHandler(
       if ({input} >= {limit} || {input} <= -{limit}){{\n\
         throw CastException(\"Numeric value out of range\");\n\
       }}\
-      ", fmt::arg("input", newVar), fmt::arg("limit", limit)));
+      ",
+                                         fmt::arg("input", newVar),
+                                         fmt::arg("limit", limit)));
       function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);
       template_args.push_back(source_physical);
       template_args.push_back(target_physical);
@@ -110,7 +118,7 @@ void decimalDecimalCastHandler(
 }
 
 /**
- * 
+ *
  */
 void BoundExpressionCodeGenerator::SpecialCaseHandler(
     const ScalarFunctionInfo &function_info, string &function_name,
@@ -146,7 +154,8 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
       template_args.push_back(get_struct_name(function_info.cpp_name));
       break;
     case ScalarFunctionInfo::DecimalCastWrapper:
-      ASSERT(function_info.width_scale != std::make_pair((uint8_t)0, (uint8_t)0),
+      ASSERT(function_info.width_scale !=
+                 std::make_pair((uint8_t)0, (uint8_t)0),
              "DecimalCastWrapper should have width_scale set.");
       function_name = "DecimalCastHelper";
       template_args.push_back(get_struct_name(function_info.cpp_name));
@@ -162,9 +171,11 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
       EXCEPTION("DecimalVectorBackWrapper not implemented yet.");
       break;
     case ScalarFunctionInfo::DecimalDeciamlCastWrapper:
-      decimalDecimalCastHandler(function_info, function_name, template_args, children, insert, args);
+      decimalDecimalCastHandler(function_info, function_name, template_args,
+                                children, insert, args);
       break;
-    default: break;
+    default:
+      break;
     }
   }
 
@@ -258,7 +269,9 @@ BoundExpressionCodeGenerator::Transpile(const BoundComparisonExpression &exp,
                        Transpile(*exp.left, insert),
                        Transpile(*exp.right, insert));
     break;
-  default: return exp.ToString(); break;
+  default:
+    return exp.ToString();
+    break;
   }
 }
 
@@ -277,7 +290,9 @@ BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp,
     return fmt::format("({} || {})", Transpile(*exp.children[0], insert),
                        Transpile(*exp.children[1], insert));
     break;
-  default: ASSERT(false, "Conjunction expression should be AND or OR."); break;
+  default:
+    ASSERT(false, "Conjunction expression should be AND or OR.");
+    break;
   }
 }
 
@@ -288,7 +303,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp,
                                         CodeGenInfo &insert) {
   if (exp.bound_cast.has_function_info) {
     return CodeGenScalarFunction(exp.bound_cast.function_info,
-                                     {exp.child.get()}, insert);
+                                 {exp.child.get()}, insert);
   }
   return fmt::format("[CAST {} AS {}]", Transpile(*exp.child, insert),
                      exp.return_type.ToString());
@@ -317,7 +332,9 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
                                         CodeGenInfo &insert) {
   if (exp.value.type().IsNumeric() or
       exp.value.type() == LogicalType::BOOLEAN) {
-    return fmt::format("({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type), exp.value.ToString());
+    return fmt::format(
+        "({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type),
+        exp.value.ToString());
   }
   return fmt::format("\"{}\"", exp.value.ToString());
 }
@@ -337,9 +354,8 @@ BoundExpressionCodeGenerator::Transpile(const BoundColumnRefExpression &exp,
 }
 
 template <>
-std::string
-BoundExpressionCodeGenerator::Transpile(const Expression &exp,
-                                        CodeGenInfo &insert) {
+std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp,
+                                                    CodeGenInfo &insert) {
   switch (exp.GetExpressionClass()) {
   case ExpressionClass::BOUND_FUNCTION:
     return Transpile(exp.Cast<BoundFunctionExpression>(), insert);
@@ -373,7 +389,7 @@ BoundExpressionCodeGenerator::Transpile(const Expression &exp,
 }
 
 /**
- * 
+ *
  */
 void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
   auto func = newFunction("tmp");

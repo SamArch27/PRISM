@@ -8,11 +8,11 @@
 #include <utility>
 #include <vector>
 #define FMT_HEADER_ONLY
+#include "duckdb/common/exception.hpp"
 #include <algorithm>
 #include <include/fmt/core.h>
 #include <regex>
 #include <yaml-cpp/yaml.h>
-#include "duckdb/common/exception.hpp"
 using namespace std;
 
 #define ASSERT(condition, message)                                             \
@@ -20,7 +20,7 @@ using namespace std;
     if (!(condition)) {                                                        \
       std::cout << "Assertion `" #condition "` failed in " << __FILE__         \
                 << " line " << __LINE__ << ": " << message << std::endl;       \
-      std::terminate();                                                       \
+      std::terminate();                                                        \
     }                                                                          \
   } while (false)
 
@@ -35,7 +35,7 @@ using namespace std;
   do {                                                                         \
     std::cout << "Exception: " << message << " (" << __FILE__ << ":"           \
               << __LINE__ << ")" << std::endl;                                 \
-    throw duckdb::ParserException("See the above message.");                 \                                       
+    throw duckdb::ParserException("See the above message.");                   \
   } while (false)
 
 template <class A> using Own = std::unique_ptr<A>;
@@ -71,6 +71,7 @@ std::string list_join(std::list<T> &any_list, std::string sep) {
 template <>
 std::string list_join(std::list<std::string> &any_list, std::string sep);
 
+std::string toLower(const std::string &str);
 std::string toUpper(const std::string &str);
 std::string removeSpaces(const std::string &str);
 

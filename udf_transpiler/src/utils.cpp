@@ -20,6 +20,12 @@ std::string list_join(std::list<std::string> &any_list, std::string sep) {
   return result.substr(0, result.size() - sep.size());
 }
 
+std::string toLower(const std::string &str) {
+  std::string lower = str;
+  std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+  return lower;
+}
+
 std::string toUpper(const std::string &str) {
   std::string upper = str;
   std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
