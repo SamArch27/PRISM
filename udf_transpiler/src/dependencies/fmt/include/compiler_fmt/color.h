@@ -526,7 +526,7 @@ inline std::basic_string<Char> vformat(
 
   **Example**::
 
-    #include <fmt/color.h>
+    #include <compile_fmt/color.h>
     std::string message = fmt::format(fmt::emphasis::bold | fg(fmt::color::red),
                                       "The answer is {}", 42);
   \endrst

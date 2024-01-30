@@ -10,7 +10,7 @@
 #define FMT_HEADER_ONLY
 #include "duckdb/common/exception.hpp"
 #include <algorithm>
-#include <include/fmt/core.h>
+#include "compiler_fmt/core.h"
 #include <regex>
 #include <yaml-cpp/yaml.h>
 

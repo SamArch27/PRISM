@@ -305,7 +305,7 @@ constexpr FMT_INLINE auto is_constant_evaluated(
     bool default_value = false) noexcept -> bool {
 // Workaround for incompatibility between libstdc++ consteval-based
 // std::is_constant_evaluated() implementation and clang-14.
-// https://github.com/fmtlib/fmt/issues/3247
+// https://github.com/fmtlib/compile_fmt/issues/3247
 #if FMT_CPLUSPLUS >= 202002L && defined(_GLIBCXX_RELEASE) && \
     _GLIBCXX_RELEASE >= 12 &&                                \
     (FMT_CLANG_VERSION >= 1400 && FMT_CLANG_VERSION < 1500)
@@ -2807,7 +2807,7 @@ FMT_API auto vformat(string_view fmt, format_args args) -> std::string;
 
   **Example**::
 
-    #include <fmt/core.h>
+    #include <compile_fmt/core.h>
     std::string message = fmt::format("The answer is {}.", 42);
   \endrst
 */

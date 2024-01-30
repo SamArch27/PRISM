@@ -1131,7 +1131,7 @@ bool is_left_endpoint_integer_shorter_interval(int exponent) noexcept {
 FMT_INLINE int remove_trailing_zeros(uint32_t& n) noexcept {
   FMT_ASSERT(n != 0, "");
   // Modular inverse of 5 (mod 2^32): (mod_inv_5 * 5) mod 2^32 = 1.
-  // See https://github.com/fmtlib/fmt/issues/3163 for more details.
+  // See https://github.com/fmtlib/compile_fmt/issues/3163 for more details.
   const uint32_t mod_inv_5 = 0xcccccccd;
   // Casts are needed to workaround a bug in MSVC 19.22 and older.
   const uint32_t mod_inv_25 =

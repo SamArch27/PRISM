@@ -163,7 +163,7 @@ FMT_END_NAMESPACE
 #endif
 
 // __builtin_clz is broken in clang with Microsoft CodeGen:
-// https://github.com/fmtlib/fmt/issues/519.
+// https://github.com/fmtlib/compile_fmt/issues/519.
 #if !FMT_MSC_VERSION
 #  if FMT_HAS_BUILTIN(__builtin_clz) || FMT_GCC_VERSION || FMT_ICC_VERSION
 #    define FMT_BUILTIN_CLZ(n) __builtin_clz(n)
@@ -174,7 +174,7 @@ FMT_END_NAMESPACE
 #endif
 
 // __builtin_ctz is broken in Intel Compiler Classic on Windows:
-// https://github.com/fmtlib/fmt/issues/2510.
+// https://github.com/fmtlib/compile_fmt/issues/2510.
 #ifndef __ICL
 #  if FMT_HAS_BUILTIN(__builtin_ctz) || FMT_GCC_VERSION || FMT_ICC_VERSION || \
       defined(__NVCOMPILER)
@@ -4518,7 +4518,7 @@ auto join(Range&& range, string_view sep)
 
   **Example**::
 
-    #include <fmt/format.h>
+    #include <compile_fmt/format.h>
 
     std::string answer = fmt::to_string(42);
   \endrst

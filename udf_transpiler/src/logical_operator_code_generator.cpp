@@ -14,7 +14,7 @@
 #include "duckdb/planner/logical_operator_visitor.hpp"
 #define FMT_HEADER_ONLY
 #include "duckdb/common/enums/expression_type.hpp"
-#include "include/fmt/core.h"
+#include "compiler_fmt/core.h"
 #include "utils.hpp"
 #include <iostream>
 
