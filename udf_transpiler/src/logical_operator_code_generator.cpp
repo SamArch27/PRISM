@@ -343,14 +343,14 @@ template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp,
                                         CodeGenInfo &insert) {
-  return get_var_name(exp.GetName());
+  return toLower(exp.GetName());
 }
 
 template <>
 std::string
 BoundExpressionCodeGenerator::Transpile(const BoundColumnRefExpression &exp,
                                         CodeGenInfo &insert) {
-  return get_var_name(exp.GetName());
+  return toLower(exp.GetName());
 }
 
 template <>
