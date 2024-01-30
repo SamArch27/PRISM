@@ -26,10 +26,29 @@ using LogicalPlan = duckdb::LogicalOperator;
 
 std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr);
 
-struct SelectExpression {
+class SelectExpression {
 public:
+  SelectExpression(const std::string &rawSQL, Own<LogicalPlan> logicalPlan,
+                   const Vec<std::string> &usedVariables)
+      : rawSQL(rawSQL), logicalPlan(std::move(logicalPlan)),
+        usedVariables(usedVariables) {}
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const SelectExpression &expr) {
+    expr.print(os);
+    return os;
+  }
+
+  std::string getRawSQL() const { return rawSQL; }
+  const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
+  const Vec<std::string> &getUsedVariables() const { return usedVariables; }
+
+protected:
+  void print(std::ostream &os) const { os << rawSQL; }
+
+private:
   std::string rawSQL;
-  Own<LogicalPlan> logicalOperator;
+  Own<LogicalPlan> logicalPlan;
   Vec<std::string> usedVariables;
 };
 
@@ -73,12 +92,11 @@ protected:
 
 class Assignment : public Instruction {
 public:
-  Assignment(const Variable *var, SelectExpression expr)
+  Assignment(const Variable *var, Own<SelectExpression> expr)
       : Instruction(), var(var), expr(std::move(expr)) {}
 
   const Variable *getVar() const { return var; }
-  const SelectExpression &getCompilerExpr() const { return expr; }
-  const LogicalPlan *getExpr() const { return expr.logicalOperator.get(); }
+  const SelectExpression *getExpr() const { return expr.get(); }
   friend std::ostream &operator<<(std::ostream &os,
                                   const Assignment &assignment) {
     assignment.print(os);
@@ -94,7 +112,7 @@ protected:
 
 private:
   const Variable *var;
-  SelectExpression expr;
+  Own<SelectExpression> expr;
 };
 
 class BasicBlock {
@@ -147,7 +165,7 @@ private:
 
 class ReturnInst : public Instruction {
 public:
-  ReturnInst(SelectExpression expr, BasicBlock *exitBlock)
+  ReturnInst(Own<SelectExpression> expr, BasicBlock *exitBlock)
       : Instruction(), expr(std::move(expr)), exitBlock(exitBlock) {}
   friend std::ostream &operator<<(std::ostream &os,
                                   const ReturnInst &returnInst) {
@@ -157,7 +175,7 @@ public:
 
   bool isTerminator() const override { return true; }
   Vec<BasicBlock *> getSuccessors() const override { return {exitBlock}; }
-  inline LogicalPlan *getExpr() const { return expr.logicalOperator.get(); }
+  SelectExpression *getExpr() const { return expr.get(); }
 
 protected:
   void print(std::ostream &os) const override {
@@ -165,17 +183,18 @@ protected:
   }
 
 private:
-  SelectExpression expr;
+  Own<SelectExpression> expr;
   BasicBlock *exitBlock;
 };
 
 class BranchInst : public Instruction {
 public:
-  BranchInst(BasicBlock *ifTrue, BasicBlock *ifFalse, SelectExpression cond)
+  BranchInst(BasicBlock *ifTrue, BasicBlock *ifFalse,
+             Own<SelectExpression> cond)
       : Instruction(), ifTrue(ifTrue), ifFalse(ifFalse), cond(std::move(cond)),
         conditional(true) {}
   BranchInst(BasicBlock *ifTrue)
-      : Instruction(), ifTrue(ifTrue), ifFalse(nullptr), cond({}),
+      : Instruction(), ifTrue(ifTrue), ifFalse(nullptr), cond(),
         conditional(false) {}
 
   friend std::ostream &operator<<(std::ostream &os,
@@ -199,7 +218,7 @@ public:
 
   BasicBlock *getIfTrue() const { return ifTrue; }
   BasicBlock *getIfFalse() const { return ifFalse; }
-  LogicalPlan *getCond() const { return cond.logicalOperator.get(); }
+  SelectExpression *getCond() const { return cond.get(); }
 
 protected:
   void print(std::ostream &os) const override {
@@ -220,7 +239,7 @@ protected:
 private:
   BasicBlock *ifTrue;
   BasicBlock *ifFalse;
-  SelectExpression cond;
+  Own<SelectExpression> cond;
   bool conditional;
 };
 
@@ -264,12 +283,9 @@ public:
     auto var = Make<Variable>(name, std::move(type), isNULL);
     variables.emplace_back(std::move(var));
     bindings.emplace(name, variables.back().get());
-
-    // auto assignment = Make<Assignment>(variables.back().get(),
-    // std::move(expr)); declarations.emplace_back(std::move(assignment));
   }
 
-  void addVarInitialization(const Variable *var, SelectExpression expr) {
+  void addVarInitialization(const Variable *var, Own<SelectExpression> expr) {
     auto assignment = Make<Assignment>(var, std::move(expr));
     declarations.emplace_back(std::move(assignment));
   }

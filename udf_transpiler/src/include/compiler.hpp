@@ -115,8 +115,8 @@ private:
   List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
 
-  SelectExpression bindExpression(const Function &function,
-                                  const std::string &expression);
+  Own<SelectExpression> bindExpression(const Function &function,
+                                       const std::string &expression);
   static StringPair unpackAssignment(const string &assignment);
   static Opt<WidthScale> getDecimalWidthScale(const std::string &type);
   static PostgresTypeTag getPostgresTag(const std::string &name);

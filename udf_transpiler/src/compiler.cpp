@@ -551,16 +551,16 @@ void Compiler::makeDuckDBContext(const Function &function) {
   }
 }
 
-SelectExpression Compiler::bindExpression(const Function &function,
-                                          const std::string &expr) {
+Own<SelectExpression> Compiler::bindExpression(const Function &function,
+                                               const std::string &expr) {
   std::string selectExpressionCommand;
-  std::string expression = toUpper(expr);
-  if (expression.find("SELECT") == std::string::npos)
-    selectExpressionCommand = "SELECT " + expression + " FROM tmp;";
+  if (toUpper(expr).find("SELECT") == std::string::npos)
+    selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
   else {
     // insert tmp to the from clause
-    auto fromPos = expression.find(" FROM ");
-    selectExpressionCommand = expression.insert(fromPos + 6, " tmp, ");
+    auto fromPos = expr.find(" FROM ");
+    selectExpressionCommand = expr;
+    selectExpressionCommand.insert(fromPos + 6, " tmp, ");
   }
   auto connectionContext = connection->context.get();
   connectionContext->config.enable_optimizer = true;
@@ -597,8 +597,8 @@ SelectExpression Compiler::bindExpression(const Function &function,
 
   duckdb::UsedVariableFinder usedVariableFinder("tmp", plannerBinder);
   usedVariableFinder.VisitOperator(*boundExpression);
-  return {expression, std::move(boundExpression),
-          usedVariableFinder.usedVariables};
+  return std::make_unique<SelectExpression>(expr, std::move(boundExpression),
+                                            usedVariableFinder.usedVariables);
 }
 
 json Compiler::parseJson() const {

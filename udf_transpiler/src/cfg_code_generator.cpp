@@ -10,8 +10,7 @@
 string CFGCodeGenerator::createReturnValue(const std::string &retName,
                                            const Type *retType,
                                            const string &retValue) {
-  // string retName = retVar.getName();
-  // auto retType = retVar.getType();
+
   if (dynamic_cast<const DecimalType *>(retType)) {
     auto width = dynamic_cast<const DecimalType *>(retType)->getWidth();
     auto scale = dynamic_cast<const DecimalType *>(retType)->getScale();
@@ -39,10 +38,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
   string code;
   code += fmt::format("/* ==== Basic block {} start ==== */\n", bb->getLabel());
   code += fmt::format("{}:\n", bb->getLabel());
-  // if(bb->getLabel() == "entry"){
-  //     // do nothing
-  //     goto end;
-  // }
+
   if (bb->getLabel() == "exit") {
     code += fmt::format("return;\n");
     goto end;
@@ -55,19 +51,21 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
             dynamic_cast<const Assignment *>(intr->get());
         // code += fmt::format("{} = {};\n", assign->getLvalue(),
         // assign->getRvalue());
-        if (toUpper(assign->getCompilerExpr().rawSQL).find(" FROM ") !=
+        if (toUpper(assign->getExpr()->getRawSQL()).find(" FROM ") !=
             string::npos) {
           ERROR("FROM clause should not be compiled.");
         }
         duckdb::LogicalOperatorCodeGenerator locg;
-        locg.VisitOperator((LogicalPlan &)*(assign->getExpr()), function_info);
+        auto *plan = assign->getExpr()->getLogicalPlan();
+        locg.VisitOperator(*plan, function_info);
         auto [header, res] = locg.getResult();
         code += header;
         code += fmt::format("{} = {};\n", assign->getVar()->getName(), res);
       } else if (dynamic_cast<const ReturnInst *>(intr->get())) {
         const ReturnInst *ret = dynamic_cast<const ReturnInst *>(intr->get());
         duckdb::LogicalOperatorCodeGenerator locg;
-        locg.VisitOperator((LogicalPlan &)*(ret->getExpr()), function_info);
+        auto *plan = ret->getExpr()->getLogicalPlan();
+        locg.VisitOperator(*plan, function_info);
         auto [header, res] = locg.getResult();
         code += header;
         code += fmt::format(
@@ -78,7 +76,8 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
         const BranchInst *br = dynamic_cast<const BranchInst *>(intr->get());
         if (br->isConditional()) {
           duckdb::LogicalOperatorCodeGenerator locg;
-          locg.VisitOperator((LogicalPlan &)*(br->getCond()), function_info);
+          auto *plan = br->getCond()->getLogicalPlan();
+          locg.VisitOperator(*plan, function_info);
           auto [header, res] = locg.getResult();
           code += header;
           code += fmt::format("if({}) goto {};\n", res,
@@ -97,8 +96,6 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
     }
   }
 end:
-  // std::cout<<code<<endl;
-  // todo: insert code to the container
   container.basicBlockCodes.push_back(code);
   return;
 }
@@ -134,9 +131,6 @@ std::string CFGCodeGenerator::extractVarFromChunk(const Function &func) {
 vector<string> CFGCodeGenerator::run(const Function &func) {
   cout << fmt::format("Generating code for function {}", func.getFunctionName())
        << endl;
-  // std::ostringstream oss;
-  // func.print(oss);
-  // cout<<oss.str()<<endl;
   CodeGenInfo function_info(func);
 
   for (auto &bbUniq : func.getBasicBlocks()) {
@@ -220,11 +214,6 @@ vector<string> CFGCodeGenerator::run(const Function &func) {
   std::cout << container.body << std::endl;
   std::cout << container.main << std::endl;
   std::cout << container.registration << std::endl;
-  // string customAggs;
-  // string customAggsReg;
-  // for(auto &agg : func.getCustomAggs()){
-  //     customAggs += agg[0] + "\n";
-  //     customAggsReg += agg[1] + "\n";
-  // }
+
   return {container.body + "\n" + container.main, container.registration};
 }

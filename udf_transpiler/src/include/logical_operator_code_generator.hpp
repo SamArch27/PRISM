@@ -1,13 +1,13 @@
 #pragma once
+#include "cfg.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/connection.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "utils.hpp"
-#include "cfg.hpp"
 
 struct CodeGenInfo {
 public:
-  CodeGenInfo(const Function &_func): function(_func) {}
+  CodeGenInfo(const Function &_func) : function(_func) {}
   const Function &function;
   vector<string> lines;
   /**
@@ -17,11 +17,12 @@ public:
 
   int tmpVarCount = 0;
 
-//   CodeGenInfo(int &vectorCount) : vectorCount(vectorCount) {}
+  //   CodeGenInfo(int &vectorCount) : vectorCount(vectorCount) {}
   std::string newVector() {
     // make sure it is does not already exist
     string name = "tmp_vec" + std::to_string(vectorCount++);
-    if(function.hasBinding(name)) return newVector();
+    if (function.hasBinding(name))
+      return newVector();
     return name;
   }
 
@@ -33,7 +34,8 @@ public:
 
   std::string newTmpVar() {
     string name = "tmp_var" + std::to_string(tmpVarCount++);
-    if(function.hasBinding(name)) return newTmpVar();
+    if (function.hasBinding(name))
+      return newTmpVar();
     return name;
   }
 };
@@ -56,8 +58,8 @@ private:
                                  std::list<std::string> &args);
   static std::string
   CodeGenScalarFunction(const ScalarFunctionInfo &function_info,
-                            const std::vector<Expression *> &children,
-                            CodeGenInfo &insert);
+                        const std::vector<Expression *> &children,
+                        CodeGenInfo &insert);
 };
 
 class LogicalOperatorCodeGenerator : public LogicalOperatorVisitor {
@@ -68,10 +70,8 @@ private:
 
 public:
   void VisitOperator(duckdb::LogicalOperator &op) override;
-  void VisitOperator(duckdb::LogicalOperator &op, CodeGenInfo &insert);
-  std::pair<std::string, std::string> getResult() {
-    return {header, res};
-  }
+  void VisitOperator(const duckdb::LogicalOperator &op, CodeGenInfo &insert);
+  std::pair<std::string, std::string> getResult() { return {header, res}; }
   std::string
   run(Connection &con, const std::string &query,
       const std::vector<pair<const std::string &, const VarInfo &>> &vars,

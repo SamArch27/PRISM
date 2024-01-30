@@ -402,13 +402,12 @@ void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
  * traverse the logical operator tree and generate the code into member res
  *
  */
-void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op,
-                                                 CodeGenInfo &insert) {
+void LogicalOperatorCodeGenerator::VisitOperator(
+    const duckdb::LogicalOperator &op, CodeGenInfo &insert) {
   ASSERT(op.expressions.size() == 1,
          "Expression of the root operator should be 1.");
   insert.lines.clear();
   res = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
-  // std::cout<<ret<<std::endl;
   header = insert.toString();
   return;
 }
@@ -433,6 +432,8 @@ std::string LogicalOperatorCodeGenerator::run(
   context->config.enable_optimizer = false;
   // cout<<query<<endl;
   auto plan = context->ExtractPlan(query + " from tmp1");
+  std::cout << "Plan is nullptr? " << ((plan == nullptr) ? "Yes" : "No")
+            << std::endl;
   VisitOperator(*plan, insert);
   con.Query("drop table tmp1");
   // cout<<"query end"<<endl;
