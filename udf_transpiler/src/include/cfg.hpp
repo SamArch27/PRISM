@@ -114,6 +114,7 @@ protected:
       }
       os << arg;
     }
+    os << ")";
   }
 
 private:
