@@ -65,7 +65,7 @@ release:
 	- make udfs
 	mkdir -p build/release
 	cmake $(GENERATOR) $(FORCE_COLOR) $(EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release ${BUILD_FLAGS} -S ./duckdb/ -B build/release && \
-	cmake --build build/release --config Release
+	cmake --build build/release --config Release -j6
 
 start_duckdb:
 	./build/release/duckdb -unsigned -cmd "install './build/release/extension/profiler/profiler.duckdb_extension'; load './build/release/extension/profiler/profiler.duckdb_extension';"

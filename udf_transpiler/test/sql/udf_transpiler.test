@@ -2,17 +2,12 @@
 # description: test udf_transpiler extension
 # group: [udf_transpiler]
 
-# Before we load the extension, this will fail
-statement error
-SELECT udf_transpiler('Sam');
-----
-Catalog Error: Scalar Function with name udf_transpiler does not exist!
-
 # Require statement will ensure this test is run with this extension loaded
 require udf_transpiler
 
-# Confirm the extension works
 query I
-SELECT udf_transpiler('Sam');
+pragma transpile('samples/sudf_10_isListDistinct.sql');
 ----
-Udf_transpiler Sam 🐥
+(empty)
+
+
