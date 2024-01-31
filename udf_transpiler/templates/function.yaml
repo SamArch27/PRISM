@@ -100,7 +100,7 @@ finit_var: |-
 func_dec: |-
   void {function_name}(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result);
 
-fcreate: |-
+fcreate: |
   auto {function_name}_scalar_function = ScalarFunction("{function_name}", {{{args_logical_types}}}, {return_logical_type}, {function_name});
   ExtensionUtil::RegisterFunction(instance, {function_name}_scalar_function);
   
