@@ -13,7 +13,7 @@ template <typename T, bool forward> class DataflowFramework {
 public:
   Map<Instruction *, DataflowResult<T>> results;
 
-  explicit DataflowFramework(Function &f) {}
+  explicit DataflowFramework(Function &f) : f(f) {}
 
   void runAnalysis();
 

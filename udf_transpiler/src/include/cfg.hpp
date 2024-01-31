@@ -92,9 +92,14 @@ public:
   virtual Own<Instruction> clone() const = 0;
   virtual bool isTerminator() const = 0;
   virtual Vec<BasicBlock *> getSuccessors() const = 0;
+  void setParent(BasicBlock *parentBlock) { parent = parentBlock; }
+  BasicBlock *getParent() { return parent; }
 
 protected:
   virtual void print(std::ostream &os) const = 0;
+
+private:
+  BasicBlock *parent;
 };
 
 class PhiNode : public Instruction {
@@ -188,6 +193,7 @@ public:
   void addInstruction(Own<Instruction> inst) {
     // if we are inserting a terminator instruction then we update the
     // successor/predecessors appropriately
+    inst->setParent(this);
     if (inst->isTerminator()) {
       for (auto *succBlock : inst->getSuccessors()) {
         addSuccessor(succBlock);

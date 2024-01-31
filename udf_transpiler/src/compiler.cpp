@@ -2,7 +2,7 @@
 #include "aggify_code_generator.hpp"
 #include "aggify_dfa.hpp"
 #include "cfg_code_generator.hpp"
-#include "dataflow_framework.hpp"
+#include "dominator_dataflow.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"

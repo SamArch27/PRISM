@@ -3,6 +3,7 @@
 
 class BitVector {
 public:
+  BitVector() : bitset() {}
   BitVector(std::size_t size, bool value) : bitset(size, value) {}
 
   BitVector &flip() {
