@@ -516,9 +516,11 @@ public:
   const Vec<Vec<String>> &getCustomAggs() const { return custom_aggs; }
 
 private:
-  void removeBasicBlock(BasicBlock *toRemove);
-  void mergeBasicBlocks();
   void convertToSSAForm();
+  void insertPhiFunctions();
+  void mergeBasicBlocks();
+  void removeBasicBlock(BasicBlock *toRemove);
+  void renameVariablesToSSA();
 
   class CompilationState {
   public:
