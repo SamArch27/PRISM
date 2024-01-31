@@ -374,6 +374,8 @@ CompilationResult Compiler::run() {
            std::string("UDF is missing the magic header string: ") + header);
   }
 
+  CompilationResult codeRes;
+
   for (std::size_t i = 0; i < functions.size(); ++i) {
 
     auto ast = asts[i];
@@ -442,8 +444,11 @@ CompilationResult Compiler::run() {
 
     std::cout << function << std::endl;
     auto res = generateCode(function);
-    return {true, res[0], res[1]};
+    codeRes.code += res[0];
+    codeRes.registration += res[1];
   }
+  codeRes.success = true;
+  return codeRes;
 }
 
 void Compiler::destroyDuckDBContext() {
