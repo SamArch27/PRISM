@@ -7,10 +7,9 @@ public:
   Map<BasicBlock *, std::size_t> blockToIndex;
   Vec<BasicBlock *> basicBlocks;
 
-  explicit DominatorDataflow(Function &f) : DataflowFramework(f) {}
+  DominatorDataflow(Function &f) : DataflowFramework(f) {}
 
-  void printDominators();
-  void printDominanceFrontiers();
+  Map<BasicBlock *, Set<BasicBlock *>> getDominanceFrontiers();
   bool dominates(BasicBlock *b1, BasicBlock *b2);
 
 protected:

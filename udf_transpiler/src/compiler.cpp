@@ -223,7 +223,7 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
   auto newBlock = function.makeBasicBlock();
   function.newState();
   buildCursorLoopCFG(function, cursorLoopJson);
-  function.mergeBasicBlocks();
+  function.optimize();
 
   AggifyDFA aggifyDFA(function);
 
@@ -437,12 +437,7 @@ CompilationResult Compiler::run() {
 
     buildCFG(function, ast);
 
-    function.mergeBasicBlocks();
-
-    DominatorDataflow dataflow(function);
-    dataflow.runAnalysis();
-    dataflow.printDominators();
-    dataflow.printDominanceFrontiers();
+    function.optimize();
 
     destroyDuckDBContext();
 

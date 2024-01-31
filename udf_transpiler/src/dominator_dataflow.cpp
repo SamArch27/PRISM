@@ -37,25 +37,9 @@ void DominatorDataflow::genBoundaryInner() {
   boundaryStart = BitVector(blockToIndex.size(), false);
 }
 
-void DominatorDataflow::printDominators() {
-  for (auto *block : basicBlocks) {
-    Instruction *firstInst = block->getInitiator();
-    BitVector bitVector = results[firstInst].out;
-    for (std::size_t i = 0; i < bitVector.size(); i++) {
-      if (bitVector[i]) {
-        std::cout << basicBlocks[i]->getLabel();
-        std::cout << " dom ";
-        std::cout << block->getLabel();
-        std::cout << std::endl;
-      }
-    }
-  }
-}
-
-void DominatorDataflow::printDominanceFrontiers() {
-
+Map<BasicBlock *, Set<BasicBlock *>>
+DominatorDataflow::getDominanceFrontiers() {
   Map<BasicBlock *, Set<BasicBlock *>> frontiers;
-
   for (auto *n : basicBlocks) {
     for (auto *m : basicBlocks) {
       bool dominatesPredecessor = false;
@@ -76,19 +60,7 @@ void DominatorDataflow::printDominanceFrontiers() {
     }
   }
 
-  for (auto &[block, frontier] : frontiers) {
-    std::cout << "DF(" << block->getLabel() << ") = {";
-    bool first = true;
-    for (auto *other : frontier) {
-      if (first) {
-        first = false;
-      } else {
-        std::cout << ",";
-      }
-      std::cout << other->getLabel();
-    }
-    std::cout << "}" << std::endl;
-  }
+  return frontiers;
 }
 
 bool DominatorDataflow::dominates(BasicBlock *b1, BasicBlock *b2) {

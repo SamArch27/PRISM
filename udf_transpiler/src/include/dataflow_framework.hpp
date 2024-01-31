@@ -1,6 +1,7 @@
 #pragma once
 #include "bitvector.hpp"
 #include "cfg.hpp"
+#include "compiler.hpp"
 #include "utils.hpp"
 
 template <typename T> struct DataflowResult {
@@ -13,7 +14,7 @@ template <typename T, bool forward> class DataflowFramework {
 public:
   Map<Instruction *, DataflowResult<T>> results;
 
-  explicit DataflowFramework(Function &f) : f(f) {}
+  DataflowFramework(Function &f) : f(f) {}
 
   void runAnalysis();
 

@@ -2,12 +2,12 @@
 #pragma once
 
 #include "cfg.hpp"
+#include "compiler_fmt/core.h"
 #include "duckdb/main/connection.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "types.hpp"
 #include "utils.hpp"
 #include <functional>
-#include "compiler_fmt/core.h"
 #include <json.hpp>
 #include <memory>
 #include <optional>
