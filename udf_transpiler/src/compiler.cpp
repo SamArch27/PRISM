@@ -362,58 +362,6 @@ void Compiler::buildCFG(Function &function, const json &ast) {
       constructCFG(function, statements, initialContinuations)));
 }
 
-void Function::mergeBasicBlocks() {
-  Map<BasicBlock *, Vec<BasicBlock *>> pred;
-
-  // compute predecessors
-  visitBFS([&pred, this](BasicBlock *block) {
-    if (block == getExitBlock()) {
-      return;
-    }
-
-    for (auto &succ : block->getTerminator()->get()->getSuccessors()) {
-      pred[succ].push_back(block);
-    }
-  });
-
-  // merge basic blocks
-  visitBFS([&pred, this](BasicBlock *block) {
-    if (block == getExitBlock()) {
-      return;
-    }
-    while (true) {
-      auto successors = block->getTerminator()->get()->getSuccessors();
-      // if we are not the entry block
-      if (block == getEntryBlock()) {
-        return;
-      }
-      // if we have an unconditional jump to a block that
-      if (successors.size() != 1) {
-        return;
-      }
-      auto *succ = successors.back();
-      // and that block has only a single predecessor
-      if (succ == getExitBlock()) {
-        return;
-      }
-      if (pred[succ].size() != 1) {
-        return;
-      }
-
-      // remove terminator from block
-      block->popInstruction();
-      // copy instructions from successor block to this block
-      auto instructions = succ->takeInstructions();
-      for (auto &inst : instructions) {
-        block->addInstruction(std::move(inst));
-      }
-      // finally remove the basic block from the function
-      removeBasicBlock(succ);
-      pred.erase(succ);
-    }
-  });
-}
-
 CompilationResult Compiler::run() {
 
   auto asts = parseJson();
@@ -487,7 +435,9 @@ CompilationResult Compiler::run() {
     }
 
     buildCFG(function, ast);
+
     function.mergeBasicBlocks();
+
     destroyDuckDBContext();
 
     std::cout << function << std::endl;
@@ -562,10 +512,10 @@ Own<SelectExpression> Compiler::bindExpression(const Function &function,
     selectExpressionCommand = expr;
     selectExpressionCommand.insert(fromPos + 6, " tmp, ");
   }
-  auto connectionContext = connection->context.get();
-  connectionContext->config.enable_optimizer = true;
+  auto clientContext = connection->context.get();
+  clientContext->config.enable_optimizer = true;
   // connectionContext->config.disableStatisticsPropagation = true;
-  auto &config = duckdb::DBConfig::GetConfig(*connectionContext);
+  auto &config = duckdb::DBConfig::GetConfig(*clientContext);
   std::set<duckdb::OptimizerType> disable_optimizers_should_delete;
 
   if (config.options.disabled_optimizers.count(
@@ -576,11 +526,11 @@ Own<SelectExpression> Compiler::bindExpression(const Function &function,
       duckdb::OptimizerType::STATISTICS_PROPAGATION);
 
   // SELECT <expr> FROM tmp
-  duckdb::unique_ptr<duckdb::LogicalOperator> boundExpression;
-  shared_ptr<duckdb::Binder> plannerBinder;
+  Shared<LogicalPlan> boundExpression;
+  Shared<duckdb::Binder> plannerBinder;
   try {
-    boundExpression = connectionContext->ExtractPlan(selectExpressionCommand,
-                                                     true, plannerBinder);
+    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
+                                                 plannerBinder);
 
     for (auto &type : disable_optimizers_should_delete) {
       config.options.disabled_optimizers.erase(type);
@@ -597,8 +547,8 @@ Own<SelectExpression> Compiler::bindExpression(const Function &function,
 
   duckdb::UsedVariableFinder usedVariableFinder("tmp", plannerBinder);
   usedVariableFinder.VisitOperator(*boundExpression);
-  return std::make_unique<SelectExpression>(expr, std::move(boundExpression),
-                                            usedVariableFinder.usedVariables);
+  return Make<SelectExpression>(expr, std::move(boundExpression),
+                                usedVariableFinder.usedVariables);
 }
 
 json Compiler::parseJson() const {

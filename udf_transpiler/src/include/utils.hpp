@@ -3,8 +3,10 @@
 #include <iostream>
 #include <list>
 #include <numeric>
+#include <queue>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #define FMT_HEADER_ONLY
@@ -39,10 +41,22 @@ using namespace std;
   } while (false)
 
 template <class A> using Own = std::unique_ptr<A>;
+template <class A> using Shared = std::shared_ptr<A>;
+
 template <typename A, typename B = A, typename... Args>
 Own<A> Make(Args &&... xs) {
   return std::make_unique<B>(std::forward<Args>(xs)...);
 }
+
+template <typename A, typename B = A, typename... Args>
+Own<A> MakeShared(Args &&... xs) {
+  return std::make_shared<B>(std::forward<Args>(xs)...);
+}
+
+template <typename A> using Queue = std::queue<A>;
+
+template <typename A> using Set = std::unordered_set<A>;
+
 template <typename A> using List = std::list<A>;
 
 template <typename A> using Vec = std::vector<A>;

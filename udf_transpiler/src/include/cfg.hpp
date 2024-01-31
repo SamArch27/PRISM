@@ -26,14 +26,16 @@ using LogicalPlan = duckdb::LogicalOperator;
 
 std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr);
 
-// Expression can be a Phi function
-
 class SelectExpression {
 public:
-  SelectExpression(const std::string &rawSQL, Own<LogicalPlan> logicalPlan,
+  SelectExpression(const std::string &rawSQL, Shared<LogicalPlan> logicalPlan,
                    const Vec<std::string> &usedVariables)
-      : rawSQL(rawSQL), logicalPlan(std::move(logicalPlan)),
-        usedVariables(usedVariables) {}
+      : rawSQL(rawSQL), logicalPlan(logicalPlan), usedVariables(usedVariables) {
+  }
+
+  Own<SelectExpression> clone() const {
+    return Make<SelectExpression>(rawSQL, logicalPlan, usedVariables);
+  }
 
   friend std::ostream &operator<<(std::ostream &os,
                                   const SelectExpression &expr) {
@@ -50,7 +52,8 @@ protected:
 
 private:
   std::string rawSQL;
-  Own<LogicalPlan> logicalPlan;
+  Shared<LogicalPlan> logicalPlan;
+  duckdb::ClientContext *clientContext;
   Vec<std::string> usedVariables;
 };
 
@@ -85,6 +88,7 @@ public:
     inst.print(os);
     return os;
   }
+  virtual Own<Instruction> clone() const = 0;
   virtual bool isTerminator() const = 0;
   virtual Vec<BasicBlock *> getSuccessors() const = 0;
 
@@ -96,6 +100,14 @@ class PhiNode : public Instruction {
 public:
   PhiNode(const Variable *var, const Vec<const Variable *> &arguments)
       : var(var), arguments(arguments) {}
+
+  Own<Instruction> clone() const override {
+    return Make<PhiNode>(var, arguments);
+  }
+
+  bool isTerminator() const override { return false; }
+
+  Vec<BasicBlock *> getSuccessors() const override { return {}; }
 
   friend std::ostream &operator<<(std::ostream &os, const PhiNode &phiNode) {
     phiNode.print(os);
@@ -127,6 +139,10 @@ public:
   Assignment(const Variable *var, Own<SelectExpression> expr)
       : Instruction(), var(var), expr(std::move(expr)) {}
 
+  Own<Instruction> clone() const override {
+    return Make<Assignment>(var, expr->clone());
+  }
+
   const Variable *getVar() const { return var; }
   const SelectExpression *getExpr() const { return expr.get(); }
   friend std::ostream &operator<<(std::ostream &os,
@@ -149,7 +165,8 @@ private:
 
 class BasicBlock {
 public:
-  BasicBlock(const std::string &label) : label(label) {}
+  BasicBlock(const std::string &label)
+      : label(label), predecessors(), successors() {}
 
   using InstIterator = ListOwn<Instruction>::iterator;
 
@@ -158,26 +175,46 @@ public:
     return os;
   }
 
+  const Set<BasicBlock *> &getSuccessors() const { return successors; }
+  const Set<BasicBlock *> &getPredecessors() const { return predecessors; }
+
+  void addSuccessor(BasicBlock *succ) { successors.insert(succ); }
+  void addPredecessor(BasicBlock *pred) { predecessors.insert(pred); }
+  void removeSuccessor(BasicBlock *succ) { successors.erase(succ); }
+  void removePredecessor(BasicBlock *pred) { predecessors.erase(pred); }
+
   void addInstruction(Own<Instruction> inst) {
+    // if we are inserting a terminator instruction then we update the
+    // successor/predecessors appropriately
+    if (inst->isTerminator()) {
+      for (auto *succBlock : inst->getSuccessors()) {
+        addSuccessor(succBlock);
+        succBlock->addPredecessor(this);
+      }
+    }
     instructions.emplace_back(std::move(inst));
   }
-
-  void popInstruction() { instructions.pop_back(); }
 
   void insertBefore(const InstIterator iter, Own<Instruction> inst) {
     instructions.insert(iter, std::move(inst));
   }
 
-  ListOwn<Instruction> takeInstructions() { return std::move(instructions); }
+  const ListOwn<Instruction> &getInstructions() const { return instructions; }
 
-  InstIterator begin() { return instructions.begin(); }
-  InstIterator end() { return instructions.end(); }
+  void appendBasicBlock(BasicBlock *toAppend) {
+    // delete my terminator
+    instructions.pop_back();
+    // copy all instructions over from other basic block
+    for (const auto &inst : toAppend->getInstructions()) {
+      addInstruction(inst->clone());
+    }
+  }
 
-  InstIterator getTerminator() {
+  Instruction *getTerminator() {
     auto last = std::prev(instructions.end());
     ASSERT((*last)->isTerminator(),
            "Last instruction of BasicBlock must be a Terminator instruction.");
-    return last;
+    return last->get();
   }
 
   std::string getLabel() const { return label; }
@@ -193,12 +230,19 @@ protected:
 private:
   std::string label;
   ListOwn<Instruction> instructions;
+  Set<BasicBlock *> predecessors;
+  Set<BasicBlock *> successors;
 };
 
 class ReturnInst : public Instruction {
 public:
   ReturnInst(Own<SelectExpression> expr, BasicBlock *exitBlock)
       : Instruction(), expr(std::move(expr)), exitBlock(exitBlock) {}
+
+  Own<Instruction> clone() const override {
+    return Make<ReturnInst>(expr->clone(), exitBlock);
+  }
+
   friend std::ostream &operator<<(std::ostream &os,
                                   const ReturnInst &returnInst) {
     returnInst.print(os);
@@ -228,6 +272,14 @@ public:
   BranchInst(BasicBlock *ifTrue)
       : Instruction(), ifTrue(ifTrue), ifFalse(nullptr), cond(),
         conditional(false) {}
+
+  Own<Instruction> clone() const override {
+    if (isConditional()) {
+      return Make<BranchInst>(ifTrue, ifFalse, cond->clone());
+    } else {
+      return Make<BranchInst>(ifTrue);
+    }
+  }
 
   friend std::ostream &operator<<(std::ostream &os,
                                   const BranchInst &branchInst) {
@@ -363,13 +415,17 @@ public:
   const VecOwn<BasicBlock> &getAllBasicBlocks() { return basicBlocks; }
 
   void visitBFS(std::function<void(BasicBlock *)> f) {
-    std::queue<BasicBlock *> q;
-    std::unordered_set<BasicBlock *> visited;
+    Queue<BasicBlock *> q;
+    Set<BasicBlock *> visited;
 
     q.push(getEntryBlock());
     while (!q.empty()) {
       auto *block = q.front();
       q.pop();
+
+      if (block == getExitBlock()) {
+        continue;
+      }
 
       if (visited.find(block) != visited.end()) {
         continue;
@@ -382,18 +438,57 @@ public:
         continue;
       }
 
-      for (auto &succ : block->getTerminator()->get()->getSuccessors()) {
+      for (auto &succ : block->getSuccessors()) {
         q.push(succ);
       }
     }
   }
 
-  void mergeBasicBlocks();
+  void mergeBasicBlocks() {
+    visitBFS([this](BasicBlock *block) {
+      while (true) {
+
+        // skip if we are entry or exit
+        if (block == getEntryBlock() || block == getExitBlock()) {
+          return;
+        }
+        // if we have an unique successor
+        auto successors = block->getSuccessors();
+        if (successors.size() != 1) {
+          return;
+        }
+        auto *uniqueSucc = *successors.begin();
+        // that isn't entry/exit
+        if (uniqueSucc == getEntryBlock() || uniqueSucc == getExitBlock()) {
+          return;
+        }
+        // and we are the unique predecessor
+        if (uniqueSucc->getPredecessors().size() != 1) {
+          return;
+        }
+
+        // merge the two blocks
+        block->appendBasicBlock(uniqueSucc);
+
+        // finally remove the basic block from the function
+        removeBasicBlock(uniqueSucc);
+      }
+    });
+  }
 
   void removeBasicBlock(BasicBlock *toRemove) {
     auto it = basicBlocks.begin();
     while (it != basicBlocks.end()) {
       if (it->get() == toRemove) {
+        // make all predecessors not reference this
+        for (auto &pred : toRemove->getPredecessors()) {
+          pred->removeSuccessor(toRemove);
+        }
+        // make all successors not reference this
+        for (auto &succ : toRemove->getSuccessors()) {
+          succ->removePredecessor(toRemove);
+        }
+        // finally erase the block
         it = basicBlocks.erase(it);
       } else {
         ++it;
@@ -427,7 +522,7 @@ public:
     for (const auto &block : basicBlocks) {
       os << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
       if (block->getLabel() != "exit") {
-        for (auto *succ : block->getTerminator()->get()->getSuccessors()) {
+        for (auto *succ : block->getSuccessors()) {
           os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
              << std::endl;
         }

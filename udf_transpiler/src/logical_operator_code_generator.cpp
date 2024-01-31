@@ -422,21 +422,17 @@ std::string LogicalOperatorCodeGenerator::run(
   }
   create_stmt = create_stmt.substr(0, create_stmt.size() - 2);
   create_stmt += ")";
-  // cout<<create_stmt<<endl;
   auto create_res = con.Query(create_stmt);
   if (create_res->HasError()) {
     EXCEPTION(create_res->GetError());
   }
-  // auto query_res = con.Query()
   auto context = con.context.get();
   context->config.enable_optimizer = false;
-  // cout<<query<<endl;
   auto plan = context->ExtractPlan(query + " from tmp1");
   std::cout << "Plan is nullptr? " << ((plan == nullptr) ? "Yes" : "No")
             << std::endl;
   VisitOperator(*plan, insert);
   con.Query("drop table tmp1");
-  // cout<<"query end"<<endl;
   return res;
 }
 } // namespace duckdb
