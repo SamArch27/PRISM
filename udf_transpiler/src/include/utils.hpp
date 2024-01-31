@@ -10,9 +10,9 @@
 #include <utility>
 #include <vector>
 #define FMT_HEADER_ONLY
+#include "compiler_fmt/core.h"
 #include "duckdb/common/exception.hpp"
 #include <algorithm>
-#include "compiler_fmt/core.h"
 #include <regex>
 #include <yaml-cpp/yaml.h>
 
@@ -53,96 +53,106 @@ using String = std::string;
 #define ASSERT(condition, message)                                             \
   do {                                                                         \
     if (!(condition)) {                                                        \
-      COUT << "Assertion `" #condition "` failed in " << __FILE__         \
-                << " line " << __LINE__ << ": " << message << ENDL;       \
+      COUT << "Assertion `" #condition "` failed in " << __FILE__ << " line "  \
+           << __LINE__ << ": " << message << ENDL;                             \
       std::terminate();                                                        \
     }                                                                          \
   } while (false)
 
 #define ERROR(message)                                                         \
   do {                                                                         \
-    COUT << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
-              << ")" << ENDL;                                             \
+    COUT << "Error: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" \
+         << ENDL;                                                              \
     std::terminate();                                                          \
   } while (false)
 
 #define EXCEPTION(message)                                                     \
   do {                                                                         \
-    COUT << "Exception: " << message << " (" << __FILE__ << ":"           \
-              << __LINE__ << ")" << ENDL;                                 \
+    COUT << "Exception: " << message << " (" << __FILE__ << ":" << __LINE__    \
+         << ")" << ENDL;                                                       \
     throw duckdb::ParserException("See the above message.");                   \
   } while (false)
 
-template <typename T>
-String vector_join(const Vec<T> &vec, String sep) {
+template <typename It> class Range {
+  It b, e;
+
+public:
+  Range(It b, It e) : b(b), e(e) {}
+  It begin() const { return b; }
+  It end() const { return e; }
+};
+
+template <typename ORange,
+          typename OIt = decltype(std::begin(std::declval<ORange>())),
+          typename It = std::reverse_iterator<OIt>>
+Range<It> reverse(ORange &&originalRange) {
+  return Range<It>(It(std::end(originalRange)), It(std::begin(originalRange)));
+}
+
+template <typename T> String vector_join(const Vec<T> &vec, String sep) {
   ERROR("vector_join not implemented for this type");
 }
 
-template <>
-String vector_join(const Vec<String> &vec, String sep);
+template <> String vector_join(const Vec<String> &vec, String sep);
 
-template <typename T>
-String list_join(std::list<T> &any_list, String sep) {
+template <typename T> String list_join(std::list<T> &any_list, String sep) {
   ERROR("list_join not implemented for this type");
 }
 
-template <>
-String list_join(std::list<String> &any_list, String sep);
+template <> String list_join(std::list<String> &any_list, String sep);
 
 String toLower(const String &str);
 String toUpper(const String &str);
 String removeSpaces(const String &str);
 
-Vec<String> extractMatches(const String &str,
-                                        const char *pattern,
-                                        std::size_t group = 1);
+Vec<String> extractMatches(const String &str, const char *pattern,
+                           std::size_t group = 1);
 
-static Map<String, String> alias_to_duckdb_type = {
-    {"UNKNOWN", "UNKNOWN"},
-    {"BIGINT", "BIGINT"},
-    {"INT8", "BIGINT"},
-    {"LONG", "BIGINT"},
-    {"BIT", "BIT"},
-    {"BITSTRING", "BIT"},
-    {"BOOLEAN", "BOOLEAN"},
-    {"BOOL", "BOOLEAN"},
-    {"LOGICAL", "BOOLEAN"},
-    {"BLOB", "BLOB"},
-    {"BYTEA", "BLOB"},
-    {"BINARY", "BLOB"},
-    {"VARBINARY", "BLOB"},
-    {"DATE", "DATE"},
-    {"DOUBLE", "DOUBLE"},
-    {"FLOAT8", "DOUBLE"},
-    {"NUMERIC", "DOUBLE"},
-    {"DECIMAL", "DOUBLE"},
-    {"HUGEINT", "HUGEINT"},
-    {"INTEGER", "INTEGER"},
-    {"INT", "INTEGER"},
-    {"INT4", "INTEGER"},
-    {"SIGNED", "INTEGER"},
-    {"INTERVAL", "INTERVAL"},
-    {"REAL", "REAL"},
-    {"FLOAT4", "REAL"},
-    {"FLOAT", "REAL"},
-    {"SMALLINT", "SMALLINT"},
-    {"INT2", "SMALLINT"},
-    {"SHORT", "SMALLINT"},
-    {"TIME", "TIME"},
-    {"TIMESTAMP", "TIMESTAMP"},
-    {"DATETIME", "TIMESTAMP"},
-    {"TINYINT", "TINYINT"},
-    {"INT1", "TINYINT"},
-    {"UBIGINT", "UBIGINT"},
-    {"UINTEGER", "UINTEGER"},
-    {"USMALLINT", "USMALLINT"},
-    {"UTINYINT", "UTINYINT"},
-    {"UUID", "UUID"},
-    {"VARCHAR", "VARCHAR"},
-    {"CHAR", "VARCHAR"},
-    {"BPCHAR", "VARCHAR"},
-    {"TEXT", "VARCHAR"},
-    {"STRING", "VARCHAR"}};
+static Map<String, String> alias_to_duckdb_type = {{"UNKNOWN", "UNKNOWN"},
+                                                   {"BIGINT", "BIGINT"},
+                                                   {"INT8", "BIGINT"},
+                                                   {"LONG", "BIGINT"},
+                                                   {"BIT", "BIT"},
+                                                   {"BITSTRING", "BIT"},
+                                                   {"BOOLEAN", "BOOLEAN"},
+                                                   {"BOOL", "BOOLEAN"},
+                                                   {"LOGICAL", "BOOLEAN"},
+                                                   {"BLOB", "BLOB"},
+                                                   {"BYTEA", "BLOB"},
+                                                   {"BINARY", "BLOB"},
+                                                   {"VARBINARY", "BLOB"},
+                                                   {"DATE", "DATE"},
+                                                   {"DOUBLE", "DOUBLE"},
+                                                   {"FLOAT8", "DOUBLE"},
+                                                   {"NUMERIC", "DOUBLE"},
+                                                   {"DECIMAL", "DOUBLE"},
+                                                   {"HUGEINT", "HUGEINT"},
+                                                   {"INTEGER", "INTEGER"},
+                                                   {"INT", "INTEGER"},
+                                                   {"INT4", "INTEGER"},
+                                                   {"SIGNED", "INTEGER"},
+                                                   {"INTERVAL", "INTERVAL"},
+                                                   {"REAL", "REAL"},
+                                                   {"FLOAT4", "REAL"},
+                                                   {"FLOAT", "REAL"},
+                                                   {"SMALLINT", "SMALLINT"},
+                                                   {"INT2", "SMALLINT"},
+                                                   {"SHORT", "SMALLINT"},
+                                                   {"TIME", "TIME"},
+                                                   {"TIMESTAMP", "TIMESTAMP"},
+                                                   {"DATETIME", "TIMESTAMP"},
+                                                   {"TINYINT", "TINYINT"},
+                                                   {"INT1", "TINYINT"},
+                                                   {"UBIGINT", "UBIGINT"},
+                                                   {"UINTEGER", "UINTEGER"},
+                                                   {"USMALLINT", "USMALLINT"},
+                                                   {"UTINYINT", "UTINYINT"},
+                                                   {"UUID", "UUID"},
+                                                   {"VARCHAR", "VARCHAR"},
+                                                   {"CHAR", "VARCHAR"},
+                                                   {"BPCHAR", "VARCHAR"},
+                                                   {"TEXT", "VARCHAR"},
+                                                   {"STRING", "VARCHAR"}};
 static Map<String, String> duckdb_to_cpp_type = {
     {"BOOLEAN", "bool"},   {"TINYINT", "int8_t"},    {"SMALLINT", "int16_t"},
     {"DATE", "int32_t"},   {"TIME", "int32_t"},      {"INTEGER", "int32_t"},

@@ -6,12 +6,12 @@
 
 #pragma once
 
+#include "compiler_fmt/core.h"
 #include "duckdb/main/connection.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "types.hpp"
 #include "utils.hpp"
 #include <functional>
-#include "compiler_fmt/core.h"
 #include <json.hpp>
 #include <memory>
 #include <optional>
@@ -28,7 +28,6 @@ std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr);
 
 class SelectExpression {
 public:
-
   SelectExpression(const String &rawSQL, Shared<LogicalPlan> logicalPlan,
                    const Vec<String> &usedVariables)
 
@@ -212,6 +211,8 @@ public:
       addInstruction(inst->clone());
     }
   }
+
+  Instruction *getInitiator() { return instructions.begin()->get(); }
 
   Instruction *getTerminator() {
     auto last = std::prev(instructions.end());
@@ -408,9 +409,7 @@ public:
     return bindings.at(cleanedName);
   }
 
-  const Map<String, Variable *> &getAllBindings() const {
-    return bindings;
-  }
+  const Map<String, Variable *> &getAllBindings() const { return bindings; }
 
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
   BasicBlock *getExitBlock() { return basicBlocks[1].get(); }
