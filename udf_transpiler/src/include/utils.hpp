@@ -12,33 +12,9 @@
 #define FMT_HEADER_ONLY
 #include "duckdb/common/exception.hpp"
 #include <algorithm>
-#include <include/fmt/core.h>
+#include "compiler_fmt/core.h"
 #include <regex>
 #include <yaml-cpp/yaml.h>
-using namespace std;
-
-#define ASSERT(condition, message)                                             \
-  do {                                                                         \
-    if (!(condition)) {                                                        \
-      std::cout << "Assertion `" #condition "` failed in " << __FILE__         \
-                << " line " << __LINE__ << ": " << message << std::endl;       \
-      std::terminate();                                                        \
-    }                                                                          \
-  } while (false)
-
-#define ERROR(message)                                                         \
-  do {                                                                         \
-    std::cout << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
-              << ")" << std::endl;                                             \
-    std::terminate();                                                          \
-  } while (false)
-
-#define EXCEPTION(message)                                                     \
-  do {                                                                         \
-    std::cout << "Exception: " << message << " (" << __FILE__ << ":"           \
-              << __LINE__ << ")" << std::endl;                                 \
-    throw duckdb::ParserException("See the above message.");                   \
-  } while (false)
 
 template <class A> using Own = std::unique_ptr<A>;
 template <class A> using Shared = std::shared_ptr<A>;
@@ -61,7 +37,7 @@ template <typename A> using List = std::list<A>;
 
 template <typename A> using Vec = std::vector<A>;
 
-template <typename A> using VecOwn = std::vector<Own<A>>;
+template <typename A> using VecOwn = Vec<Own<A>>;
 
 template <typename A> using ListOwn = std::list<Own<A>>;
 
@@ -69,31 +45,59 @@ template <typename A> using Opt = std::optional<A>;
 
 template <typename A, typename B> using Map = std::unordered_map<A, B>;
 
+using String = std::string;
+
+#define COUT std::cout
+#define ENDL std::endl
+
+#define ASSERT(condition, message)                                             \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      COUT << "Assertion `" #condition "` failed in " << __FILE__         \
+                << " line " << __LINE__ << ": " << message << ENDL;       \
+      std::terminate();                                                        \
+    }                                                                          \
+  } while (false)
+
+#define ERROR(message)                                                         \
+  do {                                                                         \
+    COUT << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
+              << ")" << ENDL;                                             \
+    std::terminate();                                                          \
+  } while (false)
+
+#define EXCEPTION(message)                                                     \
+  do {                                                                         \
+    COUT << "Exception: " << message << " (" << __FILE__ << ":"           \
+              << __LINE__ << ")" << ENDL;                                 \
+    throw duckdb::ParserException("See the above message.");                   \
+  } while (false)
+
 template <typename T>
-std::string vec_join(const std::vector<T> &vec, std::string sep) {
-  ERROR("vec_join not implemented for this type");
+String vector_join(const Vec<T> &vec, String sep) {
+  ERROR("vector_join not implemented for this type");
 }
 
 template <>
-std::string vec_join(const std::vector<std::string> &vec, std::string sep);
+String vector_join(const Vec<String> &vec, String sep);
 
 template <typename T>
-std::string list_join(std::list<T> &any_list, std::string sep) {
+String list_join(std::list<T> &any_list, String sep) {
   ERROR("list_join not implemented for this type");
 }
 
 template <>
-std::string list_join(std::list<std::string> &any_list, std::string sep);
+String list_join(std::list<String> &any_list, String sep);
 
-std::string toLower(const std::string &str);
-std::string toUpper(const std::string &str);
-std::string removeSpaces(const std::string &str);
+String toLower(const String &str);
+String toUpper(const String &str);
+String removeSpaces(const String &str);
 
-std::vector<std::string> extractMatches(const std::string &str,
+Vec<String> extractMatches(const String &str,
                                         const char *pattern,
                                         std::size_t group = 1);
 
-static unordered_map<string, string> alias_to_duckdb_type = {
+static Map<String, String> alias_to_duckdb_type = {
     {"UNKNOWN", "UNKNOWN"},
     {"BIGINT", "BIGINT"},
     {"INT8", "BIGINT"},
@@ -139,118 +143,12 @@ static unordered_map<string, string> alias_to_duckdb_type = {
     {"BPCHAR", "VARCHAR"},
     {"TEXT", "VARCHAR"},
     {"STRING", "VARCHAR"}};
-static unordered_map<string, string> duckdb_to_cpp_type = {
+static Map<String, String> duckdb_to_cpp_type = {
     {"BOOLEAN", "bool"},   {"TINYINT", "int8_t"},    {"SMALLINT", "int16_t"},
     {"DATE", "int32_t"},   {"TIME", "int32_t"},      {"INTEGER", "int32_t"},
     {"BIGINT", "int64_t"}, {"TIMESTAMP", "int64_t"}, {"FLOAT", "float"},
     {"DOUBLE", "double"},  {"DECIMAL", "double"},    {"VARCHAR", "string_t"},
     {"CHAR", "string_t"},  {"BLOB", "string_t"}};
-
-class UDFType {
-private:
-  static constexpr int DEFAULT_WIDTH = 18;
-  static constexpr int DEFAULT_SCALE = 3;
-  // used for decimal
-  int width;
-  int scale;
-  string duckdb_type;
-  static void get_decimal_width_scale(string &duckdb_type, int &width,
-                                      int &scale);
-  static string get_decimal_int_type(int width, int scale);
-  void resolve_type(string type_name, const string &udf_str);
-
-public:
-  UDFType(){};
-  UDFType(const string &type_name) { resolve_type(type_name, ""); }
-  UDFType(const string &type_name, const string &udf_str) {
-    resolve_type(type_name, udf_str);
-  }
-  const string get_duckdb_type() const;
-  const string get_duckdb_logical_type() const;
-  const string get_cpp_type() const;
-  string create_duckdb_value(const string &ret_name, const string &cpp_value);
-  bool is_unknown() const {
-    return strcmp(duckdb_type.c_str(), "UNKNOWN") == 0;
-  }
-};
-
-class VarInfo {
-public:
-  int id;
-  bool init;
-  UDFType type;
-  VarInfo(){};
-  VarInfo(int id, string &type_name, const string &udf_str, bool i)
-      : id(id), init(i), type(type_name, udf_str){};
-};
-
-class CodeContainer {
-public:
-  bool query_macro = false;
-  vector<string> global_macros;
-  vector<string> global_variables;
-  vector<string> global_functions;
-};
-
-class FunctionInfo {
-public:
-  int function_count = 0;
-  int vector_size = 2048;
-  string func_name;
-  UDFType func_return_type;
-  int tmp_var_count = 0;
-  vector<string> func_args_vec;
-  unordered_map<string, VarInfo> func_args;
-  unordered_map<string, VarInfo> func_vars;
-  /**
-   * key of this overwrite key in func_vars
-   */
-  unordered_map<string, string> tmp_var_substitutes;
-
-  /**
-   * string functions needs special treatment when invoking
-   * preparation should happen in the caller
-   */
-  int string_function_count = 0;
-
-  string new_variable() {
-    tmp_var_count += 1;
-    return "tmpvar" + std::to_string(tmp_var_count);
-  }
-
-  bool if_exists(const string &var_name) {
-    return func_vars.find(var_name) != func_vars.end() ||
-           func_args.find(var_name) != func_args.end();
-  }
-
-  VarInfo &get_var_info(const string &var_name) {
-    if (func_vars.find(var_name) != func_vars.end()) {
-      if (tmp_var_substitutes.count(var_name)) {
-        return func_vars[tmp_var_substitutes[var_name]];
-      }
-      return func_vars[var_name];
-    } else if (func_args.find(var_name) != func_args.end()) {
-      return func_args[var_name];
-    } else {
-      ERROR(fmt::format("Variable {} not found.", var_name));
-    }
-  }
-
-  vector<pair<const string &, const VarInfo &>> get_vars() {
-    vector<pair<const string &, const VarInfo &>> ret;
-    for (auto &var : func_vars) {
-      if (tmp_var_substitutes.count(var.first))
-        continue;
-      // cout<<var.first<<" "<<var.second.type.duckdb_type<<endl;
-      ret.push_back({var.first, var.second});
-    }
-    for (auto &var : func_args) {
-      // cout<<var.first<<" "<<var.second.type.duckdb_type<<endl;
-      ret.push_back({var.first, var.second});
-    }
-    return ret;
-  }
-};
 
 class YAMLConfig {
 public:
@@ -260,7 +158,3 @@ public:
   YAML::Node aggify;
   YAMLConfig();
 };
-
-bool is_const_or_var(string &expr, FunctionInfo &funtion_info, string &res);
-
-std::string get_var_name(const std::string &var_name);

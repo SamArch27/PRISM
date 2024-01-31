@@ -3,8 +3,8 @@
 #include <yaml-cpp/yaml.h>
 
 template <>
-std::string vec_join(const std::vector<std::string> &vec, std::string sep) {
-  std::string result = "";
+String vector_join(const Vec<String> &vec, String sep) {
+  String result = "";
   for (auto &item : vec) {
     result += item + sep;
   }
@@ -12,38 +12,38 @@ std::string vec_join(const std::vector<std::string> &vec, std::string sep) {
 }
 
 template <>
-std::string list_join(std::list<std::string> &any_list, std::string sep) {
-  std::string result = "";
+String list_join(std::list<String> &any_list, String sep) {
+  String result = "";
   for (auto &item : any_list) {
     result += item + sep;
   }
   return result.substr(0, result.size() - sep.size());
 }
 
-std::string toLower(const std::string &str) {
-  std::string lower = str;
+String toLower(const String &str) {
+  String lower = str;
   std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
   return lower;
 }
 
-std::string toUpper(const std::string &str) {
-  std::string upper = str;
+String toUpper(const String &str) {
+  String upper = str;
   std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
   return upper;
 }
 
-std::string removeSpaces(const std::string &str) {
+String removeSpaces(const String &str) {
   std::regex spaceRegex("\\s+");
   return std::regex_replace(str, spaceRegex, "");
 }
 
-std::vector<std::string> extractMatches(const std::string &text,
+Vec<String> extractMatches(const String &text,
                                         const char *pattern,
                                         std::size_t group) {
-  std::vector<std::string> res;
+  Vec<String> res;
   auto regex = std::regex(pattern, std::regex_constants::icase);
   std::smatch matched;
-  std::string str = text;
+  String str = text;
   while (std::regex_search(str, matched, regex)) {
     res.push_back(matched[group]);
     str = matched.suffix();
@@ -51,158 +51,12 @@ std::vector<std::string> extractMatches(const std::string &text,
   return res;
 }
 
-// todo
-bool is_number() { return false; }
-
-// /**
-//  * @brief check if an expression is a constant such as 2 or 'string' or
-//  variable
-// */
-// bool is_const_or_var(string &expr, FunctionInfo &funtion_info, UDF_Type
-// &expected_type, string &result){
-//     if((expr.starts_with("\"") and expr.ends_with("\"")) or
-//     (expr.starts_with("'") and expr.ends_with("'"))){
-//         ASSERT("")
-//         result = expr;
-//         return true;
-//     }
-//     else if(){
-
-//     }
-// }
-
-/**
- * @brief Resolve a type name to a C++ type name and a type size.
- */
-void UDFType::resolve_type(string type_name, const string &udf_str) {
-  // std::cout<<type_name<<std::endl;
-  // std::cout<<std::stoi("#28#")<<std::endl;
-  if (type_name.starts_with('#')) {
-    if (udf_str.size() == 0) {
-      ERROR("UDF string is empty");
-    }
-    int type_start = type_name.find('#');
-    type_start = std::stoi(type_name.substr(type_start + 1));
-    // map varchar() as varchar
-    std::regex type_pattern("(\\w+ *(\\((\\d+, *)?\\d+\\))?)",
-                            std::regex_constants::icase);
-    std::smatch tmp_types;
-    std::regex_search(udf_str.begin() + type_start, udf_str.end(), tmp_types,
-                      type_pattern);
-    ASSERT(tmp_types.size() == 4, "Argument type format is wrong.");
-
-    string real_type_name = tmp_types[0];
-    return resolve_type(real_type_name, udf_str);
-  }
-  type_name = removeSpaces(type_name);
-  std::transform(type_name.begin(), type_name.end(), type_name.begin(),
-                 ::toupper);
-  if (type_name.starts_with("DECIMAL")) {
-    int width, scale;
-    get_decimal_width_scale(type_name, width, scale);
-    duckdb_type = type_name;
-    this->width = width;
-    this->scale = scale;
-    return;
-  } else if (type_name.starts_with("VARCHAR")) {
-    duckdb_type = "VARCHAR";
-    return;
-  } else {
-    if (alias_to_duckdb_type.count(type_name)) {
-      duckdb_type = alias_to_duckdb_type.at(type_name);
-      // std::cout << duckdb_type << std::endl;
-    } else {
-      ERROR(fmt::format("Unknown type: {}", type_name));
-    }
-  }
-}
-
-void UDFType::get_decimal_width_scale(string &duckdb_type, int &width,
-                                      int &scale) {
-  std::regex decimal_pattern("DECIMAL\\((\\d+),(\\d+)\\)",
-                             std::regex_constants::icase);
-  std::smatch decimal_match;
-  std::regex_search(duckdb_type, decimal_match, decimal_pattern);
-  if (decimal_match.size() == 3) {
-    width = std::stoi(decimal_match[1]);
-    scale = std::stoi(decimal_match[2]);
-  } else {
-    width = DEFAULT_WIDTH;
-    scale = DEFAULT_SCALE;
-  }
-  return;
-}
-
-string UDFType::get_decimal_int_type(int width, int scale) {
-  ASSERT(width > 0, "Width of decimal should be > 0.");
-  if (width <= 4)
-    return "int16_t";
-  else if (width <= 9)
-    return "int32_t";
-  else if (width <= 18)
-    return "int64_t";
-  else if (width <= 38)
-    return "duckdb::hugeint_t";
-  else
-    ERROR("Width larger than 38.");
-}
-
-const string UDFType::get_cpp_type() const {
-  ASSERT(is_unknown() == false,
-         "Cannot get cpp type from UNKNOWN duckdb type.");
-  if (duckdb_type.starts_with("DECIMAL")) {
-    return UDFType::get_decimal_int_type(width, scale);
-  }
-  return duckdb_to_cpp_type.at(duckdb_type);
-}
-
-const string UDFType::get_duckdb_type() const {
-  if (duckdb_type.starts_with("DECIMAL")) {
-    return fmt::format("DECIMAL({}, {})", width, scale);
-  }
-  return duckdb_type;
-}
-
-const string UDFType::get_duckdb_logical_type() const {
-  return "LogicalType::" + get_duckdb_type();
-}
-
-string UDFType::create_duckdb_value(const string &ret_name,
-                                    const string &cpp_value) {
-  const vector<string> numeric = {"BOOLEAN", "TINYINT", "SMALLINT", "DATE",
-                                  "TIME",    "INTEGER", "BIGINT",   "TIMESTAMP",
-                                  "FLOAT",   "DOUBLE",  "DECIMAL"};
-  const vector<string> blob = {"VARCHAR", "BLOB"};
-  if (duckdb_type.starts_with("DECIMAL")) {
-    return fmt::format("{} = Value::DECIMAL({}, {}, {})", ret_name, cpp_value,
-                       width, scale);
-  } else if (std::find(numeric.begin(), numeric.end(), duckdb_type) !=
-             numeric.end()) {
-    return fmt::format("{} = Value::{}({})", ret_name, duckdb_type, cpp_value);
-  } else if (std::find(blob.begin(), blob.end(), duckdb_type) != blob.end()) {
-    return fmt::format(
-        "{0} = Value({1});\n{0}.GetTypeMutable() = LogicalType::{2}", ret_name,
-        cpp_value, duckdb_type);
-  } else {
-    ERROR(fmt::format("Cannot create duckdb value from type {}", duckdb_type));
-  }
-}
-
 YAMLConfig::YAMLConfig() {
-  std::string filePath(__FILE__); // Get the path of the current source file
+  String filePath(__FILE__); // Get the path of the current source file
   std::filesystem::path path(filePath);
-  std::string current_dir = path.parent_path().string();
+  String current_dir = path.parent_path().string();
   query = YAML::LoadFile(current_dir + "/../templates/query.yaml");
   function = YAML::LoadFile(current_dir + "/../templates/function.yaml");
   control = YAML::LoadFile(current_dir + "/../templates/control.yaml");
   aggify = YAML::LoadFile(current_dir + "/../templates/aggify.yaml");
-}
-
-/**
- * lowerize variable names
- */
-std::string get_var_name(const std::string &var_name) {
-  std::string result = var_name;
-  std::transform(result.begin(), result.end(), result.begin(), ::tolower);
-  return result;
 }

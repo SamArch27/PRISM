@@ -14,18 +14,18 @@
 #include "duckdb/planner/logical_operator_visitor.hpp"
 #define FMT_HEADER_ONLY
 #include "duckdb/common/enums/expression_type.hpp"
-#include "include/fmt/core.h"
+#include "compiler_fmt/core.h"
 #include "utils.hpp"
 #include <iostream>
 
 namespace duckdb {
 
-string get_struct_name(const string &struct_operation) {
+String get_struct_name(const String &struct_operation) {
   return struct_operation.substr(0, struct_operation.find("::"));
 }
 
-std::string pow10String(int scale_difference) {
-  std::string ret = "1";
+String pow10String(int scale_difference) {
+  String ret = "1";
   for (int i = 0; i < scale_difference; i++) {
     ret += "0";
   }
@@ -33,11 +33,11 @@ std::string pow10String(int scale_difference) {
 }
 
 void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
-                               string &function_name,
-                               std::vector<std::string> &template_args,
-                               const std::vector<Expression *> &children,
+                               String &function_name,
+                               Vec<String> &template_args,
+                               const Vec<Expression *> &children,
                                CodeGenInfo &insert,
-                               std::list<std::string> &args) {
+                               std::list<String> &args) {
   ASSERT(function_info.width_scale != std::make_pair((uint8_t)0, (uint8_t)0) &&
              function_info.width_scale2 !=
                  std::make_pair((uint8_t)0, (uint8_t)0),
@@ -49,11 +49,11 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
   int target_width = function_info.width_scale2.first;
   LogicalType source_type = LogicalType::DECIMAL(source_width, source_scale);
   LogicalType target_type = LogicalType::DECIMAL(target_width, target_scale);
-  cout << source_width << ", " << source_scale << endl;
-  cout << target_width << ", " << target_scale << endl;
-  string source_physical =
+  COUT << source_width << ", " << source_scale << ENDL;
+  COUT << target_width << ", " << target_scale << ENDL;
+  String source_physical =
       ScalarFunctionInfo::DecimalTypeToCppType(source_width, source_scale);
-  string target_physical =
+  String target_physical =
       ScalarFunctionInfo::DecimalTypeToCppType(target_width, target_scale);
   if (target_scale >= source_scale) {
     // scale up
@@ -67,12 +67,12 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     } else {
       // DecimalScaleUpCheckOperator
       // evaluate the child first
-      string newVar = insert.newTmpVar();
+      String newVar = insert.newTmpVar();
       insert.lines.push_back(
           fmt::format("auto {} = {};", newVar, args.front()));
       args.pop_front();
       args.push_front(newVar);
-      string limit = pow10String(res_width);
+      String limit = pow10String(res_width);
       insert.lines.push_back(fmt::format("\
       if ({input} >= {limit} || {input} <= -{limit}){{\n\
         throw CastException(\"Numeric value out of range\");\n\
@@ -97,12 +97,12 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     } else {
       // DecimalScaleUpCheckOperator
       // evaluate the child first
-      string newVar = insert.newTmpVar();
+      String newVar = insert.newTmpVar();
       insert.lines.push_back(
           fmt::format("auto {} = {};", newVar, args.front()));
       args.pop_front();
       args.push_front(newVar);
-      string limit = pow10String(res_width);
+      String limit = pow10String(res_width);
       insert.lines.push_back(fmt::format("\
       if ({input} >= {limit} || {input} <= -{limit}){{\n\
         throw CastException(\"Numeric value out of range\");\n\
@@ -121,10 +121,10 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
  *
  */
 void BoundExpressionCodeGenerator::SpecialCaseHandler(
-    const ScalarFunctionInfo &function_info, string &function_name,
-    std::vector<std::string> &template_args,
-    const std::vector<Expression *> &children, CodeGenInfo &insert,
-    std::list<std::string> &args) {
+    const ScalarFunctionInfo &function_info, String &function_name,
+    Vec<String> &template_args,
+    const Vec<Expression *> &children, CodeGenInfo &insert,
+    std::list<String> &args) {
   for (auto special_case : function_info.special_handling) {
     switch (special_case) {
     case ScalarFunctionInfo::BinaryNumericDivideWrapper:
@@ -182,15 +182,15 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
   return;
 }
 
-std::string BoundExpressionCodeGenerator::CodeGenScalarFunction(
+String BoundExpressionCodeGenerator::CodeGenScalarFunction(
     const ScalarFunctionInfo &function_info,
-    const std::vector<Expression *> &children, CodeGenInfo &insert) {
-  std::list<std::string> args;
+    const Vec<Expression *> &children, CodeGenInfo &insert) {
+  std::list<String> args;
   for (auto &child : children) {
     args.push_back(Transpile(*child, insert));
   }
   auto template_args = function_info.template_args;
-  std::string ret = function_info.cpp_name;
+  String ret = function_info.cpp_name;
   // change the meta info for special cases
   SpecialCaseHandler(function_info, ret, template_args, children, insert, args);
 
@@ -210,19 +210,19 @@ std::string BoundExpressionCodeGenerator::CodeGenScalarFunction(
 }
 
 template <>
-std::string
+String
 BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp,
                                         CodeGenInfo &insert) {
   if (exp.function.has_scalar_funcition_info) {
     // ScalarFunction &function = exp.function;
     const ScalarFunctionInfo &function_info = exp.function.function_info;
-    std::vector<Expression *> children(exp.children.size());
+    Vec<Expression *> children(exp.children.size());
     for (size_t i = 0; i < exp.children.size(); i++) {
       children[i] = exp.children[i].get();
     }
     return CodeGenScalarFunction(function_info, children, insert);
   } else {
-    std::list<std::string> args;
+    std::list<String> args;
     for (auto &child : exp.children) {
       args.push_back(Transpile(*child, insert));
     }
@@ -235,7 +235,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp,
 }
 
 template <>
-std::string
+String
 BoundExpressionCodeGenerator::Transpile(const BoundComparisonExpression &exp,
                                         CodeGenInfo &insert) {
   switch (exp.GetExpressionType()) {
@@ -276,7 +276,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundComparisonExpression &exp,
 }
 
 template <>
-std::string
+String
 BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp,
                                         CodeGenInfo &insert) {
   ASSERT(exp.children.size() == 2,
@@ -298,7 +298,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp,
 
 // udf_todo
 template <>
-std::string
+String
 BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp,
                                         CodeGenInfo &insert) {
   if (exp.bound_cast.has_function_info) {
@@ -311,7 +311,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp,
 
 // udf_todo
 template <>
-std::string
+String
 BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp,
                                         CodeGenInfo &insert) {
   switch (exp.GetExpressionType()) {
@@ -327,7 +327,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp,
 }
 
 template <>
-std::string
+String
 BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
                                         CodeGenInfo &insert) {
   if (exp.value.type().IsNumeric() or
@@ -340,21 +340,21 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
 }
 
 template <>
-std::string
+String
 BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp,
                                         CodeGenInfo &insert) {
-  return get_var_name(exp.GetName());
+  return toLower(exp.GetName());
 }
 
 template <>
-std::string
+String
 BoundExpressionCodeGenerator::Transpile(const BoundColumnRefExpression &exp,
                                         CodeGenInfo &insert) {
-  return get_var_name(exp.GetName());
+  return toLower(exp.GetName());
 }
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp,
+String BoundExpressionCodeGenerator::Transpile(const Expression &exp,
                                                     CodeGenInfo &insert) {
   switch (exp.GetExpressionClass()) {
   case ExpressionClass::BOUND_FUNCTION:
@@ -410,29 +410,5 @@ void LogicalOperatorCodeGenerator::VisitOperator(
   res = BoundExpressionCodeGenerator::Transpile(*(op.expressions[0]), insert);
   header = insert.toString();
   return;
-}
-
-std::string LogicalOperatorCodeGenerator::run(
-    Connection &con, const std::string &query,
-    const std::vector<pair<const std::string &, const VarInfo &>> &vars,
-    CodeGenInfo &insert) {
-  std::string create_stmt = "create table tmp1 (";
-  for (auto &var : vars) {
-    create_stmt += var.first + " " + var.second.type.get_duckdb_type() + ", ";
-  }
-  create_stmt = create_stmt.substr(0, create_stmt.size() - 2);
-  create_stmt += ")";
-  auto create_res = con.Query(create_stmt);
-  if (create_res->HasError()) {
-    EXCEPTION(create_res->GetError());
-  }
-  auto context = con.context.get();
-  context->config.enable_optimizer = false;
-  auto plan = context->ExtractPlan(query + " from tmp1");
-  std::cout << "Plan is nullptr? " << ((plan == nullptr) ? "Yes" : "No")
-            << std::endl;
-  VisitOperator(*plan, insert);
-  con.Query("drop table tmp1");
-  return res;
 }
 } // namespace duckdb

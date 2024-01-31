@@ -9,7 +9,7 @@ struct CodeGenInfo {
 public:
   CodeGenInfo(const Function &_func) : function(_func) {}
   const Function &function;
-  vector<string> lines;
+  Vec<String> lines;
   /**
    * reference the string_function_count in FunctionInfo
    */
@@ -18,22 +18,22 @@ public:
   int tmpVarCount = 0;
 
   //   CodeGenInfo(int &vectorCount) : vectorCount(vectorCount) {}
-  std::string newVector() {
+  String newVector() {
     // make sure it is does not already exist
-    string name = "tmp_vec" + std::to_string(vectorCount++);
+    String name = "tmp_vec" + std::to_string(vectorCount++);
     if (function.hasBinding(name))
       return newVector();
     return name;
   }
 
-  std::string toString() {
+  String toString() {
     if (lines.empty())
       return "";
-    return vec_join(lines, "\n") + "\n";
+    return vector_join(lines, "\n") + "\n";
   }
 
-  std::string newTmpVar() {
-    string name = "tmp_var" + std::to_string(tmpVarCount++);
+  String newTmpVar() {
+    String name = "tmp_var" + std::to_string(tmpVarCount++);
     if (function.hasBinding(name))
       return newTmpVar();
     return name;
@@ -45,40 +45,36 @@ namespace duckdb {
 struct BoundExpressionCodeGenerator {
 public:
   template <typename T>
-  static std::string Transpile(const T &exp, CodeGenInfo &insert) {
+  static String Transpile(const T &exp, CodeGenInfo &insert) {
     return "Not implemented yet!";
   }
 
 private:
   static void SpecialCaseHandler(const ScalarFunctionInfo &function_info,
-                                 string &function_name,
-                                 std::vector<std::string> &template_args,
-                                 const std::vector<Expression *> &children,
+                                 String &function_name,
+                                 Vec<String> &template_args,
+                                 const Vec<Expression *> &children,
                                  CodeGenInfo &insert,
-                                 std::list<std::string> &args);
-  static std::string
+                                 std::list<String> &args);
+  static String
   CodeGenScalarFunction(const ScalarFunctionInfo &function_info,
-                        const std::vector<Expression *> &children,
+                        const Vec<Expression *> &children,
                         CodeGenInfo &insert);
 };
 
 class LogicalOperatorCodeGenerator : public LogicalOperatorVisitor {
 private:
   // header is the code that should be inserted before the query
-  std::string header;
-  std::string res;
+  String header;
+  String res;
 
 public:
   void VisitOperator(duckdb::LogicalOperator &op) override;
   void VisitOperator(const duckdb::LogicalOperator &op, CodeGenInfo &insert);
-  std::pair<std::string, std::string> getResult() { return {header, res}; }
-  std::string
-  run(Connection &con, const std::string &query,
-      const std::vector<pair<const std::string &, const VarInfo &>> &vars,
-      CodeGenInfo &insert);
+  std::pair<String, String> getResult() { return {header, res}; }
 };
 
 template <>
-std::string BoundExpressionCodeGenerator::Transpile(const Expression &exp,
+String BoundExpressionCodeGenerator::Transpile(const Expression &exp,
                                                     CodeGenInfo &insert);
 } // namespace duckdb

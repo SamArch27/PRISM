@@ -20,7 +20,6 @@
 // #include <unistd.h>
 #include "compiler.hpp"
 #include "file.hpp"
-#include "trans.hpp"
 #include "utils.hpp"
 #include <filesystem>
 
@@ -28,32 +27,32 @@ namespace duckdb {
 duckdb::DuckDB *db_instance;
 size_t udf_count = 0;
 
-inline string Udf_transpilerPragmaFun(ClientContext &context,
+inline String Udf_transpilerPragmaFun(ClientContext &context,
                                       const FunctionParameters &parameters) {
-  auto file_name = parameters.values[0].GetValue<string>();
+  auto file_name = parameters.values[0].GetValue<String>();
   std::ifstream t(file_name);
   std::ostringstream buffer;
   buffer << t.rdbuf();
   if (buffer.str().empty()) {
-    std::string err = "Input file is empty or does not exist: " + file_name;
+    String err = "Input file is empty or does not exist: " + file_name;
     return "select '" + err + "' as 'Transpilation Failed.';";
   }
   YAMLConfig config;
   Connection con(*db_instance);
 
   // Transpiler transpiler(buffer.str(), &config, con);
-  // std::vector<std::string> ret = transpiler.run();
-  // std::string code, registration;
+  // Vec<String> ret = transpiler.run();
+  // String code, registration;
   auto compiler = Compiler(&con, buffer.str(), udf_count);
   auto res = compiler.run();
   udf_count++;
-  std::cout << "Transpiling the UDF..." << std::endl;
+  COUT << "Transpiling the UDF..." << ENDL;
   insert_def_and_reg(res.code, res.registration, udf_count);
   // compile the template
-  std::cout << "Compiling the UDF..." << std::endl;
+  COUT << "Compiling the UDF..." << ENDL;
   compile_udf();
   // load the compiled library
-  cout << "Installing and loading the UDF..." << endl;
+  COUT << "Installing and loading the UDF..." << ENDL;
   load_udf(con);
   return "select '' as 'Transpilation Done.';";
 }
@@ -61,23 +60,23 @@ inline string Udf_transpilerPragmaFun(ClientContext &context,
 /**
  * transpile udfs from a file but not link it
  */
-inline string Udf_CodeGeneratorPragmaFun(ClientContext &context,
+inline String Udf_CodeGeneratorPragmaFun(ClientContext &context,
                                          const FunctionParameters &parameters) {
-  auto file_name = parameters.values[0].GetValue<string>();
+  auto file_name = parameters.values[0].GetValue<String>();
   std::ifstream t(file_name);
   std::ostringstream buffer;
   buffer << t.rdbuf();
   if (buffer.str().empty()) {
-    std::string err = "Input file is empty or does not exist: " + file_name;
+    String err = "Input file is empty or does not exist: " + file_name;
     return "select '" + err + "' as 'Transpilation Failed.';";
   }
   YAMLConfig config;
   Connection con(*db_instance);
-  std::string code, registration;
+  String code, registration;
   auto compiler = Compiler(&con, buffer.str(), udf_count);
   auto res = compiler.run();
   udf_count++;
-  cout << "Transpiling the UDF..." << endl;
+  COUT << "Transpiling the UDF..." << ENDL;
   insert_def_and_reg(res.code, res.registration, udf_count);
   return "select '' as 'Code Generation Done.';";
 }
@@ -85,31 +84,31 @@ inline string Udf_CodeGeneratorPragmaFun(ClientContext &context,
 /**
  * rebuild and load the last udf set
  */
-inline string Udf_BuilderPragmaFun(ClientContext &context,
+inline String Udf_BuilderPragmaFun(ClientContext &context,
                                    const FunctionParameters &parameters) {
-  cout << "Compiling the UDF..." << endl;
+  COUT << "Compiling the UDF..." << ENDL;
   compile_udf();
   // load the compiled library
-  cout << "Installing and loading the UDF..." << endl;
+  COUT << "Installing and loading the UDF..." << ENDL;
   Connection con(*db_instance);
   load_udf(con);
   return "select '' as 'Building and linking Done.';";
 }
 
-inline string Udaf_BuilderPragmaFun(ClientContext &context,
+inline String Udaf_BuilderPragmaFun(ClientContext &context,
                                     const FunctionParameters &parameters) {
-  cout << "Compiling the UDAF..." << endl;
+  COUT << "Compiling the UDAF..." << ENDL;
   compile_udaf();
   // load the compiled library
-  cout << "Installing and loading the UDF..." << endl;
+  COUT << "Installing and loading the UDF..." << ENDL;
   Connection con(*db_instance);
   load_udaf(con);
   return "select '' as 'Building and linking Done.';";
 }
 
-inline string LOCodeGenPragmaFun(ClientContext &_context,
+inline String LOCodeGenPragmaFun(ClientContext &_context,
                                  const FunctionParameters &parameters) {
-  auto sql = parameters.values[0].GetValue<string>();
+  auto sql = parameters.values[0].GetValue<String>();
   auto enable_optimizer = parameters.values[1].GetValue<bool>();
   LogicalOperatorCodeGenerator locg;
   // CodeGenInfo insert;
@@ -145,9 +144,9 @@ inline string LOCodeGenPragmaFun(ClientContext &_context,
            "' as 'Partial Evaluation Failed.';";
   }
   // context->config.enable_optimizer = mem;
-  cout << locg.getResult().first << endl;
-  cout << endl;
-  cout << locg.getResult().second << endl;
+  COUT << locg.getResult().first << ENDL;
+  COUT << ENDL;
+  COUT << locg.getResult().second << ENDL;
   return "select '' as 'Partial Evaluation Done.';";
 }
 
@@ -183,7 +182,7 @@ void UdfTranspilerExtension::Load(DuckDB &db) {
   db_instance = &db;
   LoadInternal(*db.instance);
 }
-std::string UdfTranspilerExtension::Name() { return "udf_transpiler"; }
+String UdfTranspilerExtension::Name() { return "udf_transpiler"; }
 
 } // namespace duckdb
 

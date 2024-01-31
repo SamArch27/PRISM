@@ -64,7 +64,7 @@ add_custom_target(pg_parser
 # the formatting lib
 # add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
 # add_dependencies(${EXTENSION_NAME} fmt)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt/include)
 # include_directories(duckdb/third_party/fmt/include)
 
 # the parser lib

@@ -9,26 +9,24 @@
 #include <string>
 #include <vector>
 #include "compiler.hpp"
-#include "include/fmt/core.h"
+#include "compiler_fmt/core.h"
 #include "yaml-cpp/yaml.h"
 #include "utils.hpp"
 #include "logical_operator_code_generator.hpp"
 
-using namespace std;
-
 class CodeContainer2 {
 public:
     // // the declaration section of all function variable (argument are already delcared in the function signature)
-    // vector<string> declarations;
+    // Vec<String> declarations;
     // the code generation result of all the basic blocks
-    vector<string> basicBlockCodes;
+    Vec<String> basicBlockCodes;
     // the subfunction used as the loop body of the vectorized function
-    string body;
+    String body;
     // the main vectorized function to be registered to DuckDB
-    string main;
+    String main;
     // the registration codes called by DuckDB
-    // vector<string> registration;
-    string registration;
+    // Vec<String> registration;
+    String registration;
 };
 
 // class CodeGenInfo{
@@ -48,10 +46,10 @@ public:
         : config(_config){
         };
     void basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenInfo &function_info);
-    std::string extractVarFromChunk(const Function &func);
-    vector<string> run(const Function &func);
+    String extractVarFromChunk(const Function &func);
+    Vec<String> run(const Function &func);
 
 private:
-    string createReturnValue(const string &retName, const Type *retType, const string &retValue);
+    String createReturnValue(const String &retName, const Type *retType, const String &retValue);
 
 };

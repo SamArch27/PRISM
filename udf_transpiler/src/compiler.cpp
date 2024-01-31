@@ -25,7 +25,7 @@ Compiler::constructAssignmentCFG(const json &assignmentJson, Function &function,
                                  List<json> &statements,
                                  const Continuations &continuations) {
   auto newBlock = function.makeBasicBlock();
-  std::string assignmentText = getJsonExpr(assignmentJson["expr"]);
+  String assignmentText = getJsonExpr(assignmentJson["expr"]);
   const auto &[left, right] = unpackAssignment(assignmentText);
   auto *var = function.getBinding(left);
   auto expr = bindExpression(function, right);
@@ -45,7 +45,7 @@ BasicBlock *Compiler::constructReturnCFG(const json &returnJson,
     return nullptr;
   }
   auto newBlock = function.makeBasicBlock();
-  std::string ret = getJsonExpr(returnJson["expr"]);
+  String ret = getJsonExpr(returnJson["expr"]);
   newBlock->addInstruction(Make<ReturnInst>(bindExpression(function, ret),
                                             continuations.functionExit));
   return newBlock;
@@ -55,7 +55,7 @@ BasicBlock *Compiler::constructIfCFG(const json &ifJson, Function &function,
                                      List<json> &statements,
                                      const Continuations &continuations) {
   auto newBlock = function.makeBasicBlock();
-  std::string condString = getJsonExpr(ifJson["cond"]);
+  String condString = getJsonExpr(ifJson["cond"]);
   auto cond = bindExpression(function, condString);
   auto *afterIfBlock = constructCFG(function, statements, continuations);
   auto thenStatements = getJsonList(ifJson["then_body"]);
@@ -100,7 +100,7 @@ BasicBlock *Compiler::constructIfElseIfCFG(const json &ifElseIfJson,
                                            List<json> &statements,
                                            const Continuations &continuations) {
   auto newBlock = function.makeBasicBlock();
-  std::string condString = getJsonExpr(ifElseIfJson["cond"]);
+  String condString = getJsonExpr(ifElseIfJson["cond"]);
   auto cond = bindExpression(function, condString);
   auto thenStatements = getJsonList(ifElseIfJson["stmts"]);
   auto *thenBlock = constructCFG(function, thenStatements, continuations);
@@ -115,7 +115,7 @@ BasicBlock *Compiler::constructWhileCFG(const json &whileJson,
                                         List<json> &statements,
                                         const Continuations &continuations) {
   auto newBlock = function.makeBasicBlock();
-  std::string condString = getJsonExpr(whileJson["cond"]);
+  String condString = getJsonExpr(whileJson["cond"]);
   auto cond = bindExpression(function, condString);
 
   auto *afterLoopBlock = constructCFG(function, statements, continuations);
@@ -153,17 +153,17 @@ BasicBlock *Compiler::constructForLoopCFG(const json &forJson,
   auto &lower = forJson["lower"];
   auto &upper = forJson["upper"];
 
-  std::string lowerString = getJsonExpr(lower);
-  std::string upperString = getJsonExpr(upper);
+  String lowerString = getJsonExpr(lower);
+  String upperString = getJsonExpr(upper);
 
   // Default step of 1
-  std::string stepString = "1";
+  String stepString = "1";
   if (forJson.contains("step")) {
     auto &step = forJson["step"];
     stepString = getJsonExpr(step);
   }
 
-  std::string varString = forJson["var"]["PLpgSQL_var"]["refname"];
+  String varString = forJson["var"]["PLpgSQL_var"]["refname"];
 
   // Create assignment <var> =  <lower>
   const auto &[left, right] = std::make_pair(varString, lowerString);
@@ -173,14 +173,14 @@ BasicBlock *Compiler::constructForLoopCFG(const json &forJson,
 
   // Create step (assignment) <var> = <var> (reverse ? - : +) <step>
   auto latchBlock = function.makeBasicBlock();
-  std::string rhs =
+  String rhs =
       fmt::format("{} {} {}", varString, (reverse ? " - " : " + "), stepString);
   auto stepExpr = bindExpression(function, rhs);
   latchBlock->addInstruction(Make<Assignment>(var, std::move(stepExpr)));
 
   // Create condition as terminator into while loop
   auto headerBlock = function.makeBasicBlock();
-  std::string condString =
+  String condString =
       fmt::format("{} {} {}", left, (reverse ? " > " : " < "), upperString);
   auto cond = bindExpression(function, condString);
   auto *afterLoopBlock = constructCFG(function, statements, continuations);
@@ -232,18 +232,18 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
   udfCount++;
   insert_def_and_reg(res[0], res[1], udfCount);
   // compile the template
-  std::cout << "Compiling the UDAF..." << std::endl;
+  COUT << "Compiling the UDAF..." << ENDL;
   compile_udf();
   // load the compiled library
-  cout << "Installing and loading the UDAF..." << endl;
+  COUT << "Installing and loading the UDAF..." << ENDL;
   load_udf(*connection);
 
   // restore the function back to original
   function.popState();
 
   // udf_todo: replace the cursor loop with custom aggregate
-  std::string customAggCaller = res[2];
-  cout << "customAggCaller: " << customAggCaller << endl;
+  String customAggCaller = res[2];
+  COUT << "customAggCaller: " << customAggCaller << ENDL;
   newBlock->addInstruction(Make<Assignment>(
       aggifyDFA.getReturnVar(), bindExpression(function, customAggCaller)));
   newBlock->addInstruction(
@@ -308,7 +308,7 @@ BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
   return nullptr;
 }
 
-std::string Compiler::getJsonExpr(const json &json) {
+String Compiler::getJsonExpr(const json &json) {
   return json["PLpgSQL_expr"]["query"];
 };
 
@@ -365,13 +365,13 @@ void Compiler::buildCFG(Function &function, const json &ast) {
 CompilationResult Compiler::run() {
 
   auto asts = parseJson();
-  cout << asts << endl;
+  COUT << asts << ENDL;
   auto functions = getFunctions();
 
   auto header = "PLpgSQL_function";
   for (const auto &ast : asts) {
     ASSERT(ast.contains(header),
-           std::string("UDF is missing the magic header string: ") + header);
+           String("UDF is missing the magic header String: ") + header);
   }
 
   CompilationResult codeRes;
@@ -385,19 +385,19 @@ CompilationResult Compiler::run() {
 
     bool readingArguments = true;
 
-    std::vector<std::pair<std::string, std::string>> pendingInitialization;
+    Vec<std::pair<String, String>> pendingInitialization;
 
     for (const auto &datum : datums) {
       if (!datum.contains("PLpgSQL_var"))
         continue;
       auto variable = datum["PLpgSQL_var"];
-      std::string variableName = variable["refname"];
+      String variableName = variable["refname"];
       if (variableName == "found") {
         readingArguments = false;
         continue;
       }
 
-      std::string variableType =
+      String variableType =
           variable["datatype"]["PLpgSQL_type"]["typname"];
 
       if (variableType == "UNKNOWN") {
@@ -417,10 +417,10 @@ CompilationResult Compiler::run() {
         // If the declared variable has a default value (i.e. DECLARE x = 0;)
         // then get it (otherwise assign to the default value of the type)
         auto varType = getTypeFromPostgresName(variableType);
-        std::string defaultVal =
+        String defaultVal =
             variable.contains("default_val")
                 ? variable["default_val"]["PLpgSQL_expr"]["query"]
-                      .get<std::string>()
+                      .get<String>()
                 : varType->defaultValue(true);
         function.addVariable(variableName, std::move(varType),
                              !variable.contains("default_val"));
@@ -442,7 +442,7 @@ CompilationResult Compiler::run() {
 
     destroyDuckDBContext();
 
-    std::cout << function << std::endl;
+    COUT << function << ENDL;
     auto res = generateCode(function);
     codeRes.code += res[0];
     codeRes.registration += res[1];
@@ -452,7 +452,7 @@ CompilationResult Compiler::run() {
 }
 
 void Compiler::destroyDuckDBContext() {
-  std::string dropTableCommand = "DROP TABLE tmp;";
+  String dropTableCommand = "DROP TABLE tmp;";
   auto res = connection->Query(dropTableCommand);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
@@ -488,8 +488,8 @@ void Compiler::makeDuckDBContext(const Function &function) {
   insertTableSecondRow << ");";
 
   // Create commands
-  std::string createTableCommand = createTableString.str();
-  std::string insertTableCommand =
+  String createTableCommand = createTableString.str();
+  String insertTableCommand =
       insertTableString.str() + insertTableSecondRow.str();
 
   // CREATE TABLE
@@ -507,9 +507,9 @@ void Compiler::makeDuckDBContext(const Function &function) {
 }
 
 Own<SelectExpression> Compiler::bindExpression(const Function &function,
-                                               const std::string &expr) {
-  std::string selectExpressionCommand;
-  if (toUpper(expr).find("SELECT") == std::string::npos)
+                                               const String &expr) {
+  String selectExpressionCommand;
+  if (toUpper(expr).find("SELECT") == String::npos)
     selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
   else {
     // insert tmp to the from clause
@@ -592,11 +592,11 @@ Vec<Function> Compiler::getFunctions() const {
   return functions;
 }
 
-PostgresTypeTag Compiler::getPostgresTag(const std::string &type) {
+PostgresTypeTag Compiler::getPostgresTag(const String &type) {
   // remove spaces and capitalize the name
-  std::string upper = toUpper(removeSpaces(type));
+  String upper = toUpper(removeSpaces(type));
 
-  Map<std::string, PostgresTypeTag> nameToTag = {
+  Map<String, PostgresTypeTag> nameToTag = {
       {"BIGINT", PostgresTypeTag::BIGINT},
       {"BINARY", PostgresTypeTag::BINARY},
       {"BIT", PostgresTypeTag::BIT},
@@ -658,7 +658,7 @@ PostgresTypeTag Compiler::getPostgresTag(const std::string &type) {
   return nameToTag.at(upper);
 }
 
-Compiler::StringPair Compiler::unpackAssignment(const std::string &assignment) {
+Compiler::StringPair Compiler::unpackAssignment(const String &assignment) {
   std::regex pattern(ASSIGNMENT_PATTERN, std::regex_constants::icase);
   std::smatch matches;
   std::regex_search(assignment, matches, pattern);
@@ -666,7 +666,7 @@ Compiler::StringPair Compiler::unpackAssignment(const std::string &assignment) {
 }
 
 Opt<Compiler::WidthScale>
-Compiler::getDecimalWidthScale(const std::string &type) {
+Compiler::getDecimalWidthScale(const String &type) {
   std::regex decimalPattern("DECIMAL\\((\\d+),(\\d+)\\)",
                             std::regex_constants::icase);
   std::smatch decimalMatch;
@@ -680,7 +680,7 @@ Compiler::getDecimalWidthScale(const std::string &type) {
   return {};
 }
 
-Own<Type> Compiler::getTypeFromPostgresName(const std::string &name) const {
+Own<Type> Compiler::getTypeFromPostgresName(const String &name) const {
   auto resolvedName = resolveTypeName(name);
   auto tag = getPostgresTag(resolvedName);
   if (tag == PostgresTypeTag::DECIMAL) {
@@ -697,7 +697,7 @@ Own<Type> Compiler::getTypeFromPostgresName(const std::string &name) const {
   }
 }
 
-std::string Compiler::resolveTypeName(const std::string &type) const {
+String Compiler::resolveTypeName(const String &type) const {
   if (!type.starts_with('#')) {
     ASSERT(!type.empty(), "Type name is empty");
     return type;
@@ -719,7 +719,7 @@ std::string Compiler::resolveTypeName(const std::string &type) const {
  * Generate code for a function
  * Initialize a CFGCodeGenerator and run it through the function
  */
-std::vector<std::string> Compiler::generateCode(const Function &func) {
+Vec<String> Compiler::generateCode(const Function &func) {
 
   // AggifyCodeGenerator aggifyCodeGenerator(config, );
 

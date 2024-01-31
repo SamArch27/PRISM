@@ -5,7 +5,11 @@ This repository is based on https://github.com/duckdb/extension-template, check 
 ## Initialize
 First time cloning the repository, also clone [this fork of duckdb](https://github.com/hkulyc/duckdb) to directory `duckdb`.
 
-## 
+## Test
+This will run some test cases to make sure the transpiler is working fine.
+```
+make test
+```
 
 ## Profiler
 

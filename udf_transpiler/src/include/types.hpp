@@ -114,10 +114,10 @@ public:
     return os;
   }
   // no need to consider decimal case here
-  virtual std::string getDuckDBType() const = 0;
-  virtual std::string getCppType() const = 0;
-  virtual std::string defaultValue(bool singleQuote) const = 0;
-  std::string getDuckDBLogicalType() const {
+  virtual String getDuckDBType() const = 0;
+  virtual String getCppType() const = 0;
+  virtual String defaultValue(bool singleQuote) const = 0;
+  String getDuckDBLogicalType() const {
     // if(dynamic_cast<const DecimalType*>(this))
     //   return "LogicalType::Decimal";
     return "LogicalType::" + getDuckDBType();
@@ -160,12 +160,12 @@ public:
     return os;
   }
 
-  std::string getDuckDBType() const override{
+  String getDuckDBType() const override{
     // ERROR("Calling DecimalType::getDuckDBType()!");
     return fmt::format("DECIMAL({}, {})", width, scale);
   }
 
-  std::string getCppType() const override{
+  String getCppType() const override{
     ASSERT(width > 0, "Width of decimal should be > 0.");
     if (width <= 4)
       return "int16_t";
@@ -179,7 +179,7 @@ public:
       ERROR("Width larger than 38.");
   }
 
-  std::string defaultValue(bool singleQuote) const override {
+  String defaultValue(bool singleQuote) const override {
     return "0";
   }
 
@@ -214,19 +214,19 @@ public:
     return os;
   }
 
-  std::string getDuckDBType() const override{
+  String getDuckDBType() const override{
     std::stringstream ss;
     ss << duckdbTag;
     return ss.str();
   }
 
-  std::string getCppType() const override{
+  String getCppType() const override{
     std::stringstream ss;
     ss << cppTag;
     return ss.str();
   }
 
-  std::string defaultValue(bool singleQuote) const override{
+  String defaultValue(bool singleQuote) const override{
     if(isNumeric()){
       return "0";
     }

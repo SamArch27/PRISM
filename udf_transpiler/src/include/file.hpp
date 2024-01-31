@@ -2,12 +2,13 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include "utils.hpp"
 
 #define UDF_EXTENSION_TEMPLATE_DIR "../udf_template/"
 #define UDF_EXTENSION_OUTPUT_DIR "../udf1/"
 #define UDAF_EXTENSION_OUTPUT_DIR "../udf_agg/"
 
-void insert_def_and_reg(const std::string &defs, const std::string &regs,
+void insert_def_and_reg(const String &defs, const String &regs,
                         int udf_count);
 void compile_udf();
 void load_udf(duckdb::Connection &connection);

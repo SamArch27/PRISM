@@ -7,7 +7,7 @@
 #include "types.hpp"
 #include "utils.hpp"
 #include <functional>
-#include <include/fmt/core.h>
+#include "compiler_fmt/core.h"
 #include <json.hpp>
 #include <memory>
 #include <optional>
@@ -36,23 +36,23 @@ struct Continuations {
 
 struct CompilationResult {
   bool success;
-  std::string code;
-  std::string registration;
+  String code;
+  String registration;
 };
 
 class Compiler {
 public:
   using WidthScale = std::pair<int, int>;
-  using StringPair = std::pair<std::string, std::string>;
+  using StringPair = std::pair<String, String>;
 
-  Compiler(duckdb::Connection *connection, const std::string &programText,
+  Compiler(duckdb::Connection *connection, const String &programText,
            size_t &udfCount)
       : connection(connection), programText(programText), udfCount(udfCount) {}
 
   void buildCursorLoopCFG(Function &function, const json &ast);
   void buildCFG(Function &function, const json &ast);
 
-  std::vector<std::string> generateCode(const Function &function);
+  Vec<String> generateCode(const Function &function);
 
   BasicBlock *constructAssignmentCFG(const json &assignment, Function &function,
                                      List<json> &statements,
@@ -111,20 +111,20 @@ private:
   void makeDuckDBContext(const Function &function);
   void destroyDuckDBContext();
   json parseJson() const;
-  std::string getJsonExpr(const json &json);
+  String getJsonExpr(const json &json);
   List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
 
   Own<SelectExpression> bindExpression(const Function &function,
-                                       const std::string &expression);
-  static StringPair unpackAssignment(const string &assignment);
-  static Opt<WidthScale> getDecimalWidthScale(const std::string &type);
-  static PostgresTypeTag getPostgresTag(const std::string &name);
-  Own<Type> getTypeFromPostgresName(const std::string &name) const;
-  std::string resolveTypeName(const std::string &type) const;
+                                       const String &expression);
+  static StringPair unpackAssignment(const String &assignment);
+  static Opt<WidthScale> getDecimalWidthScale(const String &type);
+  static PostgresTypeTag getPostgresTag(const String &name);
+  Own<Type> getTypeFromPostgresName(const String &name) const;
+  String resolveTypeName(const String &type) const;
 
   duckdb::Connection *connection;
-  std::string programText;
+  String programText;
   YAMLConfig config;
   size_t &udfCount;
 };
