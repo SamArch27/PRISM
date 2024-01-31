@@ -11,6 +11,7 @@
 #include "duckdb/planner/logical_operator.hpp"
 #include "types.hpp"
 #include "utils.hpp"
+#include <algorithm>
 #include <functional>
 #include <json.hpp>
 #include <memory>
@@ -122,7 +123,7 @@ public:
 
 protected:
   void print(std::ostream &os) const override {
-    os << *var << " = φ(";
+    os << *var << " = Φ(";
     bool first = true;
     for (auto *arg : arguments) {
       if (first) {
@@ -130,7 +131,7 @@ protected:
       } else {
         os << ",";
       }
-      os << arg;
+      os << *arg;
     }
     os << ")";
   }
@@ -203,8 +204,13 @@ public:
     instructions.emplace_back(std::move(inst));
   }
 
-  void insertBefore(const InstIterator iter, Own<Instruction> inst) {
-    instructions.insert(iter, std::move(inst));
+  void insertBefore(const Instruction *targetInst, Own<Instruction> newInst) {
+    auto it = std::find_if(
+        instructions.begin(), instructions.end(),
+        [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
+    ASSERT((it != instructions.end()),
+           "Instruction must exist when performing insertBefore()!");
+    instructions.emplace(it, std::move(newInst));
   }
 
   const ListOwn<Instruction> &getInstructions() const { return instructions; }

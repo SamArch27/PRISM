@@ -37,8 +37,7 @@ void DominatorDataflow::genBoundaryInner() {
   boundaryStart = BitVector(blockToIndex.size(), false);
 }
 
-Map<BasicBlock *, Set<BasicBlock *>>
-DominatorDataflow::getDominanceFrontiers() {
+Map<BasicBlock *, Set<BasicBlock *>> DominatorDataflow::getDominanceFrontier() {
   Map<BasicBlock *, Set<BasicBlock *>> frontiers;
   for (auto *n : basicBlocks) {
     for (auto *m : basicBlocks) {

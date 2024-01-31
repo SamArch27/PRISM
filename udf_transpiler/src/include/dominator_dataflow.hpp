@@ -9,7 +9,7 @@ public:
 
   DominatorDataflow(Function &f) : DataflowFramework(f) {}
 
-  Map<BasicBlock *, Set<BasicBlock *>> getDominanceFrontiers();
+  Map<BasicBlock *, Set<BasicBlock *>> getDominanceFrontier();
   bool dominates(BasicBlock *b1, BasicBlock *b2);
 
 protected:
