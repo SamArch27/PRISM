@@ -10,6 +10,7 @@ public:
   explicit DominatorDataflow(Function &f) : DataflowFramework(f) {}
 
   void printDominators();
+  void printDominanceFrontiers();
   bool dominates(BasicBlock *b1, BasicBlock *b2);
 
 protected:

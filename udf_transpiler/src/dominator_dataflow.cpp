@@ -52,6 +52,45 @@ void DominatorDataflow::printDominators() {
   }
 }
 
+void DominatorDataflow::printDominanceFrontiers() {
+
+  Map<BasicBlock *, Set<BasicBlock *>> frontiers;
+
+  for (auto *n : basicBlocks) {
+    for (auto *m : basicBlocks) {
+      bool dominatesPredecessor = false;
+      for (auto *p : m->getPredecessors()) {
+        dominatesPredecessor |= dominates(n, p);
+      }
+
+      if (!dominatesPredecessor) {
+        continue;
+      }
+
+      bool strictlyDominates = (m != n && dominates(n, m));
+      if (strictlyDominates) {
+        continue;
+      }
+
+      frontiers[n].insert(m);
+    }
+  }
+
+  for (auto &[block, frontier] : frontiers) {
+    std::cout << "DF(" << block->getLabel() << ") = {";
+    bool first = true;
+    for (auto *other : frontier) {
+      if (first) {
+        first = false;
+      } else {
+        std::cout << ",";
+      }
+      std::cout << other->getLabel();
+    }
+    std::cout << "}" << std::endl;
+  }
+}
+
 bool DominatorDataflow::dominates(BasicBlock *b1, BasicBlock *b2) {
   BitVector bitVector = results[b2->getInitiator()].out;
   return bitVector[blockToIndex[b1]];

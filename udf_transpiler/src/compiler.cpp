@@ -442,6 +442,7 @@ CompilationResult Compiler::run() {
     DominatorDataflow dataflow(function);
     dataflow.runAnalysis();
     dataflow.printDominators();
+    dataflow.printDominanceFrontiers();
 
     destroyDuckDBContext();
 
