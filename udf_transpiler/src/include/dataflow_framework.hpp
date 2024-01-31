@@ -65,7 +65,7 @@ void DataflowFramework<T, forward>::runForwards() {
 
     results[firstInst].in = newIn;
     T oldOut = results[basicBlock->getTerminator()].out;
-    results[firstInst].out = transfer(results[firstInst]);
+    results[firstInst].out = transfer(results[firstInst], firstInst);
     auto prevInst = firstInst;
 
     // for the remaining instructions:
