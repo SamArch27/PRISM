@@ -43,14 +43,9 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
     code += fmt::format("return;\n");
     goto end;
   }
-  for (BasicBlock::InstIterator intr = bb->begin(); intr != bb->end(); intr++) {
-    // const Instruction &inst = *intr->get();
+  for (auto &inst : bb->getInstructions()) {
     try {
-      if (dynamic_cast<const Assignment *>(intr->get())) {
-        const Assignment *assign =
-            dynamic_cast<const Assignment *>(intr->get());
-        // code += fmt::format("{} = {};\n", assign->getLvalue(),
-        // assign->getRvalue());
+      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
         if (toUpper(assign->getExpr()->getRawSQL()).find(" FROM ") !=
             String::npos) {
           ERROR("FROM clause should not be compiled.");
@@ -61,8 +56,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
         auto [header, res] = locg.getResult();
         code += header;
         code += fmt::format("{} = {};\n", assign->getVar()->getName(), res);
-      } else if (dynamic_cast<const ReturnInst *>(intr->get())) {
-        const ReturnInst *ret = dynamic_cast<const ReturnInst *>(intr->get());
+      } else if (auto *ret = dynamic_cast<const ReturnInst *>(inst.get())) {
         duckdb::LogicalOperatorCodeGenerator locg;
         auto *plan = ret->getExpr()->getLogicalPlan();
         locg.VisitOperator(*plan, function_info);
@@ -72,8 +66,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
             "{};\ngoto exit;\n",
             createReturnValue(config.function["return_name"].Scalar(),
                               func.getReturnType(), res));
-      } else if (dynamic_cast<const BranchInst *>(intr->get())) {
-        const BranchInst *br = dynamic_cast<const BranchInst *>(intr->get());
+      } else if (auto *br = dynamic_cast<const BranchInst *>(inst.get())) {
         if (br->isConditional()) {
           duckdb::LogicalOperatorCodeGenerator locg;
           auto *plan = br->getCond()->getLogicalPlan();
@@ -91,7 +84,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
       }
     } catch (const std::exception &e) {
       std::stringstream ss;
-      ss << e.what() << "When compiling instruction: " << **intr;
+      ss << e.what() << "When compiling instruction: " << *inst;
       throw duckdb::ParserException(ss.str());
     }
   }
