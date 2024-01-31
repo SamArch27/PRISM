@@ -28,8 +28,10 @@ std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr);
 
 class SelectExpression {
 public:
+
   SelectExpression(const String &rawSQL, Shared<LogicalPlan> logicalPlan,
                    const Vec<String> &usedVariables)
+
       : rawSQL(rawSQL), logicalPlan(logicalPlan), usedVariables(usedVariables) {
   }
 
@@ -166,6 +168,7 @@ private:
 class BasicBlock {
 public:
   BasicBlock(const String &label)
+
       : label(label), predecessors(), successors() {}
 
   using InstIterator = ListOwn<Instruction>::iterator;
