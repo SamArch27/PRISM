@@ -47,29 +47,26 @@ template <typename A, typename B> using Map = std::unordered_map<A, B>;
 
 using String = std::string;
 
-#define COUT std::cout
-#define ENDL std::endl
-
 #define ASSERT(condition, message)                                             \
   do {                                                                         \
     if (!(condition)) {                                                        \
-      COUT << "Assertion `" #condition "` failed in " << __FILE__ << " line "  \
-           << __LINE__ << ": " << message << ENDL;                             \
+      std::cout << "Assertion `" #condition "` failed in " << __FILE__         \
+                << " line " << __LINE__ << ": " << message << std::endl;       \
       std::terminate();                                                        \
     }                                                                          \
   } while (false)
 
 #define ERROR(message)                                                         \
   do {                                                                         \
-    COUT << "Error: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" \
-         << ENDL;                                                              \
+    std::cout << "Error: " << message << " (" << __FILE__ << ":" << __LINE__   \
+              << ")" << std::endl;                                             \
     std::terminate();                                                          \
   } while (false)
 
 #define EXCEPTION(message)                                                     \
   do {                                                                         \
-    COUT << "Exception: " << message << " (" << __FILE__ << ":" << __LINE__    \
-         << ")" << ENDL;                                                       \
+    std::cout << "Exception: " << message << " (" << __FILE__ << ":"           \
+              << __LINE__ << ")" << std::endl;                                 \
     throw duckdb::ParserException("See the above message.");                   \
   } while (false)
 

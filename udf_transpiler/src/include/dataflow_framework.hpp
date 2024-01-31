@@ -20,10 +20,10 @@ public:
 protected:
   T innerStart;
   T boundaryStart;
+  Function &f;
 
   virtual T transfer(T in, Instruction *inst) = 0;
   virtual T meet(T in1, T in2) = 0;
-  virtual void printBitVector(T bitVector) = 0;
   virtual void preprocessInst(Instruction *inst) = 0;
   virtual void genBoundaryInner() = 0;
 
@@ -31,8 +31,6 @@ private:
   void preprocess();
   void runForwards();
   void runBackwards();
-
-  Function &f;
 };
 
 template <typename T, bool forward>
@@ -43,8 +41,9 @@ void DataflowFramework<T, forward>::runForwards() {
     auto *basicBlock = *worklist.begin();
     worklist.erase(basicBlock);
 
-    ASSERT(!basicBlock->getInstructions().empty(),
-           "Cannot have empty block during Dataflow Analysis!");
+    if (basicBlock == f.getExitBlock()) {
+      continue;
+    }
 
     auto &instructions = basicBlock->getInstructions();
     auto *firstInst = basicBlock->getInitiator();
@@ -65,7 +64,7 @@ void DataflowFramework<T, forward>::runForwards() {
 
     results[firstInst].in = newIn;
     T oldOut = results[basicBlock->getTerminator()].out;
-    results[firstInst].out = transfer(results[firstInst], firstInst);
+    results[firstInst].out = transfer(results[firstInst].in, firstInst);
     auto prevInst = firstInst;
 
     // for the remaining instructions:
@@ -150,8 +149,8 @@ template <typename T, bool forward>
 void DataflowFramework<T, forward>::preprocess() {
 
   // call pre-process for each inst
-  for (auto *basicBlock : f.getBasicBlocks()) {
-    for (auto &inst : basicBlock.getInstructions()) {
+  for (auto &basicBlock : f.getBasicBlocks()) {
+    for (auto &inst : basicBlock->getInstructions()) {
       auto *currentInst = inst.get();
       preprocessInst(currentInst);
     }
@@ -160,8 +159,8 @@ void DataflowFramework<T, forward>::preprocess() {
   genBoundaryInner();
 
   // initialize the IN/OUT sets
-  for (auto *basicBlock : f.getBasicBlocks()) {
-    for (auto &inst : basicBlock.getInstructions()) {
+  for (auto &basicBlock : f.getBasicBlocks()) {
+    for (auto &inst : basicBlock->getInstructions()) {
       auto *currentInst = inst.get();
       results[currentInst].in = innerStart;
       results[currentInst].out = innerStart;

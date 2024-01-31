@@ -233,10 +233,10 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
   udfCount++;
   insert_def_and_reg(res[0], res[1], udfCount);
   // compile the template
-  COUT << "Compiling the UDAF..." << ENDL;
+  std::cout << "Compiling the UDAF..." << std::endl;
   compile_udf();
   // load the compiled library
-  COUT << "Installing and loading the UDAF..." << ENDL;
+  std::cout << "Installing and loading the UDAF..." << std::endl;
   load_udf(*connection);
 
   // restore the function back to original
@@ -244,7 +244,7 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
 
   // udf_todo: replace the cursor loop with custom aggregate
   String customAggCaller = res[2];
-  COUT << "customAggCaller: " << customAggCaller << ENDL;
+  std::cout << "customAggCaller: " << customAggCaller << std::endl;
   newBlock->addInstruction(Make<Assignment>(
       aggifyDFA.getReturnVar(), bindExpression(function, customAggCaller)));
   newBlock->addInstruction(
@@ -366,7 +366,7 @@ void Compiler::buildCFG(Function &function, const json &ast) {
 CompilationResult Compiler::run() {
 
   auto asts = parseJson();
-  COUT << asts << ENDL;
+  std::cout << asts << std::endl;
   auto functions = getFunctions();
 
   auto header = "PLpgSQL_function";
@@ -439,9 +439,13 @@ CompilationResult Compiler::run() {
 
     function.mergeBasicBlocks();
 
+    DominatorDataflow dataflow(function);
+    dataflow.runAnalysis();
+    dataflow.printDominators();
+
     destroyDuckDBContext();
 
-    COUT << function << ENDL;
+    std::cout << function << std::endl;
     auto res = generateCode(function);
     codeRes.code += res[0];
     codeRes.registration += res[1];

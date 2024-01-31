@@ -231,9 +231,9 @@ public:
 
 protected:
   void print(std::ostream &os) const {
-    os << label << ":" << ENDL;
+    os << label << ":" << std::endl;
     for (const auto &inst : instructions) {
-      os << *inst << ENDL;
+      os << *inst << std::endl;
     }
   }
 
@@ -420,8 +420,6 @@ public:
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
   BasicBlock *getExitBlock() { return basicBlocks[1].get(); }
 
-  const VecOwn<BasicBlock> &getAllBasicBlocks() { return basicBlocks; }
-
   void visitBFS(std::function<void(BasicBlock *)> f) {
     Queue<BasicBlock *> q;
     Set<BasicBlock *> visited;
@@ -509,34 +507,34 @@ public:
 
   // protected:
   void print(std::ostream &os) const {
-    os << "Function Name: " << functionName << ENDL;
-    os << "Return Type: " << *returnType << ENDL;
-    os << "Arguments: " << ENDL;
+    os << "Function Name: " << functionName << std::endl;
+    os << "Return Type: " << *returnType << std::endl;
+    os << "Arguments: " << std::endl;
     for (const auto &argument : arguments) {
-      os << "\t" << *argument << ENDL;
+      os << "\t" << *argument << std::endl;
     }
-    os << "Variables: " << ENDL;
+    os << "Variables: " << std::endl;
     for (const auto &variable : variables) {
-      os << "\t" << *variable << ENDL;
+      os << "\t" << *variable << std::endl;
     }
-    os << "Declarations: " << ENDL;
+    os << "Declarations: " << std::endl;
     for (const auto &declaration : declarations) {
-      os << "\t" << *declaration << ENDL;
+      os << "\t" << *declaration << std::endl;
     }
 
-    os << "Control Flow Graph: \n" << ENDL;
+    os << "Control Flow Graph: \n" << std::endl;
 
-    os << "digraph cfg {" << ENDL;
+    os << "digraph cfg {" << std::endl;
     for (const auto &block : basicBlocks) {
       os << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
       if (block->getLabel() != "exit") {
         for (auto *succ : block->getSuccessors()) {
           os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
-             << ENDL;
+             << std::endl;
         }
       }
     }
-    os << "}" << ENDL;
+    os << "}" << std::endl;
   }
 
   void newState() {
@@ -553,7 +551,7 @@ public:
     auto &state = states.back();
     labelNumber = state.labelNumber;
     for (auto &bb : state.basicBlocks) {
-      COUT << "Pushing: " << *bb << ENDL;
+      std::cout << "Pushing: " << *bb << std::endl;
       basicBlocks.push_back(std::move(bb));
     }
     // basicBlocks = state.basicBlocks;
@@ -573,7 +571,7 @@ private:
     CompilationState(std::size_t _labelNumber, VecOwn<BasicBlock> &_basicBlocks)
         : labelNumber(_labelNumber) {
       for (auto &bb : _basicBlocks) {
-        COUT << "Pushing: " << *bb << ENDL;
+        std::cout << "Pushing: " << *bb << std::endl;
         this->basicBlocks.push_back(std::move(bb));
       }
     }

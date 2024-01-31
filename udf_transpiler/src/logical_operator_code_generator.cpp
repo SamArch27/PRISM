@@ -48,8 +48,8 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
   int target_width = function_info.width_scale2.first;
   LogicalType source_type = LogicalType::DECIMAL(source_width, source_scale);
   LogicalType target_type = LogicalType::DECIMAL(target_width, target_scale);
-  COUT << source_width << ", " << source_scale << ENDL;
-  COUT << target_width << ", " << target_scale << ENDL;
+  std::cout << source_width << ", " << source_scale << std::endl;
+  std::cout << target_width << ", " << target_scale << std::endl;
   String source_physical =
       ScalarFunctionInfo::DecimalTypeToCppType(source_width, source_scale);
   String target_physical =

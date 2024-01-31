@@ -13,8 +13,7 @@
 #include <stdexcept>
 #include <string>
 
-static String
-    filePath(__FILE__); // Get the path of the current source file
+static String filePath(__FILE__); // Get the path of the current source file
 static std::filesystem::path path(filePath);
 static String current_dir = path.parent_path().string();
 
@@ -34,9 +33,9 @@ String exec(const char *cmd) {
 void create_dir_from_dir(const String &new_dir, const String &template_dir) {
   // remove the old directory in new_dir
   String cmd = "rm -rf " + new_dir;
-  COUT << exec(cmd.c_str()) << ENDL;
+  std::cout << exec(cmd.c_str()) << std::endl;
   cmd = "cp -r " + template_dir + " " + new_dir;
-  COUT << exec(cmd.c_str()) << ENDL;
+  std::cout << exec(cmd.c_str()) << std::endl;
 }
 
 void insert_def_and_reg(const String &defs, const String &regs, int udf_count) {
@@ -64,9 +63,9 @@ void insert_def_and_reg(const String &defs, const String &regs, int udf_count) {
     while ((change_start = template_str.find(change_start_str, search_start)) !=
            String::npos) {
       change_end = template_str.find(change_end_str, change_start);
-      COUT << "changing: "
-           << template_str.substr(change_start, change_end - change_start)
-           << ENDL;
+      std::cout << "changing: "
+                << template_str.substr(change_start, change_end - change_start)
+                << std::endl;
       size_t udf_start = template_str.find("udf", change_start);
       ASSERT(udf_start != String::npos,
              "Expect to find word udf in: " +
@@ -142,36 +141,39 @@ void insert_def_and_reg(const String &defs, const String &regs, int udf_count) {
 void compile_udf() {
   // String cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
   String cmd = "cd " + current_dir + "/../" + ";make udfs";
-  COUT << exec(cmd.c_str()) << ENDL;
+  std::cout << exec(cmd.c_str()) << std::endl;
 }
 
 void compile_udaf() {
   String cmd = "cd " + current_dir + "/../" + ";make udafs";
-  COUT << cmd << ENDL;
-  COUT << exec(cmd.c_str()) << ENDL;
+  std::cout << cmd << std::endl;
+  std::cout << exec(cmd.c_str()) << std::endl;
 }
 
 /**
  * will load the udf*.duckdb_extension file that is last created
-*/
+ */
 void load_udf(duckdb::Connection &connection) {
   // find the current udf_count
-  String cmd = "cd " + current_dir + "/../build/udfs/extension/udf1/;ls -t | grep -o '^udf.*\\.duckdb_extension$'";
+  String cmd = "cd " + current_dir +
+               "/../build/udfs/extension/udf1/;ls -t | grep -o "
+               "'^udf.*\\.duckdb_extension$'";
   String filename = exec(cmd.c_str());
-  filename = filename.substr(0, filename.find("\n"));                                                           
-  String install = "install '" + current_dir +
-                        "/../build/udfs/extension/udf1/" 
-                        // + "udf" + std::to_string(udf_count) + ".duckdb_extension'";
-                        + filename + "'";
+  filename = filename.substr(0, filename.find("\n"));
+  String install =
+      "install '" + current_dir +
+      "/../build/udfs/extension/udf1/"
+      // + "udf" + std::to_string(udf_count) + ".duckdb_extension'";
+      + filename + "'";
   String load = "load '" + current_dir + "/../build/udfs/extension/udf1/" +
-                    //  "udf" + std::to_string(udf_count) + ".duckdb_extension'";
-                      filename + "'";
-  COUT << "Running: " << install << ENDL;
+                //  "udf" + std::to_string(udf_count) + ".duckdb_extension'";
+                filename + "'";
+  std::cout << "Running: " << install << std::endl;
   auto res = connection.Query(install);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
-  COUT << "Running: " << load << ENDL;
+  std::cout << "Running: " << load << std::endl;
   res = connection.Query(load);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
@@ -180,17 +182,16 @@ void load_udf(duckdb::Connection &connection) {
 
 void load_udaf(duckdb::Connection &connection) {
   String install = "install '" + current_dir +
-                        "/../build/udfs/extension/udf_agg/" +
-                        "udf_agg.duckdb_extension'";
-  String load = "load '" + current_dir +
-                     "/../build/udfs/extension/udf_agg/" +
-                     "udf_agg.duckdb_extension'";
-  COUT << "Running: " << install << ENDL;
+                   "/../build/udfs/extension/udf_agg/" +
+                   "udf_agg.duckdb_extension'";
+  String load = "load '" + current_dir + "/../build/udfs/extension/udf_agg/" +
+                "udf_agg.duckdb_extension'";
+  std::cout << "Running: " << install << std::endl;
   auto res = connection.Query(install);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
-  COUT << "Running: " << load << ENDL;
+  std::cout << "Running: " << load << std::endl;
   res = connection.Query(load);
   if (res->HasError()) {
     EXCEPTION(res->GetError());

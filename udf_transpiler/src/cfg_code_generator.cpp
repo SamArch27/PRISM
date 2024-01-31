@@ -122,8 +122,9 @@ String CFGCodeGenerator::extractVarFromChunk(const Function &func) {
 }
 
 Vec<String> CFGCodeGenerator::run(const Function &func) {
-  COUT << fmt::format("Generating code for function {}", func.getFunctionName())
-       << ENDL;
+  std::cout << fmt::format("Generating code for function {}",
+                           func.getFunctionName())
+            << std::endl;
   CodeGenInfo function_info(func);
 
   for (auto &bbUniq : func.getBasicBlocks()) {
@@ -204,9 +205,9 @@ Vec<String> CFGCodeGenerator::run(const Function &func) {
                func.getReturnType()->getDuckDBLogicalType()),
       fmt::arg("args_logical_types", vector_join(args_logical_types, ", ")));
 
-  COUT << container.body << ENDL;
-  COUT << container.main << ENDL;
-  COUT << container.registration << ENDL;
+  std::cout << container.body << std::endl;
+  std::cout << container.main << std::endl;
+  std::cout << container.registration << std::endl;
 
   return {container.body + "\n" + container.main, container.registration};
 }
