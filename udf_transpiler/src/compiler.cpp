@@ -1,6 +1,7 @@
 #include "compiler.hpp"
 #include "aggify_code_generator.hpp"
 #include "aggify_dfa.hpp"
+#include "bitvector.hpp"
 #include "cfg_code_generator.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
@@ -397,8 +398,7 @@ CompilationResult Compiler::run() {
         continue;
       }
 
-      String variableType =
-          variable["datatype"]["PLpgSQL_type"]["typname"];
+      String variableType = variable["datatype"]["PLpgSQL_type"]["typname"];
 
       if (variableType == "UNKNOWN") {
         if (function.hasBinding(variableName)) {
@@ -419,8 +419,7 @@ CompilationResult Compiler::run() {
         auto varType = getTypeFromPostgresName(variableType);
         String defaultVal =
             variable.contains("default_val")
-                ? variable["default_val"]["PLpgSQL_expr"]["query"]
-                      .get<String>()
+                ? variable["default_val"]["PLpgSQL_expr"]["query"].get<String>()
                 : varType->defaultValue(true);
         function.addVariable(variableName, std::move(varType),
                              !variable.contains("default_val"));
@@ -665,8 +664,7 @@ Compiler::StringPair Compiler::unpackAssignment(const String &assignment) {
   return std::make_pair(matches.prefix(), matches.suffix());
 }
 
-Opt<Compiler::WidthScale>
-Compiler::getDecimalWidthScale(const String &type) {
+Opt<Compiler::WidthScale> Compiler::getDecimalWidthScale(const String &type) {
   std::regex decimalPattern("DECIMAL\\((\\d+),(\\d+)\\)",
                             std::regex_constants::icase);
   std::smatch decimalMatch;
