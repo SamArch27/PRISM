@@ -46,16 +46,16 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
   for (auto &inst : bb->getInstructions()) {
     try {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-        if (toUpper(assign->getExpr()->getRawSQL()).find(" FROM ") !=
+        if (toUpper(assign->getRHS()->getRawSQL()).find(" FROM ") !=
             String::npos) {
           ERROR("FROM clause should not be compiled.");
         }
         duckdb::LogicalOperatorCodeGenerator locg;
-        auto *plan = assign->getExpr()->getLogicalPlan();
+        auto *plan = assign->getRHS()->getLogicalPlan();
         locg.VisitOperator(*plan, function_info);
         auto [header, res] = locg.getResult();
         code += header;
-        code += fmt::format("{} = {};\n", assign->getVar()->getName(), res);
+        code += fmt::format("{} = {};\n", assign->getLHS()->getName(), res);
       } else if (auto *ret = dynamic_cast<const ReturnInst *>(inst.get())) {
         duckdb::LogicalOperatorCodeGenerator locg;
         auto *plan = ret->getExpr()->getLogicalPlan();

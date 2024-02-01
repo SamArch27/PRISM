@@ -27,38 +27,6 @@ using LogicalPlan = duckdb::LogicalOperator;
 
 std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr);
 
-class SelectExpression {
-public:
-  SelectExpression(const String &rawSQL, Shared<LogicalPlan> logicalPlan,
-                   const Vec<String> &usedVariables)
-
-      : rawSQL(rawSQL), logicalPlan(logicalPlan), usedVariables(usedVariables) {
-  }
-
-  Own<SelectExpression> clone() const {
-    return Make<SelectExpression>(rawSQL, logicalPlan, usedVariables);
-  }
-
-  friend std::ostream &operator<<(std::ostream &os,
-                                  const SelectExpression &expr) {
-    expr.print(os);
-    return os;
-  }
-
-  String getRawSQL() const { return rawSQL; }
-  const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
-  const Vec<String> &getUsedVariables() const { return usedVariables; }
-
-protected:
-  void print(std::ostream &os) const { os << rawSQL; }
-
-private:
-  String rawSQL;
-  Shared<LogicalPlan> logicalPlan;
-  duckdb::ClientContext *clientContext;
-  Vec<String> usedVariables;
-};
-
 class Variable {
 public:
   Variable(const String &name, Own<Type> type, bool null = true)
@@ -80,6 +48,40 @@ private:
   String name;
   Own<Type> type;
   bool null;
+};
+
+class SelectExpression {
+public:
+  SelectExpression(const String &rawSQL, Shared<LogicalPlan> logicalPlan,
+                   const Vec<const Variable *> &usedVariables)
+
+      : rawSQL(rawSQL), logicalPlan(logicalPlan), usedVariables(usedVariables) {
+  }
+
+  Own<SelectExpression> clone() const {
+    return Make<SelectExpression>(rawSQL, logicalPlan, usedVariables);
+  }
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const SelectExpression &expr) {
+    expr.print(os);
+    return os;
+  }
+
+  String getRawSQL() const { return rawSQL; }
+  const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
+  const Vec<const Variable *> &getUsedVariables() const {
+    return usedVariables;
+  }
+
+protected:
+  void print(std::ostream &os) const { os << rawSQL; }
+
+private:
+  String rawSQL;
+  Shared<LogicalPlan> logicalPlan;
+  duckdb::ClientContext *clientContext;
+  Vec<const Variable *> usedVariables;
 };
 
 class BasicBlock;
@@ -111,6 +113,10 @@ public:
   Own<Instruction> clone() const override {
     return Make<PhiNode>(var, arguments);
   }
+
+  const Variable *getLHS() const { return var; }
+
+  const Vec<const Variable *> &getRHS() const { return arguments; }
 
   bool isTerminator() const override { return false; }
 
@@ -150,8 +156,8 @@ public:
     return Make<Assignment>(var, expr->clone());
   }
 
-  const Variable *getVar() const { return var; }
-  const SelectExpression *getExpr() const { return expr.get(); }
+  const Variable *getLHS() const { return var; }
+  const SelectExpression *getRHS() const { return expr.get(); }
   friend std::ostream &operator<<(std::ostream &os,
                                   const Assignment &assignment) {
     assignment.print(os);
@@ -162,7 +168,7 @@ public:
 
 protected:
   void print(std::ostream &os) const override {
-    os << *var << " = " << *getExpr();
+    os << *var << " = " << *getRHS();
   }
 
 private:

@@ -29,6 +29,10 @@ Own<A> MakeShared(Args &&... xs) {
   return std::make_shared<B>(std::forward<Args>(xs)...);
 }
 
+using Counter = std::size_t;
+
+template <typename A> using Stack = std::stack<A>;
+
 template <typename A> using Queue = std::queue<A>;
 
 template <typename A> using Set = std::unordered_set<A>;

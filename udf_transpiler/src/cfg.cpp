@@ -18,7 +18,7 @@ void Function::insertPhiFunctions() {
   for (auto &block : basicBlocks) {
     for (auto &inst : block->getInstructions()) {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-        auto *var = assign->getVar();
+        auto *var = assign->getLHS();
         varToBlocksAssigned[var].insert(block.get());
       }
     }
@@ -124,7 +124,81 @@ void Function::removeBasicBlock(BasicBlock *toRemove) {
   }
 }
 
-void Function::renameVariablesToSSA() {}
+void Function::renameVariablesToSSA() {
+  /*
+  // Collect all variables and arguments into a single set
+  Set<Variable *> allVariables;
+  for (auto &var : variables) {
+    allVariables.insert(var.get());
+  }
+  for (auto &arg : arguments) {
+    allVariables.insert(arg.get());
+  }
+
+  Map<const Variable *, Counter> counter;
+  Map<const Variable *, Stack<Counter>> stacks;
+
+  // initialize data structures
+  for (auto *var : allVariables) {
+    counter[var] = 0;
+    stacks[var];
+  }
+
+  auto predNumber = [&](BasicBlock *child, BasicBlock *parent) {
+    const auto &preds = child->getPredecessors();
+    auto it = preds.find(parent);
+    ASSERT(it != preds.end(),
+           "Error! No predecessor found with predNumber function!");
+    return std::distance(preds.begin(), it);
+  };
+
+  auto topOfStack = [&](const Variable *var) {
+    return stacks[var].empty() ? 0 : stacks[var].top();
+  };
+
+  auto rename = [&](BasicBlock *block) -> void {
+    for (auto &inst : block->getInstructions()) {
+      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+        // rename RHS
+        for (auto *var : assign->getRHS()->getUsedVariables()) {
+          auto i = topOfStack(var);
+          // Replace x by x_i
+        }
+        // rename LHS
+        const auto *lhs = assign->getLHS();
+        auto i = counter[lhs];
+        // Replace y by new variable y_i in (lhs = rhs)
+        stacks[lhs].push(i);
+        counter[lhs] = i + 1;
+      }
+    }
+
+    // for each successor
+    for (auto *succ : block->getSuccessors()) {
+      auto j = predNumber(succ, block);
+      // for each phi instruction in succ
+      for (auto &inst : succ->getInstructions()) {
+        if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
+          auto i = topOfStack(phi->getRHS()[j]);
+          // Replace jth operand x in Phi(...) by x_i
+        }
+      }
+    }
+
+    // for each child IN THE DOMINATOR TREE!!
+    // 1. rename(child)
+
+    // for each assignment, pop the stack
+    for (auto &inst : block->getInstructions()) {
+      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+        // Important: check the name!!
+        stacks[assign->getLHS()].pop();
+      }
+    }
+  };
+  rename(getEntryBlock());
+  */
+}
 
 Function newFunction(const String &functionName) {
   return Function(functionName, Make<NonDecimalType>(DuckdbTypeTag::INTEGER));

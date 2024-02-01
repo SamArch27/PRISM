@@ -551,8 +551,15 @@ Own<SelectExpression> Compiler::bindExpression(const Function &function,
 
   duckdb::UsedVariableFinder usedVariableFinder("tmp", plannerBinder);
   usedVariableFinder.VisitOperator(*boundExpression);
+
+  // for each used variable, bind it to a Variable*
+  Vec<const Variable *> usedVariables;
+  for (const auto &varName : usedVariableFinder.usedVariables) {
+    usedVariables.push_back(function.getBinding(varName));
+  }
+
   return Make<SelectExpression>(expr, std::move(boundExpression),
-                                usedVariableFinder.usedVariables);
+                                usedVariables);
 }
 
 json Compiler::parseJson() const {
