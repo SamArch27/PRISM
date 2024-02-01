@@ -55,7 +55,7 @@ private:
                                  Vec<String> &template_args,
                                  const Vec<Expression *> &children,
                                  CodeGenInfo &insert,
-                                 std::list<String> &args);
+                                 List<String> &args);
   static String
   CodeGenScalarFunction(const ScalarFunctionInfo &function_info,
                         const Vec<Expression *> &children,

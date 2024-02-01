@@ -39,7 +39,7 @@ template <typename A> using Vec = std::vector<A>;
 
 template <typename A> using VecOwn = Vec<Own<A>>;
 
-template <typename A> using ListOwn = std::list<Own<A>>;
+template <typename A> using ListOwn = List<Own<A>>;
 
 template <typename A> using Opt = std::optional<A>;
 
@@ -82,12 +82,12 @@ template <>
 String vector_join(const Vec<String> &vec, String sep);
 
 template <typename T>
-String list_join(std::list<T> &any_list, String sep) {
+String list_join(List<T> &any_list, String sep) {
   ERROR("list_join not implemented for this type");
 }
 
 template <>
-String list_join(std::list<String> &any_list, String sep);
+String list_join(List<String> &any_list, String sep);
 
 String toLower(const String &str);
 String toUpper(const String &str);

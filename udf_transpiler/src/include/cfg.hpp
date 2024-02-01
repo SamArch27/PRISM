@@ -570,7 +570,7 @@ private:
       }
     }
   };
-  std::list<CompilationState> states;
+  List<CompilationState> states;
   std::size_t labelNumber;
   String functionName;
   Own<Type> returnType;

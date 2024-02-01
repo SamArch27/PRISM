@@ -12,7 +12,7 @@ String vector_join(const Vec<String> &vec, String sep) {
 }
 
 template <>
-String list_join(std::list<String> &any_list, String sep) {
+String list_join(List<String> &any_list, String sep) {
   String result = "";
   for (auto &item : any_list) {
     result += item + sep;
