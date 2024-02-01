@@ -96,6 +96,7 @@ std::ostream &operator<<(std::ostream &os, CppTypeTag);
 
 class Type {
 public:
+  
   const static inline std::set<DuckdbTypeTag> NumricTypes = {
     DuckdbTypeTag::BOOLEAN, DuckdbTypeTag::TINYINT, DuckdbTypeTag::SMALLINT,
     DuckdbTypeTag::INTEGER, DuckdbTypeTag::BIGINT, DuckdbTypeTag::DATE, 
@@ -124,6 +125,8 @@ public:
   }
   bool isNumeric() const { return NumricTypes.count(duckdbTag); }
   bool isBLOB() const { return BLOBTypes.count(duckdbTag); }
+
+  virtual Own<Type> clone() const = 0;
 
 protected:
   Type(DuckdbTypeTag duckdbTag, CppTypeTag cppTag)
@@ -186,6 +189,10 @@ public:
   int getWidth() const { return width; }
   int getScale() const { return scale; }
 
+  Own<Type> clone() const override{
+    return Make<DecimalType>(duckdbTag, width, scale);
+  }
+
 private:
   void print(std::ostream &os) const override {
     os << fmt::format("DECIMAL({}, {})", width, scale);
@@ -239,6 +246,10 @@ public:
     else{
       ERROR("Cannot get default value for non-numeric and non-BLOB type!");
     }
+  }
+
+  Own<Type> clone() const override{
+    return Make<NonDecimalType>(duckdbTag);
   }
 
 private:

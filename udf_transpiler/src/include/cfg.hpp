@@ -71,6 +71,8 @@ public:
     return os;
   }
 
+  Own<Variable> clone() const { return Make<Variable>(name, type->clone(), null); }
+
 protected:
   void print(std::ostream &os) const { os << *type << " " << name; }
 
@@ -342,6 +344,29 @@ public:
       : labelNumber(0), functionName(functionName),
         returnType(std::move(returnType)) {}
 
+  /**
+   * copy constructor
+   * copies: labelNumber, functionName, returnType, arguments, variables, bindings
+   * 
+  */
+  Function(const Function &other){
+    labelNumber = other.labelNumber;
+    functionName = other.functionName;
+    returnType = other.returnType->clone();
+    Map<Variable *, Variable *> otherVarToNewVar;
+    for (const auto &arg : other.arguments) {
+      arguments.emplace_back(arg->clone());
+      otherVarToNewVar[arg.get()] = arguments.back().get();
+    }
+    for (const auto &var : other.variables) {
+      variables.emplace_back(var->clone());
+      otherVarToNewVar[var.get()] = variables.back().get();
+    }
+    for (const auto &bind : other.bindings) {
+      bindings.emplace(bind.first, otherVarToNewVar.at(bind.second));
+    }
+  }
+
   friend std::ostream &operator<<(std::ostream &os, const Function &function) {
     function.print(os);
     return os;
@@ -531,30 +556,30 @@ public:
     os << "}" << ENDL;
   }
 
-  void newState() {
-    states.emplace_back(labelNumber, basicBlocks);
-    basicBlocks.clear();
-    labelNumber = 0;
-  }
+  // void newState() {
+  //   states.emplace_back(labelNumber, basicBlocks);
+  //   basicBlocks.clear();
+  //   labelNumber = 0;
+  // }
 
-  /**
-   * Clear the current state and restore the previous state in the stack
-   */
-  void popState() {
-    basicBlocks.clear();
-    auto &state = states.back();
-    labelNumber = state.labelNumber;
-    for (auto &bb : state.basicBlocks) {
-      COUT << "Pushing: " << *bb << ENDL;
-      basicBlocks.push_back(std::move(bb));
-    }
-    // basicBlocks = state.basicBlocks;
-    states.pop_back();
-  }
+  // /**
+  //  * Clear the current state and restore the previous state in the stack
+  //  */
+  // void popState() {
+  //   basicBlocks.clear();
+  //   auto &state = states.back();
+  //   labelNumber = state.labelNumber;
+  //   for (auto &bb : state.basicBlocks) {
+  //     COUT << "Pushing: " << *bb << ENDL;
+  //     basicBlocks.push_back(std::move(bb));
+  //   }
+  //   // basicBlocks = state.basicBlocks;
+  //   states.pop_back();
+  // }
 
-  void addCustomAgg(const Vec<String> &agg) { custom_aggs.push_back(agg); }
+  // void addCustomAgg(const AggifyCodeGeneratorResult &agg) { custom_aggs.push_back(agg); }
 
-  const Vec<Vec<String>> &getCustomAggs() const { return custom_aggs; }
+  // const Vec<AggifyCodeGeneratorResult> &getCustomAggs() const { return custom_aggs; }
 
 private:
   class CompilationState {
@@ -570,7 +595,7 @@ private:
       }
     }
   };
-  List<CompilationState> states;
+  // List<CompilationState> states;
   std::size_t labelNumber;
   String functionName;
   Own<Type> returnType;
@@ -579,7 +604,7 @@ private:
   VecOwn<Assignment> declarations;
   Map<String, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
-  Vec<Vec<String>> custom_aggs;
+  // Vec<AggifyCodeGeneratorResult> custom_aggs;
 };
 
 /**

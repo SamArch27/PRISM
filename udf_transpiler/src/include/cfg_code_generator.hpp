@@ -14,10 +14,8 @@
 #include "utils.hpp"
 #include "logical_operator_code_generator.hpp"
 
-class CodeContainer2 {
+class CodeContainer {
 public:
-    // // the declaration section of all function variable (argument are already delcared in the function signature)
-    // Vec<String> declarations;
     // the code generation result of all the basic blocks
     Vec<String> basicBlockCodes;
     // the subfunction used as the loop body of the vectorized function
@@ -25,22 +23,14 @@ public:
     // the main vectorized function to be registered to DuckDB
     String main;
     // the registration codes called by DuckDB
-    // Vec<String> registration;
     String registration;
 };
 
-// class CodeGenInfo{
-// public:
-//     int stringFunctionCount = 0;
-
-// };
-
 class CFGCodeGenerator {
 protected:
-    CodeContainer2 container;
+    CodeContainer container;
     const YAMLConfig &config;
-    // need a connection to DuckDB to get the query plans
-    // duckdb::Connection *connection;
+    
 public:
     CFGCodeGenerator(const YAMLConfig &_config)
         : config(_config){

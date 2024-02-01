@@ -220,17 +220,19 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
                                  List<json> &statements,
                                  const Continuations &continuations) {
   auto newBlock = function.makeBasicBlock();
-  function.newState();
-  buildCursorLoopCFG(function, cursorLoopJson);
-  function.mergeBasicBlocks();
+  
+  // create a new function out of the orginal with empty basic blocks
+  Function cursorLoopFunction(function);
+  buildCursorLoopCFG(cursorLoopFunction, cursorLoopJson);
+  cursorLoopFunction.mergeBasicBlocks();
 
-  AggifyDFA aggifyDFA(function);
+  AggifyDFA aggifyDFA(cursorLoopFunction);
 
-  AggifyCodeGenerator aggifyCodeGenerator(config);
-  auto res = aggifyCodeGenerator.run(function, cursorLoopJson, aggifyDFA,
-                                     function.getCustomAggs().size());
   udfCount++;
-  insert_def_and_reg(res[0], res[1], udfCount);
+  AggifyCodeGenerator aggifyCodeGenerator(config);
+  auto res = aggifyCodeGenerator.run(cursorLoopFunction, cursorLoopJson, aggifyDFA,
+                                     udfCount);
+  insert_def_and_reg(res.code, res.registration, udfCount);
   // compile the template
   COUT << "Compiling the UDAF..." << ENDL;
   compile_udf();
@@ -238,14 +240,13 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
   COUT << "Installing and loading the UDAF..." << ENDL;
   load_udf(*connection);
 
-  // restore the function back to original
-  function.popState();
-
   // udf_todo: replace the cursor loop with custom aggregate
-  String customAggCaller = res[2];
-  COUT << "customAggCaller: " << customAggCaller << ENDL;
+  String customAggCaller = res.caller;
+  // COUT << "returnvar" << aggifyDFA.getReturnVar() << ENDL;
+  // COUT << "customAggCaller: " << customAggCaller << ENDL;
+  // function.addCustomAgg(std::move(res));
   newBlock->addInstruction(Make<Assignment>(
-      aggifyDFA.getReturnVar(), bindExpression(function, customAggCaller)));
+      function.getBinding(aggifyDFA.getReturnVarName()), bindExpression(function, customAggCaller)));
   newBlock->addInstruction(
       Make<BranchInst>(constructCFG(function, statements, continuations)));
   return newBlock;
