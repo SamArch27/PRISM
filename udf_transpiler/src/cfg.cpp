@@ -10,7 +10,46 @@ void Function::convertToSSAForm() {
 void Function::insertPhiFunctions() {
   DominatorDataflow dataflow(*this);
   dataflow.runAnalysis();
-  auto dominanceFrontier = dataflow.getDominanceFrontier();
+  auto dominators = dataflow.computeDominators();
+
+  // print dominator info
+  std::cout << "PRINTING DOMINATORS " << std::endl;
+  for (auto &block : basicBlocks) {
+    for (auto &other : dominators->getDominatingNodes(block.get())) {
+      std::cout << other->getLabel() << " dom " << block->getLabel()
+                << std::endl;
+    }
+  }
+
+  auto dominanceFrontier = dataflow.computeDominanceFrontier(dominators);
+
+  // print dominance frontier
+  std::cout << "PRINTING DOMINANCE FRONTIER" << std::endl;
+  for (auto &block : basicBlocks) {
+    std::cout << "DF(" << block->getLabel() << ") = {";
+
+    bool first = true;
+    for (auto other : dominanceFrontier->at(block.get())) {
+      if (first) {
+        first = false;
+      } else {
+        std::cout << ",";
+      }
+      std::cout << other->getLabel();
+    }
+    std::cout << "}" << std::endl;
+  }
+
+  auto dominatorTree = dataflow.computeDominatorTree(dominators);
+
+  // print dominator tree
+  std::cout << "PRINTING DOMINATOR TREE" << std::endl;
+  for (auto &block : basicBlocks) {
+    for (const auto &childLabel :
+         dominatorTree->getChildren(block->getLabel())) {
+      std::cout << block->getLabel() << " -> " << childLabel << std::endl;
+    }
+  }
 
   // For each variable, when it is assigned in a block, map to the block
   Map<const Variable *, Set<BasicBlock *>> varToBlocksAssigned;
@@ -53,7 +92,10 @@ void Function::insertPhiFunctions() {
       auto *block = *worklist.begin();
       worklist.erase(block);
 
-      for (auto *m : dominanceFrontier[block]) {
+      for (auto *m : dominanceFrontier->at(block)) {
+        if (m == getExitBlock()) {
+          continue;
+        }
         if (inserted[m] != var) {
           // place a phi instruction for var at m
           auto numPreds = m->getPredecessors().size();

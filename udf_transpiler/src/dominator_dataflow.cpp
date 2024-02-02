@@ -1,4 +1,5 @@
 #include "dominator_dataflow.hpp"
+#include "utils.hpp"
 
 BitVector DominatorDataflow::transfer(BitVector in, Instruction *inst) {
 
@@ -20,15 +21,16 @@ BitVector DominatorDataflow::meet(BitVector in1, BitVector in2) {
   return out;
 }
 
-void DominatorDataflow::preprocessInst(Instruction *inst) {
+void DominatorDataflow::preprocessBlock(BasicBlock *block) {
   // map each basic block to an index in the BitVector
-  BasicBlock *block = inst->getParent();
   if (blockToIndex.find(block) == blockToIndex.end()) {
     std::size_t newSize = blockToIndex.size();
     blockToIndex[block] = newSize;
     basicBlocks.push_back(block);
   }
 }
+
+void DominatorDataflow::preprocessInst(Instruction *inst) {}
 
 void DominatorDataflow::genBoundaryInner() {
   // TOP is all 1 because meet is union
@@ -37,32 +39,81 @@ void DominatorDataflow::genBoundaryInner() {
   boundaryStart = BitVector(blockToIndex.size(), false);
 }
 
-Map<BasicBlock *, Set<BasicBlock *>> DominatorDataflow::getDominanceFrontier() {
-  Map<BasicBlock *, Set<BasicBlock *>> frontiers;
+Own<Dominators> DominatorDataflow::computeDominators() const {
+  auto dominators = Make<Dominators>(basicBlocks);
+
+  // for each block, add the dominance info
+  for (auto *block : basicBlocks) {
+    for (auto *other : basicBlocks) {
+      if (other == f.getExitBlock()) {
+        continue;
+      }
+      auto bitVector = results.at(other->getInitiator()).out;
+      if (bitVector[blockToIndex.at(block)]) {
+        dominators->addDominanceEdge(block, other);
+      }
+    }
+  }
+  return dominators;
+}
+
+Own<DominanceFrontier> DominatorDataflow::computeDominanceFrontier(
+    const Own<Dominators> &dominators) const {
+  auto frontier = Make<DominanceFrontier>();
   for (auto *n : basicBlocks) {
+
+    // create an empty set for each
+    frontier->insert({n, {}});
+
     for (auto *m : basicBlocks) {
       bool dominatesPredecessor = false;
       for (auto *p : m->getPredecessors()) {
-        dominatesPredecessor |= dominates(n, p);
+        dominatesPredecessor |= dominators->dominates(n, p);
       }
 
       if (!dominatesPredecessor) {
         continue;
       }
 
-      bool strictlyDominates = (m != n && dominates(n, m));
-      if (strictlyDominates) {
+      if (dominators->strictlyDominates(n, m)) {
         continue;
       }
 
-      frontiers[n].insert(m);
+      frontier->at(n).insert(m);
     }
   }
 
-  return frontiers;
+  return frontier;
 }
 
-bool DominatorDataflow::dominates(BasicBlock *b1, BasicBlock *b2) {
-  BitVector bitVector = results[b2->getInitiator()].out;
-  return bitVector[blockToIndex[b1]];
+Own<DominatorTree> DominatorDataflow::computeDominatorTree(
+    const Own<Dominators> &dominators) const {
+  Vec<String> labels;
+  for (auto *block : basicBlocks) {
+    labels.push_back(block->getLabel());
+  }
+  auto dominatorTree = Make<DominatorTree>(labels);
+
+  for (auto *block : basicBlocks) {
+    // for all strict dominators of this block
+    auto strictDominators = dominators->getDominatingNodes(block);
+    strictDominators.erase(block);
+
+    // for a dominating block
+    for (auto *dominatingBlock : strictDominators) {
+
+      // this dominating block does not strictly dominate any other (strictly)
+      // dominating block
+      bool immediateDominator =
+          std::none_of(strictDominators.begin(), strictDominators.end(),
+                       [&](BasicBlock *otherDominatingBlock) {
+                         return dominators->strictlyDominates(
+                             dominatingBlock, otherDominatingBlock);
+                       });
+      if (immediateDominator) {
+        dominatorTree->addChild(dominatingBlock->getLabel(), block->getLabel());
+      }
+    }
+  }
+  return dominatorTree;
 }

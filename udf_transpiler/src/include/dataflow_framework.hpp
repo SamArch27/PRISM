@@ -25,6 +25,7 @@ protected:
 
   virtual T transfer(T in, Instruction *inst) = 0;
   virtual T meet(T in1, T in2) = 0;
+  virtual void preprocessBlock(BasicBlock *block) = 0;
   virtual void preprocessInst(Instruction *inst) = 0;
   virtual void genBoundaryInner() = 0;
 
@@ -151,6 +152,7 @@ void DataflowFramework<T, forward>::preprocess() {
 
   // call pre-process for each inst
   for (auto &basicBlock : f.getBasicBlocks()) {
+    preprocessBlock(basicBlock.get());
     for (auto &inst : basicBlock->getInstructions()) {
       auto *currentInst = inst.get();
       preprocessInst(currentInst);

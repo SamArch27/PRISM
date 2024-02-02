@@ -464,6 +464,7 @@ public:
 
   void optimize() {
     mergeBasicBlocks();
+    std::cout << *this << std::endl;
     convertToSSAForm();
   }
 
