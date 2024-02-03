@@ -39,10 +39,6 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
   code += fmt::format("/* ==== Basic block {} start ==== */\n", bb->getLabel());
   code += fmt::format("{}:\n", bb->getLabel());
 
-  if (bb->getLabel() == "exit") {
-    code += fmt::format("return;\n");
-    goto end;
-  }
   for (auto &inst : bb->getInstructions()) {
     try {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
@@ -80,7 +76,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
           code += fmt::format("goto {};\n", br->getIfTrue()->getLabel());
         }
       } else if (dynamic_cast<const ExitInst *>(inst.get())) {
-        // do nothing for ExitInst
+        code += fmt::format("return;\n");
       } else if (dynamic_cast<const PhiNode *>(inst.get())) {
         ERROR("Encountered a phi instruction which should have been removed "
               "before code-generation to C++!");
@@ -94,7 +90,6 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
       throw duckdb::ParserException(ss.str());
     }
   }
-end:
   container.basicBlockCodes.push_back(code);
   return;
 }
