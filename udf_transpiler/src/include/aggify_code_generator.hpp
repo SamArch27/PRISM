@@ -14,13 +14,9 @@
 
 using json = nlohmann::json;
 
-struct AggifyCodeGeneratorResult{
+struct AggifyCodeGeneratorResult : CFGCodeGeneratorResult{
     // name of the custom aggregate
     String name;
-    // the main definition of the custom aggregate
-    String code;
-    // to register the custom aggregate to DuckDB
-    String registration;
     // the caller to the custom aggregate
     String caller;
 };

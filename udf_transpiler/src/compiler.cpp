@@ -445,8 +445,8 @@ CompilationResult Compiler::run() {
 
     COUT << function << ENDL;
     auto res = generateCode(function);
-    codeRes.code += res[0];
-    codeRes.registration += res[1];
+    codeRes.code += res.code;
+    codeRes.registration += res.registration;
   }
   codeRes.success = true;
   return codeRes;
@@ -720,7 +720,7 @@ String Compiler::resolveTypeName(const String &type) const {
  * Generate code for a function
  * Initialize a CFGCodeGenerator and run it through the function
  */
-Vec<String> Compiler::generateCode(const Function &func) {
+CFGCodeGeneratorResult Compiler::generateCode(const Function &func) {
 
   // AggifyCodeGenerator aggifyCodeGenerator(config, );
 

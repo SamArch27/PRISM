@@ -8,7 +8,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include "compiler.hpp"
 #include "compiler_fmt/core.h"
 #include "yaml-cpp/yaml.h"
 #include "utils.hpp"
@@ -26,6 +25,13 @@ public:
     String registration;
 };
 
+struct CFGCodeGeneratorResult{
+    // the main definition of the custom aggregate
+    String code;
+    // to register the custom aggregate to DuckDB
+    String registration;
+};
+
 class CFGCodeGenerator {
 protected:
     CodeContainer container;
@@ -37,7 +43,7 @@ public:
         };
     void basicBlockCodeGenerator(BasicBlock *bb, const Function &func, CodeGenInfo &function_info);
     String extractVarFromChunk(const Function &func);
-    Vec<String> run(const Function &func);
+    CFGCodeGeneratorResult run(const Function &func);
 
 private:
     String createReturnValue(const String &retName, const Type *retType, const String &retValue);

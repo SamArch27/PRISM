@@ -17,7 +17,6 @@ public:
 
   int tmpVarCount = 0;
 
-  //   CodeGenInfo(int &vectorCount) : vectorCount(vectorCount) {}
   String newVector() {
     // make sure it is does not already exist
     String name = "tmp_vec" + std::to_string(vectorCount++);

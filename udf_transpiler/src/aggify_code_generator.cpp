@@ -154,5 +154,5 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const j
       fmt::arg("cursorQuery",
                ast["query"]["PLpgSQL_expr"]["query"].get<String>()));
   // COUT << code << ENDL;
-  return {"custom_agg"+id, code, registration, customAggCaller};
+  return {{code, registration}, "custom_agg"+std::to_string(id), customAggCaller};
 }
