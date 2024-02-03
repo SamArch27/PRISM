@@ -402,14 +402,14 @@ public:
 
   void addArgument(const String &name, Own<Type> type) {
     auto var = Make<Variable>(name, std::move(type));
-    arguments.emplace_back(std::move(var));
-    bindings.emplace(name, arguments.back().get());
+    auto [it, _] = arguments.insert(std::move(var));
+    bindings.emplace(name, it->get());
   }
 
   void addVariable(const String &name, Own<Type> &&type, bool isNULL) {
     auto var = Make<Variable>(name, std::move(type), isNULL);
-    variables.emplace_back(std::move(var));
-    bindings.emplace(name, variables.back().get());
+    auto [it, _] = variables.insert(std::move(var));
+    bindings.emplace(name, it->get());
   }
 
   void addVarInitialization(const Variable *var, Own<SelectExpression> expr) {
@@ -422,8 +422,18 @@ public:
     ++labelNumber;
     return label;
   }
-  const VecOwn<Variable> &getArguments() const { return arguments; }
-  const VecOwn<Variable> &getVariables() const { return variables; }
+  const SetOwn<Variable> &getArguments() const { return arguments; }
+  const SetOwn<Variable> &getVariables() const { return variables; }
+  Set<Variable *> getAllVariables() const {
+    Set<Variable *> allVariables;
+    for (auto &var : variables) {
+      allVariables.insert(var.get());
+    }
+    for (auto &arg : arguments) {
+      allVariables.insert(arg.get());
+    }
+    return allVariables;
+  }
   VecOwn<Assignment> takeDeclarations() { return std::move(declarations); }
 
   String getFunctionName() const { return functionName; }
@@ -563,8 +573,8 @@ private:
   std::size_t labelNumber;
   String functionName;
   Own<Type> returnType;
-  VecOwn<Variable> arguments;
-  VecOwn<Variable> variables;
+  SetOwn<Variable> arguments;
+  SetOwn<Variable> variables;
   VecOwn<Assignment> declarations;
   Map<String, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;

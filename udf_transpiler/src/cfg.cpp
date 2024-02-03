@@ -140,22 +140,13 @@ void Function::removeBasicBlock(BasicBlock *toRemove) {
 
 void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
 
-  // Collect all variables and arguments into a single set
-  Set<Variable *> allVariables;
-  for (auto &var : variables) {
-    allVariables.insert(var.get());
-  }
-  for (auto &arg : arguments) {
-    allVariables.insert(arg.get());
-  }
-
   Map<const Variable *, Counter> counter;
   Map<const Variable *, Stack<Counter>> stacks;
 
   // initialize data structures
-  for (auto *var : allVariables) {
-    counter[var] = 0;
-    stacks[var];
+  for (auto *var : getAllVariables()) {
+    counter.insert({var, 0});
+    stacks.insert({var, Stack<Counter>({0})});
   }
 
   auto predNumber = [&](BasicBlock *child, BasicBlock *parent) {
@@ -166,24 +157,25 @@ void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
     return std::distance(preds.begin(), it);
   };
 
-  auto topOfStack = [&](const Variable *var) {
-    return stacks[var].empty() ? 0 : stacks[var].top();
-  };
-
   std::function<void(BasicBlock *)> rename = [&](BasicBlock *block) -> void {
     for (auto &inst : block->getInstructions()) {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
         // rename RHS
         for (auto *var : assign->getRHS()->getUsedVariables()) {
-          auto i = topOfStack(var);
+          auto i = stacks.at(var).top();
+
+          // create x_i as a new variable
+          addVariable(var->getName() + "_" + std::to_string(i),
+                      var->getType()->clone(), var->isNull());
+
           // TODO: Replace x by x_i
         }
         // rename LHS
         const auto *lhs = assign->getLHS();
-        auto i = counter[lhs];
+        auto i = counter.at(lhs);
         // Replace y by new variable y_i in (lhs = rhs)
-        stacks[lhs].push(i);
-        counter[lhs] = i + 1;
+        stacks.at(lhs).push(i);
+        counter.at(lhs) = i + 1;
       }
     }
 
@@ -193,7 +185,7 @@ void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
       // for each phi instruction in succ
       for (auto &inst : succ->getInstructions()) {
         if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
-          auto i = topOfStack(phi->getRHS()[j]);
+          auto i = stacks.at(phi->getRHS()[j]).top();
           // TODO: Replace jth operand x in Phi(...) by x_i
         }
       }
@@ -208,7 +200,7 @@ void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
     for (auto &inst : block->getInstructions()) {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
         // Important: TODO: check the name must be the old name!!
-        stacks[assign->getLHS()].pop();
+        stacks.at(assign->getLHS()).pop();
       }
     }
   };

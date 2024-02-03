@@ -99,24 +99,26 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
  */
 String CFGCodeGenerator::extractVarFromChunk(const Function &func) {
   String code;
-  const auto &args = func.getArguments();
-  for (size_t i = 0; i < args.size(); i++) {
-    auto &arg = args[i];
+
+  std::size_t i = 0;
+  for (const auto &arg : func.getArguments()) {
     String extract_data_from_value = fmt::format("v{}.GetValueUnsafe<{}>()", i,
                                                  arg->getType()->getCppType());
     code += fmt::format("{} {} = {};\n", arg->getType()->getCppType(),
                         arg->getName(), extract_data_from_value);
+
+    ++i;
   }
 
   // just declare the local variables, they will be initialized in the basic
   // blocks also create the null indicator for each variable
-  const auto &vars = func.getVariables();
-  for (size_t i = 0; i < vars.size(); i++) {
-    auto &var = vars[i];
+  i = 0;
+  for (const auto &var : func.getVariables()) {
     code +=
         fmt::format("{} {};\n", var->getType()->getCppType(), var->getName());
     code += fmt::format("bool {}_null = {};\n", var->getName(),
                         var->isNull() ? "true" : "false");
+    ++i;
   }
 
   return code;
