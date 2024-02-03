@@ -3,7 +3,7 @@
 #include <yaml-cpp/yaml.h>
 
 template <>
-String vector_join(const Vec<String> &vec, String sep) {
+String vectorJoin(const Vec<String> &vec, String sep) {
   String result = "";
   for (auto &item : vec) {
     result += item + sep;
@@ -12,7 +12,7 @@ String vector_join(const Vec<String> &vec, String sep) {
 }
 
 template <>
-String list_join(List<String> &any_list, String sep) {
+String listJoin(List<String> &any_list, String sep) {
   String result = "";
   for (auto &item : any_list) {
     result += item + sep;

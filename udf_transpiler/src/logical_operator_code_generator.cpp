@@ -204,7 +204,7 @@ String BoundExpressionCodeGenerator::CodeGenScalarFunction(
     ret += ">";
   }
   ret += "(";
-  ret += list_join(args, ", ");
+  ret += listJoin(args, ", ");
   ret += ")";
   return ret;
 }
@@ -228,7 +228,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp,
     }
     // ERROR(fmt::format("Function {} does not support transpilation yet.",
     // exp.function.name));
-    return fmt::format("[{}({})->{}]", exp.GetName(), list_join(args, ", "),
+    return fmt::format("[{}({})->{}]", exp.GetName(), listJoin(args, ", "),
                        exp.return_type.ToString());
     // throw Exception();
   }

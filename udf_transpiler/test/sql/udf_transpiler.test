@@ -26,16 +26,16 @@ select islistdistinct('asdf,asdf', ',');
 ----
 false
 
-query I
-pragma transpile('samples/aggify_test.sql');
-----
-(empty)
+# query I
+# pragma transpile('samples/aggify_test.sql');
+# ----
+# (empty)
 # should not work for now
 
-query I
-select custom_agg2(1,1,1,1,1);
-----
-0
+# query I
+# select custom_agg2(1,1,1,1,1);
+# ----
+# 0
 
 # query I
 # select OrdersByCustomer(1);

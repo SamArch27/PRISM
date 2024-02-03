@@ -74,20 +74,20 @@ using String = std::string;
   } while (false)
 
 template <typename T>
-String vector_join(const Vec<T> &vec, String sep) {
-  ERROR("vector_join not implemented for this type");
+String vectorJoin(const Vec<T> &vec, String sep) {
+  ERROR("vectorJoin not implemented for this type");
 }
 
 template <>
-String vector_join(const Vec<String> &vec, String sep);
+String vectorJoin(const Vec<String> &vec, String sep);
 
 template <typename T>
-String list_join(List<T> &any_list, String sep) {
-  ERROR("list_join not implemented for this type");
+String listJoin(List<T> &any_list, String sep) {
+  ERROR("listJoin not implemented for this type");
 }
 
 template <>
-String list_join(List<String> &any_list, String sep);
+String listJoin(List<String> &any_list, String sep);
 
 String toLower(const String &str);
 String toUpper(const String &str);
