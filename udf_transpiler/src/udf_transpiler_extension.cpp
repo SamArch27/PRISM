@@ -25,7 +25,7 @@
 
 namespace duckdb {
 duckdb::DuckDB *db_instance;
-size_t udf_count = 0;
+size_t udfCount = 0;
 
 inline String Udf_transpilerPragmaFun(ClientContext &context,
                                       const FunctionParameters &parameters) {
@@ -43,17 +43,17 @@ inline String Udf_transpilerPragmaFun(ClientContext &context,
   // Transpiler transpiler(buffer.str(), &config, con);
   // Vec<String> ret = transpiler.run();
   // String code, registration;
-  auto compiler = Compiler(&con, buffer.str(), udf_count);
+  auto compiler = Compiler(&con, buffer.str(), udfCount);
   auto res = compiler.run();
-  udf_count++;
+  udfCount++;
   COUT << "Transpiling the UDF..." << ENDL;
-  insert_def_and_reg(res.code, res.registration, udf_count);
+  insertDefAndReg(res.code, res.registration, udfCount);
   // compile the template
   COUT << "Compiling the UDF..." << ENDL;
-  compile_udf();
+  compileUdf();
   // load the compiled library
   COUT << "Installing and loading the UDF..." << ENDL;
-  load_udf(con);
+  loadUdf(con);
   return "select '' as 'Transpilation Done.';";
 }
 
@@ -73,11 +73,11 @@ inline String Udf_CodeGeneratorPragmaFun(ClientContext &context,
   YAMLConfig config;
   Connection con(*db_instance);
   String code, registration;
-  auto compiler = Compiler(&con, buffer.str(), udf_count);
+  auto compiler = Compiler(&con, buffer.str(), udfCount);
   auto res = compiler.run();
-  udf_count++;
+  udfCount++;
   COUT << "Transpiling the UDF..." << ENDL;
-  insert_def_and_reg(res.code, res.registration, udf_count);
+  insertDefAndReg(res.code, res.registration, udfCount);
   return "select '' as 'Code Generation Done.';";
 }
 
@@ -87,22 +87,22 @@ inline String Udf_CodeGeneratorPragmaFun(ClientContext &context,
 inline String Udf_BuilderPragmaFun(ClientContext &context,
                                    const FunctionParameters &parameters) {
   COUT << "Compiling the UDF..." << ENDL;
-  compile_udf();
+  compileUdf();
   // load the compiled library
   COUT << "Installing and loading the UDF..." << ENDL;
   Connection con(*db_instance);
-  load_udf(con);
+  loadUdf(con);
   return "select '' as 'Building and linking Done.';";
 }
 
 inline String Udaf_BuilderPragmaFun(ClientContext &context,
                                     const FunctionParameters &parameters) {
   COUT << "Compiling the UDAF..." << ENDL;
-  compile_udaf();
+  compileUdaf();
   // load the compiled library
   COUT << "Installing and loading the UDF..." << ENDL;
   Connection con(*db_instance);
-  load_udaf(con);
+  loadUdaf(con);
   return "select '' as 'Building and linking Done.';";
 }
 

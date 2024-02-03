@@ -232,13 +232,13 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
   AggifyCodeGenerator aggifyCodeGenerator(config);
   auto res = aggifyCodeGenerator.run(cursorLoopFunction, cursorLoopJson, aggifyDFA,
                                      udfCount);
-  insert_def_and_reg(res.code, res.registration, udfCount);
+  insertDefAndReg(res.code, res.registration, udfCount);
   // compile the template
   COUT << "Compiling the UDAF..." << ENDL;
-  compile_udf();
+  compileUdf();
   // load the compiled library
   COUT << "Installing and loading the UDAF..." << ENDL;
-  load_udf(*connection);
+  loadUdf(*connection);
 
   // udf_todo: replace the cursor loop with custom aggregate
   String customAggCaller = res.caller;

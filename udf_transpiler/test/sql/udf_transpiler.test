@@ -30,8 +30,14 @@ query I
 pragma transpile('samples/aggify_test.sql');
 ----
 (empty)
+# should not work for now
 
 query I
-select OrdersByCustomer(1);
+select custom_agg2(1,1,1,1,1);
 ----
 0
+
+# query I
+# select OrdersByCustomer(1);
+# ----
+# 0

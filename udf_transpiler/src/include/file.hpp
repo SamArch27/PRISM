@@ -8,9 +8,9 @@
 #define UDF_EXTENSION_OUTPUT_DIR "../udf1/"
 #define UDAF_EXTENSION_OUTPUT_DIR "../udf_agg/"
 
-void insert_def_and_reg(const String &defs, const String &regs,
-                        int udf_count);
-void compile_udf();
-void load_udf(duckdb::Connection &connection);
-void compile_udaf();
-void load_udaf(duckdb::Connection &connection);
+void insertDefAndReg(const String &defs, const String &regs,
+                        int udfCount);
+void compileUdf();
+void loadUdf(duckdb::Connection &connection);
+void compileUdaf();
+void loadUdaf(duckdb::Connection &connection);

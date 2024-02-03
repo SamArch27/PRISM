@@ -39,7 +39,7 @@ void create_dir_from_dir(const String &new_dir, const String &template_dir) {
   COUT << exec(cmd.c_str()) << ENDL;
 }
 
-void insert_def_and_reg(const String &defs, const String &regs, int udf_count) {
+void insertDefAndReg(const String &defs, const String &regs, int udfCount) {
   create_dir_from_dir(current_dir + "/" + UDF_EXTENSION_OUTPUT_DIR,
                       current_dir + "/" + UDF_EXTENSION_TEMPLATE_DIR);
   String template_file =
@@ -64,15 +64,15 @@ void insert_def_and_reg(const String &defs, const String &regs, int udf_count) {
     while ((change_start = template_str.find(change_start_str, search_start)) !=
            String::npos) {
       change_end = template_str.find(change_end_str, change_start);
-      COUT << "changing: "
-           << template_str.substr(change_start, change_end - change_start)
-           << ENDL;
+      // COUT << "changing: "
+      //      << template_str.substr(change_start, change_end - change_start)
+      //      << ENDL;
       size_t udf_start = template_str.find("udf", change_start);
       ASSERT(udf_start != String::npos,
              "Expect to find word udf in: " +
                  template_str.substr(change_start, change_end - change_start));
       template_str =
-          template_str.replace(udf_start, 4, "udf" + std::to_string(udf_count));
+          template_str.replace(udf_start, 4, "udf" + std::to_string(udfCount));
       search_start = change_end;
     }
   } catch (const std::exception &e) {
@@ -130,7 +130,7 @@ void insert_def_and_reg(const String &defs, const String &regs, int udf_count) {
   }
   template_str = buffer.str();
   template_str = template_str.replace(template_str.find("udf"), 4,
-                                      "udf" + std::to_string(udf_count));
+                                      "udf" + std::to_string(udfCount));
   std::ofstream out2(template_file);
   if (out2.fail()) {
     ERROR("Cannot open the template file for writing: " + template_file);
@@ -139,13 +139,13 @@ void insert_def_and_reg(const String &defs, const String &regs, int udf_count) {
   out2.close();
 }
 
-void compile_udf() {
+void compileUdf() {
   // String cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
   String cmd = "cd " + current_dir + "/../" + ";make udfs";
   COUT << exec(cmd.c_str()) << ENDL;
 }
 
-void compile_udaf() {
+void compileUdaf() {
   String cmd = "cd " + current_dir + "/../" + ";make udafs";
   COUT << cmd << ENDL;
   COUT << exec(cmd.c_str()) << ENDL;
@@ -154,17 +154,17 @@ void compile_udaf() {
 /**
  * will load the udf*.duckdb_extension file that is last created
 */
-void load_udf(duckdb::Connection &connection) {
-  // find the current udf_count
+void loadUdf(duckdb::Connection &connection) {
+  // find the current udfCount
   String cmd = "cd " + current_dir + "/../build/udfs/extension/udf1/;ls -t | grep -o '^udf.*\\.duckdb_extension$'";
   String filename = exec(cmd.c_str());
   filename = filename.substr(0, filename.find("\n"));                                                           
   String install = "install '" + current_dir +
                         "/../build/udfs/extension/udf1/" 
-                        // + "udf" + std::to_string(udf_count) + ".duckdb_extension'";
+                        // + "udf" + std::to_string(udfCount) + ".duckdb_extension'";
                         + filename + "'";
   String load = "load '" + current_dir + "/../build/udfs/extension/udf1/" +
-                    //  "udf" + std::to_string(udf_count) + ".duckdb_extension'";
+                    //  "udf" + std::to_string(udfCount) + ".duckdb_extension'";
                       filename + "'";
   COUT << "Running: " << install << ENDL;
   auto res = connection.Query(install);
@@ -178,7 +178,7 @@ void load_udf(duckdb::Connection &connection) {
   }
 }
 
-void load_udaf(duckdb::Connection &connection) {
+void loadUdaf(duckdb::Connection &connection) {
   String install = "install '" + current_dir +
                         "/../build/udfs/extension/udf_agg/" +
                         "udf_agg.duckdb_extension'";

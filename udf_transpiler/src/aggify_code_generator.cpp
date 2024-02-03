@@ -205,6 +205,6 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const j
       fmt::arg("returnVarName", dfaResult.getReturnVarName()),
       fmt::arg("cursorQuery",
                ast["query"]["PLpgSQL_expr"]["query"].get<String>()));
-  COUT << code << ENDL;
+  // COUT << code << ENDL;
   return {"custom_agg"+id, code, registration, customAggCaller};
 }
