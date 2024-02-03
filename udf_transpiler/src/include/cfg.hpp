@@ -256,6 +256,23 @@ private:
   Set<BasicBlock *> successors;
 };
 
+class ExitInst : public Instruction {
+public:
+  ExitInst() {}
+
+  Own<Instruction> clone() const override { return Make<ExitInst>(); }
+
+  friend std::ostream &operator<<(std::ostream &os, const ExitInst &exitInst) {
+    exitInst.print(os);
+    return os;
+  }
+
+protected:
+  void print(std::ostream &os) const override { os << "EXIT;"; }
+  bool isTerminator() const override { return true; }
+  Vec<BasicBlock *> getSuccessors() const override { return {}; }
+};
+
 class ReturnInst : public Instruction {
 public:
   ReturnInst(Own<SelectExpression> expr, BasicBlock *exitBlock)
@@ -441,20 +458,12 @@ public:
       auto *block = q.front();
       q.pop();
 
-      if (block == getExitBlock()) {
-        continue;
-      }
-
       if (visited.find(block) != visited.end()) {
         continue;
       }
 
       visited.insert(block);
       f(block);
-
-      if (block == getExitBlock()) {
-        continue;
-      }
 
       for (auto &succ : block->getSuccessors()) {
         q.push(succ);

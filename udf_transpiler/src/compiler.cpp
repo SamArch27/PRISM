@@ -325,6 +325,9 @@ void Compiler::buildCursorLoopCFG(Function &function, const json &ast) {
   const auto &body = ast["body"];
   auto *entryBlock = function.makeBasicBlock("entry");
   auto *functionExitBlock = function.makeBasicBlock("exit");
+  auto exitInst = Make<ExitInst>();
+  exitInst->setParent(functionExitBlock);
+  functionExitBlock->addInstruction(std::move(exitInst));
 
   // Get the statements from the body
   auto statements = getJsonList(body);
@@ -342,6 +345,9 @@ void Compiler::buildCFG(Function &function, const json &ast) {
 
   auto *entryBlock = function.makeBasicBlock("entry");
   auto *functionExitBlock = function.makeBasicBlock("exit");
+  auto exitInst = Make<ExitInst>();
+  exitInst->setParent(functionExitBlock);
+  functionExitBlock->addInstruction(std::move(exitInst));
 
   // Create a "declare" BasicBlock with all declarations
   auto declareBlock = function.makeBasicBlock();

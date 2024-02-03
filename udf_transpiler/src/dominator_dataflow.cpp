@@ -21,16 +21,14 @@ BitVector DominatorDataflow::meet(BitVector in1, BitVector in2) {
   return out;
 }
 
-void DominatorDataflow::preprocessBlock(BasicBlock *block) {
-  // map each basic block to an index in the BitVector
+void DominatorDataflow::preprocessInst(Instruction *inst) {
+  auto *block = inst->getParent();
   if (blockToIndex.find(block) == blockToIndex.end()) {
     std::size_t newSize = blockToIndex.size();
     blockToIndex[block] = newSize;
     basicBlocks.push_back(block);
   }
 }
-
-void DominatorDataflow::preprocessInst(Instruction *inst) {}
 
 void DominatorDataflow::genBoundaryInner() {
   // TOP is all 1 because meet is union
@@ -45,9 +43,6 @@ Own<Dominators> DominatorDataflow::computeDominators() const {
   // for each block, add the dominance info
   for (auto *block : basicBlocks) {
     for (auto *other : basicBlocks) {
-      if (other == f.getExitBlock()) {
-        continue;
-      }
       auto bitVector = results.at(other->getInitiator()).out;
       if (bitVector[blockToIndex.at(block)]) {
         dominators->addDominanceEdge(block, other);

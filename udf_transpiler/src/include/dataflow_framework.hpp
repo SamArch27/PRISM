@@ -25,7 +25,6 @@ protected:
 
   virtual T transfer(T in, Instruction *inst) = 0;
   virtual T meet(T in1, T in2) = 0;
-  virtual void preprocessBlock(BasicBlock *block) = 0;
   virtual void preprocessInst(Instruction *inst) = 0;
   virtual void genBoundaryInner() = 0;
 
@@ -42,10 +41,6 @@ void DataflowFramework<T, forward>::runForwards() {
   while (!worklist.empty()) {
     auto *basicBlock = *worklist.begin();
     worklist.erase(basicBlock);
-
-    if (basicBlock == f.getExitBlock()) {
-      continue;
-    }
 
     auto &instructions = basicBlock->getInstructions();
     auto *firstInst = basicBlock->getInitiator();
@@ -94,9 +89,7 @@ void DataflowFramework<T, forward>::runForwards() {
 template <typename T, bool forward>
 void DataflowFramework<T, forward>::runBackwards() {
   Set<BasicBlock *> worklist;
-  for (auto *basicBlock : f.getExitBlock()->getPredecessors()) {
-    worklist.insert(basicBlock);
-  }
+  worklist.insert(f.getExitBlock());
 
   while (!worklist.empty()) {
     BasicBlock *basicBlock = *worklist.begin();
@@ -152,7 +145,6 @@ void DataflowFramework<T, forward>::preprocess() {
 
   // call pre-process for each inst
   for (auto &basicBlock : f.getBasicBlocks()) {
-    preprocessBlock(basicBlock.get());
     for (auto &inst : basicBlock->getInstructions()) {
       auto *currentInst = inst.get();
       preprocessInst(currentInst);
@@ -172,9 +164,7 @@ void DataflowFramework<T, forward>::preprocess() {
 
   results[f.getEntryBlock()->getInitiator()].in = boundaryStart;
 
-  for (auto *basicBlock : f.getExitBlock()->getPredecessors()) {
-    results[basicBlock->getTerminator()].out = boundaryStart;
-  }
+  results[f.getExitBlock()->getTerminator()].out = boundaryStart;
 }
 
 template <typename T, bool forward>

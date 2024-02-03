@@ -13,7 +13,7 @@ void Function::insertPhiFunctions() {
   auto dominators = dataflow.computeDominators();
 
   // print dominator info
-  std::cout << "PRINTING DOMINATORS " << std::endl;
+  std::cout << "\nPRINTING DOMINATORS " << std::endl;
   for (auto &block : basicBlocks) {
     for (auto &other : dominators->getDominatingNodes(block.get())) {
       std::cout << other->getLabel() << " dom " << block->getLabel()
@@ -24,7 +24,7 @@ void Function::insertPhiFunctions() {
   auto dominanceFrontier = dataflow.computeDominanceFrontier(dominators);
 
   // print dominance frontier
-  std::cout << "PRINTING DOMINANCE FRONTIER" << std::endl;
+  std::cout << "\nPRINTING DOMINANCE FRONTIER" << std::endl;
   for (auto &block : basicBlocks) {
     std::cout << "DF(" << block->getLabel() << ") = {";
 
@@ -43,7 +43,7 @@ void Function::insertPhiFunctions() {
   auto dominatorTree = dataflow.computeDominatorTree(dominators);
 
   // print dominator tree
-  std::cout << "PRINTING DOMINATOR TREE" << std::endl;
+  std::cout << "\nPRINTING DOMINATOR TREE" << std::endl;
   for (auto &block : basicBlocks) {
     for (const auto &childLabel :
          dominatorTree->getChildren(block->getLabel())) {
@@ -93,9 +93,6 @@ void Function::insertPhiFunctions() {
       worklist.erase(block);
 
       for (auto *m : dominanceFrontier->at(block)) {
-        if (m == getExitBlock()) {
-          continue;
-        }
         if (inserted[m] != var) {
           // place a phi instruction for var at m
           auto numPreds = m->getPredecessors().size();
