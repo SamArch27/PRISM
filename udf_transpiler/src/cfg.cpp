@@ -2,10 +2,7 @@
 #include "dominator_dataflow.hpp"
 #include "utils.hpp"
 
-void Function::convertToSSAForm() {
-  insertPhiFunctions();
-  renameVariablesToSSA();
-}
+void Function::convertToSSAForm() { insertPhiFunctions(); }
 
 void Function::insertPhiFunctions() {
   DominatorDataflow dataflow(*this);
@@ -85,6 +82,8 @@ void Function::insertPhiFunctions() {
       }
     }
   }
+
+  renameVariablesToSSA(dominatorTree);
 }
 
 void Function::mergeBasicBlocks() {
@@ -139,8 +138,8 @@ void Function::removeBasicBlock(BasicBlock *toRemove) {
   }
 }
 
-void Function::renameVariablesToSSA() {
-  /*
+void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
+
   // Collect all variables and arguments into a single set
   Set<Variable *> allVariables;
   for (auto &var : variables) {
@@ -171,13 +170,13 @@ void Function::renameVariablesToSSA() {
     return stacks[var].empty() ? 0 : stacks[var].top();
   };
 
-  auto rename = [&](BasicBlock *block) -> void {
+  std::function<void(BasicBlock *)> rename = [&](BasicBlock *block) -> void {
     for (auto &inst : block->getInstructions()) {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
         // rename RHS
         for (auto *var : assign->getRHS()->getUsedVariables()) {
           auto i = topOfStack(var);
-          // Replace x by x_i
+          // TODO: Replace x by x_i
         }
         // rename LHS
         const auto *lhs = assign->getLHS();
@@ -195,24 +194,25 @@ void Function::renameVariablesToSSA() {
       for (auto &inst : succ->getInstructions()) {
         if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
           auto i = topOfStack(phi->getRHS()[j]);
-          // Replace jth operand x in Phi(...) by x_i
+          // TODO: Replace jth operand x in Phi(...) by x_i
         }
       }
     }
 
-    // for each child IN THE DOMINATOR TREE!!
-    // 1. rename(child)
+    for (const auto &childLabel :
+         dominatorTree->getChildren(block->getLabel())) {
+      rename(labelToBasicBlock.at(childLabel));
+    }
 
     // for each assignment, pop the stack
     for (auto &inst : block->getInstructions()) {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-        // Important: check the name!!
+        // Important: TODO: check the name must be the old name!!
         stacks[assign->getLHS()].pop();
       }
     }
   };
   rename(getEntryBlock());
-  */
 }
 
 Function newFunction(const String &functionName) {

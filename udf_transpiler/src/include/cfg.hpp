@@ -375,6 +375,8 @@ public:
   // more info
 };
 
+class DominatorTree;
+
 class Function {
 public:
   Function(const String &functionName, Own<Type> returnType)
@@ -388,7 +390,9 @@ public:
 
   BasicBlock *makeBasicBlock(const String &label) {
     basicBlocks.emplace_back(Make<BasicBlock>(label));
-    return basicBlocks.back().get();
+    auto *newBlock = basicBlocks.back().get();
+    labelToBasicBlock.insert({label, newBlock});
+    return newBlock;
   }
 
   BasicBlock *makeBasicBlock() {
@@ -540,7 +544,7 @@ private:
   void insertPhiFunctions();
   void mergeBasicBlocks();
   void removeBasicBlock(BasicBlock *toRemove);
-  void renameVariablesToSSA();
+  void renameVariablesToSSA(const Own<DominatorTree> &dominatorTree);
 
   class CompilationState {
   public:
@@ -555,7 +559,7 @@ private:
       }
     }
   };
-  std::list<CompilationState> states;
+  List<CompilationState> states;
   std::size_t labelNumber;
   String functionName;
   Own<Type> returnType;
@@ -564,6 +568,7 @@ private:
   VecOwn<Assignment> declarations;
   Map<String, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
+  Map<String, BasicBlock *> labelToBasicBlock;
   Vec<Vec<String>> custom_aggs;
 };
 
