@@ -29,7 +29,7 @@ public:
   String toString() {
     if (lines.empty())
       return "";
-    return vector_join(lines, "\n") + "\n";
+    return joinVector(lines, "\n") + "\n";
   }
 
   String newTmpVar() {

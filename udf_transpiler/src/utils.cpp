@@ -2,8 +2,7 @@
 #include <filesystem>
 #include <yaml-cpp/yaml.h>
 
-template <>
-String vector_join(const Vec<String> &vec, String sep) {
+template <> String joinVector(const Vec<String> &vec, String sep) {
   String result = "";
   for (auto &item : vec) {
     result += item + sep;
@@ -11,8 +10,7 @@ String vector_join(const Vec<String> &vec, String sep) {
   return result.substr(0, result.size() - sep.size());
 }
 
-template <>
-String list_join(std::list<String> &any_list, String sep) {
+template <> String joinList(std::list<String> &any_list, String sep) {
   String result = "";
   for (auto &item : any_list) {
     result += item + sep;
@@ -37,9 +35,8 @@ String removeSpaces(const String &str) {
   return std::regex_replace(str, spaceRegex, "");
 }
 
-Vec<String> extractMatches(const String &text,
-                                        const char *pattern,
-                                        std::size_t group) {
+Vec<String> extractMatches(const String &text, const char *pattern,
+                           std::size_t group) {
   Vec<String> res;
   auto regex = std::regex(pattern, std::regex_constants::icase);
   std::smatch matched;

@@ -49,6 +49,17 @@ public:
            size_t &udfCount)
       : connection(connection), programText(programText), udfCount(udfCount) {}
 
+  template <typename Iter>
+  static Vec<String> getBasicBlockLabels(Iter it, Iter end) {
+    Vec<String> labels;
+    labels.reserve(std::distance(it, end));
+    for (; it != end; ++it) {
+      auto *block = *it;
+      labels.push_back(block->getLabel());
+    }
+    return labels;
+  }
+
   void buildCursorLoopCFG(Function &function, const json &ast);
   void buildCFG(Function &function, const json &ast);
 

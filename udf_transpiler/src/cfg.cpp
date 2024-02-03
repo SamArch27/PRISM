@@ -13,43 +13,19 @@ void Function::insertPhiFunctions() {
   auto dominators = dataflow.computeDominators();
 
   // print dominator info
-  std::cout << "\nPRINTING DOMINATORS " << std::endl;
-  for (auto &block : basicBlocks) {
-    for (auto &other : dominators->getDominatingNodes(block.get())) {
-      std::cout << other->getLabel() << " dom " << block->getLabel()
-                << std::endl;
-    }
-  }
+  std::cout << "\nDominators:" << std::endl;
+  std::cout << *dominators << std::endl;
 
   auto dominanceFrontier = dataflow.computeDominanceFrontier(dominators);
 
   // print dominance frontier
-  std::cout << "\nPRINTING DOMINANCE FRONTIER" << std::endl;
-  for (auto &block : basicBlocks) {
-    std::cout << "DF(" << block->getLabel() << ") = {";
-
-    bool first = true;
-    for (auto other : dominanceFrontier->at(block.get())) {
-      if (first) {
-        first = false;
-      } else {
-        std::cout << ",";
-      }
-      std::cout << other->getLabel();
-    }
-    std::cout << "}" << std::endl;
-  }
+  std::cout << "\nDominance Frontier:" << std::endl;
+  std::cout << *dominanceFrontier << std::endl;
 
   auto dominatorTree = dataflow.computeDominatorTree(dominators);
 
   // print dominator tree
-  std::cout << "\nPRINTING DOMINATOR TREE" << std::endl;
-  for (auto &block : basicBlocks) {
-    for (const auto &childLabel :
-         dominatorTree->getChildren(block->getLabel())) {
-      std::cout << block->getLabel() << " -> " << childLabel << std::endl;
-    }
-  }
+  std::cout << *dominatorTree << std::endl;
 
   // For each variable, when it is assigned in a block, map to the block
   Map<const Variable *, Set<BasicBlock *>> varToBlocksAssigned;
@@ -92,7 +68,7 @@ void Function::insertPhiFunctions() {
       auto *block = *worklist.begin();
       worklist.erase(block);
 
-      for (auto *m : dominanceFrontier->at(block)) {
+      for (auto *m : dominanceFrontier->getFrontier(block)) {
         if (inserted[m] != var) {
           // place a phi instruction for var at m
           auto numPreds = m->getPredecessors().size();

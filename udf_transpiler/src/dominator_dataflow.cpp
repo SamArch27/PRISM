@@ -54,12 +54,8 @@ Own<Dominators> DominatorDataflow::computeDominators() const {
 
 Own<DominanceFrontier> DominatorDataflow::computeDominanceFrontier(
     const Own<Dominators> &dominators) const {
-  auto frontier = Make<DominanceFrontier>();
+  auto frontier = Make<DominanceFrontier>(basicBlocks);
   for (auto *n : basicBlocks) {
-
-    // create an empty set for each
-    frontier->insert({n, {}});
-
     for (auto *m : basicBlocks) {
       bool dominatesPredecessor = false;
       for (auto *p : m->getPredecessors()) {
@@ -74,7 +70,7 @@ Own<DominanceFrontier> DominatorDataflow::computeDominanceFrontier(
         continue;
       }
 
-      frontier->at(n).insert(m);
+      frontier->addToFrontier(n, m);
     }
   }
 

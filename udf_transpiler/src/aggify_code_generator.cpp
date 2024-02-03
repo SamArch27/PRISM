@@ -171,7 +171,7 @@ Vec<String> AggifyCodeGenerator::run(const Function &func, const json &ast,
     basicBlockCodeGenerator(bbUniq.get(), func, function_info);
   }
 
-  String body = vector_join(container.basicBlockCodes, "\n");
+  String body = joinVector(container.basicBlockCodes, "\n");
 
   code = fmt::format(
       fmt::runtime(varyingFuncTemplate), fmt::arg("id", id), fmt::arg("c1", c1),

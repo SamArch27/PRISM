@@ -188,9 +188,9 @@ Vec<String> CFGCodeGenerator::run(const Function &func) {
       fmt::runtime(config.function["fbodyshell"].Scalar()),
       fmt::arg("function_name", func.getFunctionName()),
       fmt::arg("fbody_args", fbody_args),
-      fmt::arg("check_null", vector_join(check_null, " or ")),
+      fmt::arg("check_null", joinVector(check_null, " or ")),
       fmt::arg("vars_init", vars_init),
-      fmt::arg("action", vector_join(container.basicBlockCodes, "\n")));
+      fmt::arg("action", joinVector(container.basicBlockCodes, "\n")));
 
   container.main =
       fmt::format(fmt::runtime(config.function["fshell2"].Scalar()),
@@ -209,7 +209,7 @@ Vec<String> CFGCodeGenerator::run(const Function &func) {
       fmt::arg("function_name", func.getFunctionName()),
       fmt::arg("return_logical_type",
                func.getReturnType()->getDuckDBLogicalType()),
-      fmt::arg("args_logical_types", vector_join(args_logical_types, ", ")));
+      fmt::arg("args_logical_types", joinVector(args_logical_types, ", ")));
 
   std::cout << container.body << std::endl;
   std::cout << container.main << std::endl;

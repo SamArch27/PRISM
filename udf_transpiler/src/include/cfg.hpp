@@ -502,11 +502,9 @@ public:
     os << "digraph cfg {" << std::endl;
     for (const auto &block : basicBlocks) {
       os << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
-      if (block->getLabel() != "exit") {
-        for (auto *succ : block->getSuccessors()) {
-          os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
-             << std::endl;
-        }
+      for (auto *succ : block->getSuccessors()) {
+        os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
+           << std::endl;
       }
     }
     os << "}" << std::endl;

@@ -90,17 +90,17 @@ Range<It> reverse(ORange &&originalRange) {
   return Range<It>(It(std::end(originalRange)), It(std::begin(originalRange)));
 }
 
-template <typename T> String vector_join(const Vec<T> &vec, String sep) {
+template <typename T> String joinVector(const Vec<T> &vec, String sep) {
   ERROR("vector_join not implemented for this type");
 }
 
-template <> String vector_join(const Vec<String> &vec, String sep);
+template <> String joinVector(const Vec<String> &vec, String sep);
 
-template <typename T> String list_join(std::list<T> &any_list, String sep) {
+template <typename T> String joinList(List<T> &any_list, String sep) {
   ERROR("list_join not implemented for this type");
 }
 
-template <> String list_join(std::list<String> &any_list, String sep);
+template <> String joinList(List<String> &any_list, String sep);
 
 String toLower(const String &str);
 String toUpper(const String &str);
