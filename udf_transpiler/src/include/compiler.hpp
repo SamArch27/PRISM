@@ -134,6 +134,11 @@ private:
   Own<Type> getTypeFromPostgresName(const String &name) const;
   String resolveTypeName(const String &type) const;
 
+  void convertToSSAForm(Function &f);
+  void insertPhiFunctions(Function &f);
+  void renameVariablesToSSA(const Own<DominatorTree> &dominatorTree,
+                            Function &f);
+
   duckdb::Connection *connection;
   String programText;
   YAMLConfig config;

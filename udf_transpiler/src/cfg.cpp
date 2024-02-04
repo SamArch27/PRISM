@@ -2,10 +2,10 @@
 #include "dominator_dataflow.hpp"
 #include "utils.hpp"
 
-void Function::convertToSSAForm() { insertPhiFunctions(); }
+void Compiler::convertToSSAForm(Function &f) { insertPhiFunctions(f); }
 
-void Function::insertPhiFunctions() {
-  DominatorDataflow dataflow(*this);
+void Compiler::insertPhiFunctions(Function &f) {
+  DominatorDataflow dataflow(f);
   dataflow.runAnalysis();
   auto dominators = dataflow.computeDominators();
 
@@ -27,7 +27,7 @@ void Function::insertPhiFunctions() {
   // For each variable, when it is assigned in a block, map to the block
   Map<const Variable *, Set<BasicBlock *>> varToBlocksAssigned;
 
-  for (auto &block : basicBlocks) {
+  for (auto &block : f.getBasicBlocks()) {
     for (auto &inst : block->getInstructions()) {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
         auto *var = assign->getLHS();
@@ -40,22 +40,13 @@ void Function::insertPhiFunctions() {
   Set<BasicBlock *> worklist;
   Map<BasicBlock *, const Variable *> inWorklist;
   Map<BasicBlock *, const Variable *> inserted;
-  for (auto &block : basicBlocks) {
+  for (auto &block : f.getBasicBlocks()) {
     inserted[block.get()] = nullptr;
     inWorklist[block.get()] = nullptr;
   }
 
-  // Collect all variables and arguments into a single set
-  Set<Variable *> allVariables;
-  for (auto &var : variables) {
-    allVariables.insert(var.get());
-  }
-  for (auto &arg : arguments) {
-    allVariables.insert(arg.get());
-  }
-
   // for each variable
-  for (auto *var : allVariables) {
+  for (auto *var : f.getAllVariables()) {
     // add to the worklist each block where it has been assigned
     for (auto *block : varToBlocksAssigned[var]) {
       inWorklist[block] = var;
@@ -83,7 +74,11 @@ void Function::insertPhiFunctions() {
     }
   }
 
-  renameVariablesToSSA(dominatorTree);
+  std::cout << "Before renaming!" << std::endl;
+  std::cout << f << std::endl;
+  renameVariablesToSSA(dominatorTree, f);
+  std::cout << "After renaming!" << std::endl;
+  std::cout << f << std::endl;
 }
 
 void Function::mergeBasicBlocks() {
@@ -138,16 +133,29 @@ void Function::removeBasicBlock(BasicBlock *toRemove) {
   }
 }
 
-void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
+void Compiler::renameVariablesToSSA(Function &f,
+                                    const Own<DominatorTree> &dominatorTree) {
 
   Map<const Variable *, Counter> counter;
   Map<const Variable *, Stack<Counter>> stacks;
 
   // initialize data structures
-  for (auto *var : getAllVariables()) {
+  for (auto *var : f.getAllVariables()) {
     counter.insert({var, 0});
     stacks.insert({var, Stack<Counter>({0})});
   }
+
+  auto getOriginalName = [](const String &ssaName) {
+    return ssaName.substr(0, ssaName.find_first_of("_"));
+  };
+
+  auto accessCounter = [&](const Variable *var) -> Counter & {
+    return counter.at(f.getBinding(getOriginalName(var->getName())));
+  };
+
+  auto accessStack = [&](const Variable *var) -> Stack<Counter> & {
+    return stacks.at(f.getBinding(getOriginalName(var->getName())));
+  };
 
   auto predNumber = [&](BasicBlock *child, BasicBlock *parent) {
     const auto &preds = child->getPredecessors();
@@ -158,24 +166,61 @@ void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
   };
 
   std::function<void(BasicBlock *)> rename = [&](BasicBlock *block) -> void {
-    for (auto &inst : block->getInstructions()) {
-      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+    const auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+      if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
+        // rename the LHS of the phi node
+        auto *var = phi->getLHS();
+        auto i = accessStack(var).top();
+        auto newName =
+            getOriginalName(var->getName()) + "_" + std::to_string(i);
+        f.addVariable(newName, var->getType()->clone(), var->isNull());
+        auto newPhi = Make<PhiNode>(f.getBinding(newName), phi->getRHS());
+        newPhi->setParent(block);
+        it = block->replaceInst(it->get(), std::move(newPhi));
+      } else if (auto *assign = dynamic_cast<const Assignment *>(it->get())) {
         // rename RHS
+
+        // For each variable, map it to its SSA variable
+        Map<String, String> oldToNew;
+
+        // Map RHS variables to new SSA variable names
         for (auto *var : assign->getRHS()->getUsedVariables()) {
-          auto i = stacks.at(var).top();
-
-          // create x_i as a new variable
-          addVariable(var->getName() + "_" + std::to_string(i),
-                      var->getType()->clone(), var->isNull());
-
-          // TODO: Replace x by x_i
+          auto i = accessStack(var).top();
+          auto newName =
+              getOriginalName(var->getName()) + "_" + std::to_string(i);
+          oldToNew.insert({var->getName(), newName});
         }
-        // rename LHS
+
+        // Map LHS variable to new SSA name
         const auto *lhs = assign->getLHS();
-        auto i = counter.at(lhs);
-        // Replace y by new variable y_i in (lhs = rhs)
-        stacks.at(lhs).push(i);
-        counter.at(lhs) = i + 1;
+        auto i = accessCounter(lhs);
+        auto newLHSName =
+            getOriginalName(lhs->getName()) + "_" + std::to_string(i);
+        oldToNew.insert({lhs->getName(), newLHSName});
+
+        // Add the new variables to the bindings map
+        Vec<const Variable *> usedVariables;
+        for (auto &[oldName, newName] : oldToNew) {
+          auto *oldVar = f.getBinding(oldName);
+          f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+          usedVariables.push_back(f.getBinding(newName));
+        }
+
+        // Find replace the text of the assignment and rebind
+        auto replacedText = assign->getRHS()->getRawSQL();
+        for (auto &[oldName, newName] : oldToNew) {
+          std::regex wordRegex(String("\s+") + oldName);
+          replacedText = std::regex_replace(replacedText, wordRegex, newName);
+        }
+
+        auto newAssignment = Make<Assignment>(
+            f.getBinding(newLHSName), bindExpression(f, replacedText)->clone());
+        newAssignment->setParent(block);
+        it = block->replaceInst(it->get(), std::move(newAssignment));
+
+        accessStack(lhs).push(i);
+        accessCounter(lhs) = i + 1;
       }
     }
 
@@ -183,10 +228,21 @@ void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
     for (auto *succ : block->getSuccessors()) {
       auto j = predNumber(succ, block);
       // for each phi instruction in succ
-      for (auto &inst : succ->getInstructions()) {
+      auto &instructions = succ->getInstructions();
+      for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+        auto &inst = *it;
         if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
-          auto i = stacks.at(phi->getRHS()[j]).top();
-          // TODO: Replace jth operand x in Phi(...) by x_i
+          auto *var = phi->getRHS()[j];
+          auto i = accessStack(var).top();
+          auto newName =
+              getOriginalName(var->getName()) + "_" + std::to_string(i);
+
+          auto newArguments = phi->getRHS();
+          newArguments[j] = getBinding(newName);
+
+          auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
+          newPhi->setParent(succ);
+          it = succ->replaceInst(inst.get(), std::move(newPhi));
         }
       }
     }
@@ -199,8 +255,7 @@ void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
     // for each assignment, pop the stack
     for (auto &inst : block->getInstructions()) {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-        // Important: TODO: check the name must be the old name!!
-        stacks.at(assign->getLHS()).pop();
+        accessStack(assign->getLHS()).pop();
       }
     }
   };
@@ -208,5 +263,6 @@ void Function::renameVariablesToSSA(const Own<DominatorTree> &dominatorTree) {
 }
 
 Function newFunction(const String &functionName) {
-  return Function(functionName, Make<NonDecimalType>(DuckdbTypeTag::INTEGER));
+  return Function(functionName, Make<Type>(false, std::nullopt, std::nullopt,
+                                           PostgresTypeTag::INTEGER));
 }

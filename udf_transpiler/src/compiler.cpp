@@ -311,7 +311,7 @@ BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
 
 String Compiler::getJsonExpr(const json &json) {
   return json["PLpgSQL_expr"]["query"];
-};
+}
 
 List<json> Compiler::getJsonList(const json &body) {
   List<json> res;
@@ -319,7 +319,7 @@ List<json> Compiler::getJsonList(const json &body) {
     res.push_back(statement);
   }
   return res;
-};
+}
 
 void Compiler::buildCursorLoopCFG(Function &function, const json &ast) {
   const auto &body = ast["body"];
@@ -426,7 +426,7 @@ CompilationResult Compiler::run() {
         String defaultVal =
             variable.contains("default_val")
                 ? variable["default_val"]["PLpgSQL_expr"]["query"].get<String>()
-                : varType->defaultValue(true);
+                : varType->getDefaultValue(true);
         function.addVariable(variableName, std::move(varType),
                              !variable.contains("default_val"));
         pendingInitialization.emplace_back(variableName, defaultVal);
@@ -486,7 +486,7 @@ void Compiler::makeDuckDBContext(const Function &function) {
     }
     createTableString << name << " " << *type;
     insertTableString << "(NULL) ";
-    insertTableSecondRow << type->defaultValue(true);
+    insertTableSecondRow << type->getDefaultValue(true);
   }
   createTableString << ");";
   insertTableString << "),";
@@ -699,12 +699,12 @@ Own<Type> Compiler::getTypeFromPostgresName(const String &name) const {
     auto widthScale = getDecimalWidthScale(resolvedName);
     if (widthScale) {
       auto [width, scale] = *widthScale;
-      return Make<DecimalType>(tag, width, scale);
+      return Make<Type>(true, width, scale, tag);
     } else {
-      return Make<DecimalType>(tag);
+      return Make<Type>(true, std::nullopt, std::nullopt, tag);
     }
   } else {
-    return Make<NonDecimalType>(tag);
+    return Make<Type>(false, std::nullopt, std::nullopt, tag);
   }
 }
 

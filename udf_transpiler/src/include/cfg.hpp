@@ -88,6 +88,10 @@ class BasicBlock;
 
 class Instruction {
 public:
+  Instruction() {}
+
+  virtual ~Instruction() = default;
+
   friend std::ostream &operator<<(std::ostream &os, const Instruction &inst) {
     inst.print(os);
     return os;
@@ -108,7 +112,9 @@ private:
 class PhiNode : public Instruction {
 public:
   PhiNode(const Variable *var, const Vec<const Variable *> &arguments)
-      : var(var), arguments(arguments) {}
+      : Instruction(), var(var), arguments(arguments) {}
+
+  ~PhiNode() override = default;
 
   Own<Instruction> clone() const override {
     return Make<PhiNode>(var, arguments);
@@ -151,6 +157,8 @@ class Assignment : public Instruction {
 public:
   Assignment(const Variable *var, Own<SelectExpression> expr)
       : Instruction(), var(var), expr(std::move(expr)) {}
+
+  ~Assignment() override = default;
 
   Own<Instruction> clone() const override {
     return Make<Assignment>(var, expr->clone());
@@ -210,13 +218,32 @@ public:
     instructions.emplace_back(std::move(inst));
   }
 
-  void insertBefore(const Instruction *targetInst, Own<Instruction> newInst) {
+  List<Own<Instruction>>::iterator insertBefore(const Instruction *targetInst,
+                                                Own<Instruction> newInst) {
+
     auto it = std::find_if(
         instructions.begin(), instructions.end(),
         [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
     ASSERT((it != instructions.end()),
            "Instruction must exist when performing insertBefore()!");
-    instructions.emplace(it, std::move(newInst));
+    return instructions.emplace(it, std::move(newInst));
+  }
+
+  void removeInst(const Instruction *targetInst) {
+    auto it = std::find_if(
+        instructions.begin(), instructions.end(),
+        [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
+    instructions.erase(it);
+  }
+
+  List<Own<Instruction>>::iterator replaceInst(const Instruction *targetInst,
+                                               Own<Instruction> newInst) {
+    std::cout << "Printing block: " << *this << std::endl;
+    std::cout << "Removing: " << *targetInst << std::endl;
+    std::cout << "Replacing with: " << *newInst << std::endl << std::endl;
+    auto it = insertBefore(targetInst, std::move(newInst));
+    removeInst(targetInst);
+    return it;
   }
 
   const ListOwn<Instruction> &getInstructions() const { return instructions; }
@@ -245,6 +272,7 @@ protected:
   void print(std::ostream &os) const {
     os << label << ":" << std::endl;
     for (const auto &inst : instructions) {
+
       os << *inst << std::endl;
     }
   }
@@ -258,7 +286,9 @@ private:
 
 class ExitInst : public Instruction {
 public:
-  ExitInst() {}
+  ExitInst() : Instruction() {}
+
+  ~ExitInst() override = default;
 
   Own<Instruction> clone() const override { return Make<ExitInst>(); }
 
@@ -277,6 +307,8 @@ class ReturnInst : public Instruction {
 public:
   ReturnInst(Own<SelectExpression> expr, BasicBlock *exitBlock)
       : Instruction(), expr(std::move(expr)), exitBlock(exitBlock) {}
+
+  ~ReturnInst() override = default;
 
   Own<Instruction> clone() const override {
     return Make<ReturnInst>(expr->clone(), exitBlock);
@@ -311,6 +343,8 @@ public:
   BranchInst(BasicBlock *ifTrue)
       : Instruction(), ifTrue(ifTrue), ifFalse(nullptr), cond(),
         conditional(false) {}
+
+  ~BranchInst() override = default;
 
   Own<Instruction> clone() const override {
     if (isConditional()) {
@@ -488,7 +522,6 @@ public:
   void optimize() {
     mergeBasicBlocks();
     std::cout << *this << std::endl;
-    convertToSSAForm();
   }
 
   const VecOwn<BasicBlock> &getBasicBlocks() const { return basicBlocks; }
@@ -550,11 +583,8 @@ public:
   const Vec<Vec<String>> &getCustomAggs() const { return custom_aggs; }
 
 private:
-  void convertToSSAForm();
-  void insertPhiFunctions();
   void mergeBasicBlocks();
   void removeBasicBlock(BasicBlock *toRemove);
-  void renameVariablesToSSA(const Own<DominatorTree> &dominatorTree);
 
   class CompilationState {
   public:

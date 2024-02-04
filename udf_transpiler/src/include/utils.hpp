@@ -3,6 +3,7 @@
 #include <iostream>
 #include <list>
 #include <numeric>
+#include <optional>
 #include <queue>
 #include <string>
 #include <unordered_map>

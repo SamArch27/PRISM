@@ -11,15 +11,15 @@ String CFGCodeGenerator::createReturnValue(const String &retName,
                                            const Type *retType,
                                            const String &retValue) {
 
-  if (dynamic_cast<const DecimalType *>(retType)) {
-    auto width = dynamic_cast<const DecimalType *>(retType)->getWidth();
-    auto scale = dynamic_cast<const DecimalType *>(retType)->getScale();
+  if (retType->isDecimal()) {
+    auto width = retType->getWidth();
+    auto scale = retType->getScale();
     return fmt::format("{} = Value::DECIMAL({}, {}, {})", retName, retValue,
-                       width, scale);
+                       *width, *scale);
   } else if (retType->isNumeric()) {
     return fmt::format("{} = Value::{}({})", retName, retType->getDuckDBType(),
                        retValue);
-  } else if (retType->isBLOB()) {
+  } else if (retType->isBlob()) {
     return fmt::format(
         "{0} = Value({1});\n{0}.GetTypeMutable() = LogicalType::{2}", retName,
         retValue, retType->getDuckDBType());
