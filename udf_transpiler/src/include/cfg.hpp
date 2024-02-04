@@ -238,9 +238,6 @@ public:
 
   List<Own<Instruction>>::iterator replaceInst(const Instruction *targetInst,
                                                Own<Instruction> newInst) {
-    std::cout << "Printing block: " << *this << std::endl;
-    std::cout << "Removing: " << *targetInst << std::endl;
-    std::cout << "Replacing with: " << *newInst << std::endl << std::endl;
     auto it = insertBefore(targetInst, std::move(newInst));
     removeInst(targetInst);
     return it;
@@ -323,6 +320,7 @@ public:
   bool isTerminator() const override { return true; }
   Vec<BasicBlock *> getSuccessors() const override { return {exitBlock}; }
   SelectExpression *getExpr() const { return expr.get(); }
+  BasicBlock *getExitBlock() const { return exitBlock; }
 
 protected:
   void print(std::ostream &os) const override {
@@ -375,7 +373,7 @@ public:
 
   BasicBlock *getIfTrue() const { return ifTrue; }
   BasicBlock *getIfFalse() const { return ifFalse; }
-  SelectExpression *getCond() const { return cond.get(); }
+  const SelectExpression *getCond() const { return cond.get(); }
 
 protected:
   void print(std::ostream &os) const override {
@@ -497,6 +495,10 @@ public:
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
   BasicBlock *getExitBlock() { return basicBlocks[1].get(); }
 
+  BasicBlock *getBlockFromLabel(const String &label) {
+    return labelToBasicBlock.at(label);
+  }
+
   void visitBFS(std::function<void(BasicBlock *)> f) {
     Queue<BasicBlock *> q;
     Set<BasicBlock *> visited;
@@ -517,11 +519,6 @@ public:
         q.push(succ);
       }
     }
-  }
-
-  void optimize() {
-    mergeBasicBlocks();
-    std::cout << *this << std::endl;
   }
 
   const VecOwn<BasicBlock> &getBasicBlocks() const { return basicBlocks; }
@@ -582,8 +579,9 @@ public:
 
   const Vec<Vec<String>> &getCustomAggs() const { return custom_aggs; }
 
-private:
   void mergeBasicBlocks();
+
+private:
   void removeBasicBlock(BasicBlock *toRemove);
 
   class CompilationState {

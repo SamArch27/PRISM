@@ -109,6 +109,8 @@ public:
                            const Continuations &continuations);
   CompilationResult run();
 
+  void optimize(Function &f);
+
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;
   static constexpr std::size_t DECIMAL_SCALE = 3;
@@ -136,8 +138,8 @@ private:
 
   void convertToSSAForm(Function &f);
   void insertPhiFunctions(Function &f);
-  void renameVariablesToSSA(const Own<DominatorTree> &dominatorTree,
-                            Function &f);
+  void renameVariablesToSSA(Function &f,
+                            const Own<DominatorTree> &dominatorTree);
 
   duckdb::Connection *connection;
   String programText;
