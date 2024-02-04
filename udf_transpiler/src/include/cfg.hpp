@@ -226,6 +226,7 @@ public:
         [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
     ASSERT((it != instructions.end()),
            "Instruction must exist when performing insertBefore()!");
+    newInst->setParent(this);
     return instructions.emplace(it, std::move(newInst));
   }
 

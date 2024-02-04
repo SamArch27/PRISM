@@ -326,7 +326,6 @@ void Compiler::buildCursorLoopCFG(Function &function, const json &ast) {
   auto *entryBlock = function.makeBasicBlock("entry");
   auto *functionExitBlock = function.makeBasicBlock("exit");
   auto exitInst = Make<ExitInst>();
-  exitInst->setParent(functionExitBlock);
   functionExitBlock->addInstruction(std::move(exitInst));
 
   // Get the statements from the body
@@ -346,7 +345,6 @@ void Compiler::buildCFG(Function &function, const json &ast) {
   auto *entryBlock = function.makeBasicBlock("entry");
   auto *functionExitBlock = function.makeBasicBlock("exit");
   auto exitInst = Make<ExitInst>();
-  exitInst->setParent(functionExitBlock);
   functionExitBlock->addInstruction(std::move(exitInst));
 
   // Create a "declare" BasicBlock with all declarations
@@ -810,14 +808,12 @@ void Compiler::renameVariablesToSSA(Function &f,
       if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
         auto newPhi =
             Make<PhiNode>(renameVariable(phi->getLHS(), true), phi->getRHS());
-        newPhi->setParent(block);
         it = block->replaceInst(it->get(), std::move(newPhi));
       } else if (auto *returnInst =
                      dynamic_cast<const ReturnInst *>(it->get())) {
         auto newReturn =
             Make<ReturnInst>(renameSelectExpression(returnInst->getExpr()),
                              returnInst->getExitBlock());
-        newReturn->setParent(block);
         it = block->replaceInst(it->get(), std::move(newReturn));
       } else if (auto *branchInst =
                      dynamic_cast<const BranchInst *>(it->get())) {
@@ -827,13 +823,11 @@ void Compiler::renameVariablesToSSA(Function &f,
         auto newBranch =
             Make<BranchInst>(branchInst->getIfTrue(), branchInst->getIfFalse(),
                              renameSelectExpression(branchInst->getCond()));
-        newBranch->setParent(block);
         it = block->replaceInst(it->get(), std::move(newBranch));
       } else if (auto *assign = dynamic_cast<const Assignment *>(it->get())) {
         auto newAssignment =
             Make<Assignment>(renameVariable(assign->getLHS(), true),
                              renameSelectExpression(assign->getRHS()));
-        newAssignment->setParent(block);
         it = block->replaceInst(it->get(), std::move(newAssignment));
       } else if (dynamic_cast<const ExitInst *>(it->get())) {
         // Ignore exit block
@@ -854,7 +848,6 @@ void Compiler::renameVariablesToSSA(Function &f,
           auto newArguments = phi->getRHS();
           newArguments[j] = renameVariable(phi->getRHS()[j], false);
           auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-          newPhi->setParent(succ);
           it = succ->replaceInst(inst.get(), std::move(newPhi));
         }
       }
