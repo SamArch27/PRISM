@@ -163,7 +163,6 @@ void DataflowFramework<T, forward>::preprocess() {
   }
 
   results[f.getEntryBlock()->getInitiator()].in = boundaryStart;
-
   results[f.getExitBlock()->getTerminator()].out = boundaryStart;
 }
 

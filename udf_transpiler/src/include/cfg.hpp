@@ -319,7 +319,7 @@ public:
 
   bool isTerminator() const override { return true; }
   Vec<BasicBlock *> getSuccessors() const override { return {exitBlock}; }
-  SelectExpression *getExpr() const { return expr.get(); }
+  const SelectExpression *getExpr() const { return expr.get(); }
   BasicBlock *getExitBlock() const { return exitBlock; }
 
 protected:

@@ -760,17 +760,19 @@ void Compiler::renameVariablesToSSA(Function &f,
     return std::distance(preds.begin(), it);
   };
 
-  auto renameVariable = [&](const Variable *var) {
+  auto renameVariable = [&](const Variable *var, bool updateVariable) {
     // Map LHS variable to new SSA name
-    auto i = accessCounter(var);
+    auto i = updateVariable ? accessCounter(var) : accessStack(var).top();
     auto oldName = getOriginalName(var->getName());
     auto newName = oldName + "_" + std::to_string(i);
     auto *oldVar = f.getBinding(oldName);
     f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
 
     // Update stack and counters
-    accessStack(var).push(i);
-    accessCounter(var) = i + 1;
+    if (updateVariable) {
+      accessStack(var).push(i);
+      accessCounter(var) = i + 1;
+    }
     return f.getBinding(newName);
   };
 
@@ -807,7 +809,7 @@ void Compiler::renameVariablesToSSA(Function &f,
     for (auto it = instructions.begin(); it != instructions.end(); ++it) {
       if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
         auto newPhi =
-            Make<PhiNode>(renameVariable(phi->getLHS()), phi->getRHS());
+            Make<PhiNode>(renameVariable(phi->getLHS(), true), phi->getRHS());
         newPhi->setParent(block);
         it = block->replaceInst(it->get(), std::move(newPhi));
       } else if (auto *returnInst =
@@ -829,7 +831,7 @@ void Compiler::renameVariablesToSSA(Function &f,
         it = block->replaceInst(it->get(), std::move(newBranch));
       } else if (auto *assign = dynamic_cast<const Assignment *>(it->get())) {
         auto newAssignment =
-            Make<Assignment>(renameVariable(assign->getLHS()),
+            Make<Assignment>(renameVariable(assign->getLHS(), true),
                              renameSelectExpression(assign->getRHS()));
         newAssignment->setParent(block);
         it = block->replaceInst(it->get(), std::move(newAssignment));
@@ -849,14 +851,8 @@ void Compiler::renameVariablesToSSA(Function &f,
       for (auto it = instructions.begin(); it != instructions.end(); ++it) {
         auto &inst = *it;
         if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
-          auto *var = phi->getRHS()[j];
-          auto i = accessStack(var).top();
-          auto newName =
-              getOriginalName(var->getName()) + "_" + std::to_string(i);
-
           auto newArguments = phi->getRHS();
-          newArguments[j] = f.getBinding(newName);
-
+          newArguments[j] = renameVariable(phi->getRHS()[j], false);
           auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
           newPhi->setParent(succ);
           it = succ->replaceInst(inst.get(), std::move(newPhi));
