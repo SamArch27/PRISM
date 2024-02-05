@@ -136,6 +136,7 @@ private:
   Own<Type> getTypeFromPostgresName(const String &name) const;
   String resolveTypeName(const String &type) const;
 
+  void mergeBasicBlocks(Function &f);
   void convertToSSAForm(Function &f);
   void insertPhiFunctions(Function &f);
   void renameVariablesToSSA(Function &f,

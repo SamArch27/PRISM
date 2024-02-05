@@ -869,10 +869,42 @@ void Compiler::renameVariablesToSSA(Function &f,
 }
 
 void Compiler::optimize(Function &f) {
-  f.mergeBasicBlocks();
+  mergeBasicBlocks(f);
   std::cout << f << std::endl;
   convertToSSAForm(f);
   std::cout << f << std::endl;
+}
+
+void Compiler::mergeBasicBlocks(Function &f) {
+  f.visitBFS([&](BasicBlock *block) {
+    while (true) {
+
+      // skip if we are entry or exit
+      if (block == f.getEntryBlock() || block == f.getExitBlock()) {
+        return;
+      }
+      // if we have an unique successor
+      auto successors = block->getSuccessors();
+      if (successors.size() != 1) {
+        return;
+      }
+      auto *uniqueSucc = *successors.begin();
+      // that isn't entry/exit
+      if (uniqueSucc == f.getEntryBlock() || uniqueSucc == f.getExitBlock()) {
+        return;
+      }
+      // and we are the unique predecessor
+      if (uniqueSucc->getPredecessors().size() != 1) {
+        return;
+      }
+
+      // merge the two blocks
+      block->appendBasicBlock(uniqueSucc);
+
+      // finally remove the basic block from the function
+      f.removeBasicBlock(uniqueSucc);
+    }
+  });
 }
 
 void Compiler::convertToSSAForm(Function &f) { insertPhiFunctions(f); }

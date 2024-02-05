@@ -580,11 +580,9 @@ public:
 
   const Vec<Vec<String>> &getCustomAggs() const { return custom_aggs; }
 
-  void mergeBasicBlocks();
-
-private:
   void removeBasicBlock(BasicBlock *toRemove);
 
+private:
   class CompilationState {
   public:
     std::size_t labelNumber;
