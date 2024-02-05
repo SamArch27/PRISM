@@ -3,6 +3,7 @@
 
 #include "cfg.hpp"
 #include "compiler_fmt/core.h"
+#include "dominator_dataflow.hpp"
 #include "duckdb/main/connection.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "types.hpp"
@@ -21,6 +22,9 @@
 /* Compiler */
 
 using json = nlohmann::json;
+
+class DominanceFrontier;
+class DominatorTree;
 
 struct Continuations {
   Continuations(BasicBlock *fallthrough, BasicBlock *loopHeader,
@@ -48,17 +52,6 @@ public:
   Compiler(duckdb::Connection *connection, const String &programText,
            size_t &udfCount)
       : connection(connection), programText(programText), udfCount(udfCount) {}
-
-  template <typename Iter>
-  static Vec<String> getBasicBlockLabels(Iter it, Iter end) {
-    Vec<String> labels;
-    labels.reserve(std::distance(it, end));
-    for (; it != end; ++it) {
-      auto *block = *it;
-      labels.push_back(block->getLabel());
-    }
-    return labels;
-  }
 
   void buildCursorLoopCFG(Function &function, const json &ast);
   void buildCFG(Function &function, const json &ast);
@@ -136,9 +129,11 @@ private:
   Own<Type> getTypeFromPostgresName(const String &name) const;
   String resolveTypeName(const String &type) const;
 
+  void performCopyPropagation(Function &f);
   void mergeBasicBlocks(Function &f);
   void convertToSSAForm(Function &f);
-  void insertPhiFunctions(Function &f);
+  void insertPhiFunctions(Function &f,
+                          const Own<DominanceFrontier> &dominanceFrontier);
   void renameVariablesToSSA(Function &f,
                             const Own<DominatorTree> &dominatorTree);
 

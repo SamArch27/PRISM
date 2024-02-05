@@ -68,6 +68,10 @@ public:
     return os;
   }
 
+  bool isSQLExpression() const {
+    return toUpper(rawSQL).find(" FROM ") != String::npos;
+  }
+
   String getRawSQL() const { return rawSQL; }
   const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
   const Vec<const Variable *> &getUsedVariables() const {
@@ -123,6 +127,13 @@ public:
   const Variable *getLHS() const { return var; }
 
   const Vec<const Variable *> &getRHS() const { return arguments; }
+
+  bool hasIdenticalArguments() const {
+    auto *firstArgument = arguments.front();
+    return std::all_of(
+        arguments.begin(), arguments.end(),
+        [&](const Variable *arg) { return arg == firstArgument; });
+  }
 
   bool isTerminator() const override { return false; }
 
@@ -419,6 +430,17 @@ public:
   friend std::ostream &operator<<(std::ostream &os, const Function &function) {
     function.print(os);
     return os;
+  }
+
+  template <typename Iter>
+  static Vec<String> getBasicBlockLabels(Iter it, Iter end) {
+    Vec<String> labels;
+    labels.reserve(std::distance(it, end));
+    for (; it != end; ++it) {
+      auto *block = *it;
+      labels.push_back(block->getLabel());
+    }
+    return labels;
   }
 
   BasicBlock *makeBasicBlock(const String &label) {

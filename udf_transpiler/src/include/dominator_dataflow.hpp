@@ -42,7 +42,7 @@ protected:
   void print(std::ostream &os) const {
     for (auto &[parent, children] : parentToChild) {
       fmt::print(os, "Dom({}) = {{{}}}\n", parent->getLabel(),
-                 joinVector(Compiler::getBasicBlockLabels(children.begin(),
+                 joinVector(Function::getBasicBlockLabels(children.begin(),
                                                           children.end()),
                             ", "));
     }
@@ -79,7 +79,7 @@ protected:
   void print(std::ostream &os) const {
     for (auto &[block, frontierBlocks] : frontier) {
       fmt::print(os, "DF({}) = {{{}}}\n", block->getLabel(),
-                 joinVector(Compiler::getBasicBlockLabels(
+                 joinVector(Function::getBasicBlockLabels(
                                 frontierBlocks.begin(), frontierBlocks.end()),
                             ", "));
     }

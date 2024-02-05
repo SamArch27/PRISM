@@ -726,6 +726,60 @@ String Compiler::resolveTypeName(const String &type) const {
   return matches[0];
 }
 
+void Compiler::insertPhiFunctions(
+    Function &f, const Own<DominanceFrontier> &dominanceFrontier) {
+
+  // For each variable, when it is assigned in a block, map to the block
+  Map<const Variable *, Set<BasicBlock *>> varToBlocksAssigned;
+
+  for (auto &block : f.getBasicBlocks()) {
+    for (auto &inst : block->getInstructions()) {
+      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+        auto *var = assign->getLHS();
+        varToBlocksAssigned[var].insert(block.get());
+      }
+    }
+  }
+
+  // Initialize worklists
+  Set<BasicBlock *> worklist;
+  Map<BasicBlock *, const Variable *> inWorklist;
+  Map<BasicBlock *, const Variable *> inserted;
+  for (auto &block : f.getBasicBlocks()) {
+    inserted[block.get()] = nullptr;
+    inWorklist[block.get()] = nullptr;
+  }
+
+  // for each variable
+  for (auto *var : f.getAllVariables()) {
+    // add to the worklist each block where it has been assigned
+    for (auto *block : varToBlocksAssigned[var]) {
+      inWorklist[block] = var;
+      worklist.insert(block);
+    }
+    while (!worklist.empty()) {
+      auto *block = *worklist.begin();
+      worklist.erase(block);
+
+      for (auto *m : dominanceFrontier->getFrontier(block)) {
+        if (inserted[m] != var) {
+          // place a phi instruction for var at m
+          auto numPreds = m->getPredecessors().size();
+          auto args = Vec<const Variable *>(numPreds, var);
+          auto phiInst = Make<PhiNode>(var, args);
+          m->insertBefore(m->getInitiator(), std::move(phiInst));
+          // update worklists
+          inserted[m] = var;
+          if (inWorklist[m] != var) {
+            inWorklist[m] = var;
+            worklist.insert(m);
+          }
+        }
+      }
+    }
+  }
+}
+
 void Compiler::renameVariablesToSSA(Function &f,
                                     const Own<DominatorTree> &dominatorTree) {
 
@@ -873,6 +927,8 @@ void Compiler::optimize(Function &f) {
   std::cout << f << std::endl;
   convertToSSAForm(f);
   std::cout << f << std::endl;
+  performCopyPropagation(f);
+  std::cout << f << std::endl;
 }
 
 void Compiler::mergeBasicBlocks(Function &f) {
@@ -907,9 +963,7 @@ void Compiler::mergeBasicBlocks(Function &f) {
   });
 }
 
-void Compiler::convertToSSAForm(Function &f) { insertPhiFunctions(f); }
-
-void Compiler::insertPhiFunctions(Function &f) {
+void Compiler::convertToSSAForm(Function &f) {
   DominatorDataflow dataflow(f);
   dataflow.runAnalysis();
   auto dominators = dataflow.computeDominators();
@@ -929,57 +983,37 @@ void Compiler::insertPhiFunctions(Function &f) {
   // print dominator tree
   std::cout << *dominatorTree << std::endl;
 
-  // For each variable, when it is assigned in a block, map to the block
-  Map<const Variable *, Set<BasicBlock *>> varToBlocksAssigned;
-
-  for (auto &block : f.getBasicBlocks()) {
-    for (auto &inst : block->getInstructions()) {
-      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-        auto *var = assign->getLHS();
-        varToBlocksAssigned[var].insert(block.get());
-      }
-    }
-  }
-
-  // Initialize worklists
-  Set<BasicBlock *> worklist;
-  Map<BasicBlock *, const Variable *> inWorklist;
-  Map<BasicBlock *, const Variable *> inserted;
-  for (auto &block : f.getBasicBlocks()) {
-    inserted[block.get()] = nullptr;
-    inWorklist[block.get()] = nullptr;
-  }
-
-  // for each variable
-  for (auto *var : f.getAllVariables()) {
-    // add to the worklist each block where it has been assigned
-    for (auto *block : varToBlocksAssigned[var]) {
-      inWorklist[block] = var;
-      worklist.insert(block);
-    }
-    while (!worklist.empty()) {
-      auto *block = *worklist.begin();
-      worklist.erase(block);
-
-      for (auto *m : dominanceFrontier->getFrontier(block)) {
-        if (inserted[m] != var) {
-          // place a phi instruction for var at m
-          auto numPreds = m->getPredecessors().size();
-          auto args = Vec<const Variable *>(numPreds, var);
-          auto phiInst = Make<PhiNode>(var, args);
-          m->insertBefore(m->getInitiator(), std::move(phiInst));
-          // update worklists
-          inserted[m] = var;
-          if (inWorklist[m] != var) {
-            inWorklist[m] = var;
-            worklist.insert(m);
-          }
-        }
-      }
-    }
-  }
-
+  insertPhiFunctions(f, dominanceFrontier);
   renameVariablesToSSA(f, dominatorTree);
+}
+
+void Compiler::performCopyPropagation(Function &f) {
+  for (auto &basicBlock : f.getBasicBlocks()) {
+    for (auto &inst : basicBlock->getInstructions()) {
+      // check for x = y assignment
+      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+        auto *lhs = assign->getLHS();
+        auto *rhs = assign->getRHS();
+        std::cout << "LHS: " << *lhs << std::endl;
+        std::cout << "RHS: " << rhs->getRawSQL() << std::endl;
+
+        // skip SQL expressions
+        if (rhs->isSQLExpression()) {
+          std::cout << "Skipping SQL expression on RHS!" << std::endl;
+          continue;
+        }
+
+        // TODO: Replace every use of LHS with RHS
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
+        std::cout << "Phi function: " << *phi << std::endl;
+        if (!phi->hasIdenticalArguments()) {
+          continue;
+        }
+        std::cout << "Identical arguments!" << std::endl;
+        // TODO: Replace every use of LHS with RHS
+      }
+    }
+  }
 }
 
 /**
@@ -987,9 +1021,6 @@ void Compiler::insertPhiFunctions(Function &f) {
  * Initialize a CFGCodeGenerator and run it through the function
  */
 Vec<String> Compiler::generateCode(const Function &func) {
-
-  // AggifyCodeGenerator aggifyCodeGenerator(config, );
-
   CFGCodeGenerator codeGenerator(config);
   auto res = codeGenerator.run(func);
   return res;

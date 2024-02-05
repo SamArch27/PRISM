@@ -42,8 +42,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
   for (auto &inst : bb->getInstructions()) {
     try {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-        if (toUpper(assign->getRHS()->getRawSQL()).find(" FROM ") !=
-            String::npos) {
+        if (assign->getRHS()->isSQLExpression()) {
           ERROR("FROM clause should not be compiled.");
         }
         duckdb::LogicalOperatorCodeGenerator locg;
