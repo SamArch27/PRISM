@@ -107,6 +107,9 @@ public:
   }
   virtual Own<Instruction> clone() const = 0;
   virtual bool isTerminator() const = 0;
+
+  virtual const Variable *getResultOperand() const = 0;
+  virtual Vec<const Variable *> getOperands() const = 0;
   virtual Vec<BasicBlock *> getSuccessors() const = 0;
   void setParent(BasicBlock *parentBlock) { parent = parentBlock; }
   BasicBlock *getParent() { return parent; }
@@ -128,6 +131,10 @@ public:
   Own<Instruction> clone() const override {
     return Make<PhiNode>(var, arguments);
   }
+
+  const Variable *getResultOperand() const override { return var; }
+
+  Vec<const Variable *> getOperands() const override { return arguments; }
 
   const Variable *getLHS() const { return var; }
 
@@ -178,6 +185,12 @@ public:
 
   Own<Instruction> clone() const override {
     return Make<Assignment>(var, expr->clone());
+  }
+
+  const Variable *getResultOperand() const override { return var; }
+
+  Vec<const Variable *> getOperands() const override {
+    return expr->getUsedVariables();
   }
 
   const Variable *getLHS() const { return var; }
@@ -306,6 +319,10 @@ public:
 
   Own<Instruction> clone() const override { return Make<ExitInst>(); }
 
+  const Variable *getResultOperand() const override { return nullptr; }
+
+  Vec<const Variable *> getOperands() const override { return {}; }
+
   friend std::ostream &operator<<(std::ostream &os, const ExitInst &exitInst) {
     exitInst.print(os);
     return os;
@@ -326,6 +343,12 @@ public:
 
   Own<Instruction> clone() const override {
     return Make<ReturnInst>(expr->clone(), exitBlock);
+  }
+
+  const Variable *getResultOperand() const override { return nullptr; }
+
+  Vec<const Variable *> getOperands() const override {
+    return expr->getUsedVariables();
   }
 
   friend std::ostream &operator<<(std::ostream &os,
@@ -366,6 +389,16 @@ public:
       return Make<BranchInst>(ifTrue, ifFalse, cond->clone());
     } else {
       return Make<BranchInst>(ifTrue);
+    }
+  }
+
+  const Variable *getResultOperand() const override { return nullptr; }
+
+  Vec<const Variable *> getOperands() const override {
+    if (isConditional()) {
+      return cond->getUsedVariables();
+    } else {
+      return {};
     }
   }
 

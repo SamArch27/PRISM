@@ -128,9 +128,6 @@ private:
 
 class DominatorDataflow : public DataflowFramework<BitVector, true> {
 public:
-  Map<BasicBlock *, std::size_t> blockToIndex;
-  Vec<BasicBlock *> basicBlocks;
-
   DominatorDataflow(Function &f) : DataflowFramework(f) {}
 
   Own<Dominators> computeDominators() const;
@@ -144,4 +141,7 @@ protected:
   BitVector meet(BitVector in1, BitVector in2) override;
   void preprocessInst(Instruction *inst) override;
   void genBoundaryInner() override;
+
+  Map<BasicBlock *, std::size_t> blockToIndex;
+  Vec<BasicBlock *> basicBlocks;
 };

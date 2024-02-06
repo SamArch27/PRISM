@@ -7,6 +7,7 @@
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
 #include "file.hpp"
+#include "liveness_dataflow.hpp"
 #include "pg_query.h"
 #include "used_variable_finder.hpp"
 #include "utils.hpp"
@@ -933,11 +934,16 @@ void Compiler::renameVariablesToSSA(Function &f,
 
 void Compiler::optimize(Function &f) {
   mergeBasicBlocks(f);
-  std::cout << f << std::endl;
+  // std::cout << f << std::endl;
   convertToSSAForm(f);
-  std::cout << f << std::endl;
+  // std::cout << f << std::endl;
   performCopyPropagation(f);
   std::cout << f << std::endl;
+  LivenessDataflow dataflow(f);
+  dataflow.runAnalysis();
+  auto liveness = dataflow.computeLiveness();
+  std::cout << "Computing liveness!" << std::endl;
+  std::cout << *liveness << std::endl;
 }
 
 void Compiler::mergeBasicBlocks(Function &f) {
@@ -1038,11 +1044,15 @@ void Compiler::renameVariableGlobally(Function &f, const Variable *toReplace,
     auto &instructions = block->getInstructions();
     for (auto it = instructions.begin(); it != instructions.end(); ++it) {
       auto *inst = it->get();
+
+      // skip the instruction if it doesn't use the variable we are replacing
+      const auto &ops = inst->getOperands();
+      if (std::find(ops.begin(), ops.end(), toReplace) == ops.end()) {
+        continue;
+      }
+
       if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
         auto *rhs = assign->getRHS();
-        if (!rhs->usesVariable(toReplace)) {
-          continue;
-        }
         // replace RHS with new expression
         auto newAssign = Make<Assignment>(
             assign->getLHS(),
@@ -1050,15 +1060,7 @@ void Compiler::renameVariableGlobally(Function &f, const Variable *toReplace,
 
         it = std::prev(block->replaceInst(it->get(), std::move(newAssign)));
       } else if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
-        auto &rhs = phi->getRHS();
-        bool usesVariableToReplace =
-            std::any_of(rhs.begin(), rhs.end(),
-                        [&](const Variable *var) { return var == toReplace; });
-        if (!usesVariableToReplace) {
-          continue;
-        }
-
-        auto newArguments = rhs;
+        auto newArguments = phi->getRHS();
         for (auto &arg : newArguments) {
           if (arg == toReplace) {
             arg = newVar;
