@@ -1,7 +1,6 @@
 #pragma once
 #include "bitvector.hpp"
 #include "cfg.hpp"
-#include "compiler.hpp"
 #include "utils.hpp"
 
 template <typename T> struct DataflowResult {

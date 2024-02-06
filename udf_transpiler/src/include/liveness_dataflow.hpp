@@ -1,5 +1,7 @@
 #pragma once
 
+#include "compiler_fmt/core.h"
+#include "compiler_fmt/ostream.h"
 #include "dataflow_framework.hpp"
 
 class Liveness {

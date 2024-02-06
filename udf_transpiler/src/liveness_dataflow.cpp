@@ -1,7 +1,26 @@
 #include "liveness_dataflow.hpp"
 #include "utils.hpp"
 
-Own<Liveness> LivenessDataflow::computeLiveness() const {}
+Own<Liveness> LivenessDataflow::computeLiveness() const {
+  Vec<BasicBlock *> blocks;
+  for (auto &block : f.getBasicBlocks()) {
+    blocks.push_back(block.get());
+  }
+  auto liveness = Make<Liveness>(blocks);
+  for (auto &block : f.getBasicBlocks()) {
+    auto liveIn = results.at(block->getInitiator()).in;
+    auto liveOut = results.at(block->getInitiator()).out;
+    for (std::size_t i = 0; i < varToIndex.size(); ++i) {
+      if (liveIn[i]) {
+        liveness->addLiveIn(block.get(), variables[i]);
+      }
+      if (liveOut[i]) {
+        liveness->addLiveOut(block.get(), variables[i]);
+      }
+    }
+  }
+  return liveness;
+}
 
 BitVector LivenessDataflow::transfer(BitVector out, Instruction *inst) {
   BitVector gen(varToIndex.size(), false);
