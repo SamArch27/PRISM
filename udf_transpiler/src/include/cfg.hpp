@@ -68,6 +68,11 @@ public:
     return os;
   }
 
+  bool usesVariable(const Variable *var) const {
+    return std::find(usedVariables.begin(), usedVariables.end(), var) !=
+           usedVariables.end();
+  }
+
   bool isSQLExpression() const {
     return toUpper(rawSQL).find(" FROM ") != String::npos;
   }
@@ -241,11 +246,11 @@ public:
     return instructions.emplace(it, std::move(newInst));
   }
 
-  void removeInst(const Instruction *targetInst) {
+  List<Own<Instruction>>::iterator removeInst(const Instruction *targetInst) {
     auto it = std::find_if(
         instructions.begin(), instructions.end(),
         [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
-    instructions.erase(it);
+    return instructions.erase(it);
   }
 
   List<Own<Instruction>>::iterator replaceInst(const Instruction *targetInst,
@@ -507,9 +512,9 @@ public:
 
   const Variable *getBinding(const String &name) const {
     auto cleanedName = getCleanedVariableName(name);
-    ASSERT(
-        hasBinding(cleanedName),
-        fmt::format("Error: Variable {} is not in bindings map.", cleanedName));
+    if (!hasBinding(cleanedName)) {
+      return nullptr;
+    }
     return bindings.at(cleanedName);
   }
 

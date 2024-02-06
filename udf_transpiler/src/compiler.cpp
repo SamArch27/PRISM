@@ -509,6 +509,16 @@ void Compiler::makeDuckDBContext(const Function &function) {
   }
 }
 
+Own<SelectExpression>
+Compiler::buildReplacedExpression(Function &f, const SelectExpression *original,
+                                  const Variable *oldVar,
+                                  const Variable *newVar) {
+  auto replacedText = original->getRawSQL();
+  std::regex wordRegex(oldVar->getName());
+  replacedText = std::regex_replace(replacedText, wordRegex, newVar->getName());
+  return bindExpression(f, replacedText)->clone();
+}
+
 Own<SelectExpression> Compiler::bindExpression(const Function &function,
                                                const String &expr) {
   destroyDuckDBContext();
@@ -551,7 +561,6 @@ Own<SelectExpression> Compiler::bindExpression(const Function &function,
     }
 
     destroyDuckDBContext();
-
     EXCEPTION(e.what());
   }
 
@@ -839,21 +848,21 @@ void Compiler::renameVariablesToSSA(Function &f,
       oldToNew.insert({var->getName(), newName});
     }
 
-    // Add the new variables to the bindings map
-    Vec<const Variable *> usedVariables;
+    // Map old variables to new ones
+    Map<const Variable *, const Variable *> varMapping;
     for (auto &[oldName, newName] : oldToNew) {
       auto *oldVar = f.getBinding(oldName);
       f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
-      usedVariables.push_back(f.getBinding(newName));
+      varMapping.insert({oldVar, f.getBinding(newName)});
     }
 
-    // Find replace the text of the expr and rebind
-    auto replacedText = expr->getRawSQL();
-    for (auto &[oldName, newName] : oldToNew) {
-      std::regex wordRegex(oldName);
-      replacedText = std::regex_replace(replacedText, wordRegex, newName);
+    // For every variable, rebind the select expression with its new equivalent
+    Own<SelectExpression> replacedExpression = expr->clone();
+    for (auto &[oldVar, newVar] : varMapping) {
+      replacedExpression =
+          buildReplacedExpression(f, replacedExpression.get(), oldVar, newVar);
     }
-    return bindExpression(f, replacedText)->clone();
+    return replacedExpression;
   };
 
   std::function<void(BasicBlock *)> rename = [&](BasicBlock *block) -> void {
@@ -989,28 +998,99 @@ void Compiler::convertToSSAForm(Function &f) {
 
 void Compiler::performCopyPropagation(Function &f) {
   for (auto &basicBlock : f.getBasicBlocks()) {
-    for (auto &inst : basicBlock->getInstructions()) {
+    auto &instructions = basicBlock->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+      auto *inst = it->get();
       // check for x = y assignment
-      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
         auto *lhs = assign->getLHS();
         auto *rhs = assign->getRHS();
-        std::cout << "LHS: " << *lhs << std::endl;
-        std::cout << "RHS: " << rhs->getRawSQL() << std::endl;
 
         // skip SQL expressions
         if (rhs->isSQLExpression()) {
-          std::cout << "Skipping SQL expression on RHS!" << std::endl;
           continue;
         }
 
-        // TODO: Replace every use of LHS with RHS
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
-        std::cout << "Phi function: " << *phi << std::endl;
+        // Try converting the RHS to a variable
+        auto *var = f.getBinding(rhs->getRawSQL());
+        if (var == nullptr) {
+          continue;
+        }
+
+        renameVariableGlobally(f, lhs, var);
+        it = std::prev(basicBlock->removeInst(inst));
+
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
         if (!phi->hasIdenticalArguments()) {
           continue;
         }
-        std::cout << "Identical arguments!" << std::endl;
-        // TODO: Replace every use of LHS with RHS
+
+        renameVariableGlobally(f, phi->getLHS(), phi->getRHS().front());
+        it = std::prev(basicBlock->removeInst(inst));
+      }
+    }
+  }
+}
+
+void Compiler::renameVariableGlobally(Function &f, const Variable *toReplace,
+                                      const Variable *newVar) {
+  for (auto &block : f.getBasicBlocks()) {
+    auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+      auto *inst = it->get();
+      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+        auto *rhs = assign->getRHS();
+        if (!rhs->usesVariable(toReplace)) {
+          continue;
+        }
+        // replace RHS with new expression
+        auto newAssign = Make<Assignment>(
+            assign->getLHS(),
+            buildReplacedExpression(f, rhs, toReplace, newVar));
+
+        it = std::prev(block->replaceInst(it->get(), std::move(newAssign)));
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
+        auto &rhs = phi->getRHS();
+        bool usesVariableToReplace =
+            std::any_of(rhs.begin(), rhs.end(),
+                        [&](const Variable *var) { return var == toReplace; });
+        if (!usesVariableToReplace) {
+          continue;
+        }
+
+        auto newArguments = rhs;
+        for (auto &arg : newArguments) {
+          if (arg == toReplace) {
+            arg = newVar;
+          }
+        }
+
+        auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
+        it = std::prev(block->replaceInst(it->get(), std::move(newPhi)));
+
+      } else if (auto *returnInst =
+                     dynamic_cast<const ReturnInst *>(it->get())) {
+        if (!returnInst->getExpr()->usesVariable(toReplace)) {
+          continue;
+        }
+        auto newReturn =
+            Make<ReturnInst>(buildReplacedExpression(f, returnInst->getExpr(),
+                                                     toReplace, newVar),
+                             returnInst->getExitBlock());
+        it = std::prev(block->replaceInst(it->get(), std::move(newReturn)));
+      } else if (auto *branchInst =
+                     dynamic_cast<const BranchInst *>(it->get())) {
+        if (branchInst->isUnconditional()) {
+          continue;
+        }
+        if (!branchInst->getCond()->usesVariable(toReplace)) {
+          continue;
+        }
+        auto newBranch =
+            Make<BranchInst>(branchInst->getIfTrue(), branchInst->getIfFalse(),
+                             buildReplacedExpression(f, branchInst->getCond(),
+                                                     toReplace, newVar));
+        it = std::prev(block->replaceInst(it->get(), std::move(newBranch)));
       }
     }
   }

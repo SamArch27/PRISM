@@ -121,6 +121,11 @@ private:
   List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
 
+  void renameVariableGlobally(Function &f, const Variable *toReplace,
+                              const Variable *newVar);
+  Own<SelectExpression>
+  buildReplacedExpression(Function &f, const SelectExpression *original,
+                          const Variable *oldVar, const Variable *newVar);
   Own<SelectExpression> bindExpression(const Function &function,
                                        const String &expression);
   static StringPair unpackAssignment(const String &assignment);
