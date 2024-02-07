@@ -30,6 +30,29 @@ Own<Liveness> LivenessDataflow::computeLiveness() const {
   return liveness;
 }
 
+Own<InterferenceGraph> LivenessDataflow::computeInterfenceGraph() const {
+  auto interferenceGraph = Make<InterferenceGraph>();
+
+  for (auto &block : f.getBasicBlocks()) {
+    for (auto &inst : block->getInstructions()) {
+      auto &out = results.at(inst.get()).out;
+
+      // all pairs
+      for (std::size_t i = 0; i < out.size(); ++i) {
+        for (std::size_t j = i + 1; j < out.size(); ++j) {
+          if (out[i] && out[j]) {
+            auto *left = definingInstructions[i]->getResultOperand();
+            auto *right = definingInstructions[j]->getResultOperand();
+            interferenceGraph->addInterferenceEdge(left, right);
+          }
+        }
+      }
+    }
+  }
+
+  return interferenceGraph;
+}
+
 BitVector LivenessDataflow::transfer(BitVector out, Instruction *inst) {
   BitVector gen(instToIndex.size(), false);
   BitVector kill(instToIndex.size(), false);

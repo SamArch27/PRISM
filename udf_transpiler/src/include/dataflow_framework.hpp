@@ -134,9 +134,7 @@ void DataflowFramework<T, forward>::runBackwards() {
     }
 
     if (results[basicBlock->getInitiator()].in != oldIn) {
-      std::cout << "Add to worklist: ";
       for (auto *pred : basicBlock->getPredecessors()) {
-        std::cout << *pred << ",";
         worklist.insert(pred);
       }
     }

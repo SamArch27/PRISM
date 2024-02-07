@@ -69,10 +69,46 @@ private:
   Map<BasicBlock *, Set<const Variable *>> liveOut;
 };
 
+class InterferenceGraph {
+public:
+  void addInterferenceEdge(const Variable *left, const Variable *right) {
+    edge[left].insert(right);
+  }
+
+  bool interferes(const Variable *left, const Variable *right) {
+    auto &leftEdges = edge[left];
+    auto &rightEdges = edge[right];
+    return leftEdges.find(right) != leftEdges.end() ||
+           rightEdges.find(left) != rightEdges.end();
+  }
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const InterferenceGraph &interferenceGraph) {
+    interferenceGraph.print(os);
+    return os;
+  }
+
+private:
+  void print(std::ostream &os) const {
+    os << "digraph cfg {" << std::endl;
+    for (const auto &[var, others] : edge) {
+      os << "\t" << var->getName() << " [label=\"" << var->getName() << "\"];";
+      for (const auto *other : others) {
+        os << "\t" << var->getName() << " -> " << other->getName()
+           << " [dir=none];" << std::endl;
+      }
+    }
+    os << "}" << std::endl;
+  }
+
+  Map<const Variable *, Set<const Variable *>> edge;
+};
+
 class LivenessDataflow : public DataflowFramework<BitVector, false> {
 public:
   LivenessDataflow(Function &f) : DataflowFramework(f) {}
   Own<Liveness> computeLiveness() const;
+  Own<InterferenceGraph> computeInterfenceGraph() const;
 
 protected:
   BitVector transfer(BitVector out, Instruction *inst) override;

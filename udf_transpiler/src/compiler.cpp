@@ -935,13 +935,10 @@ void Compiler::renameVariablesToSSA(Function &f,
 void Compiler::optimize(Function &f) {
   mergeBasicBlocks(f);
   convertToSSAForm(f);
+  std::cout << f << std::endl;
   performCopyPropagation(f);
   std::cout << f << std::endl;
-  LivenessDataflow dataflow(f);
-  dataflow.runAnalysis();
-  auto liveness = dataflow.computeLiveness();
-  std::cout << "Computing liveness!" << std::endl;
-  std::cout << *liveness << std::endl;
+  convertOutOfSSAForm(f);
 }
 
 void Compiler::mergeBasicBlocks(Function &f) {
@@ -1094,6 +1091,17 @@ void Compiler::replaceUsesWith(Function &f, const Variable *toReplace,
       }
     }
   }
+}
+
+void Compiler::convertOutOfSSAForm(Function &f) {
+  LivenessDataflow dataflow(f);
+  dataflow.runAnalysis();
+  auto liveness = dataflow.computeLiveness();
+  // std::cout << "Computing liveness!" << std::endl;
+  // std::cout << *liveness << std::endl;
+  auto interferenceGraph = dataflow.computeInterfenceGraph();
+  std::cout << "Computing interference graph!" << std::endl;
+  std::cout << *interferenceGraph << std::endl;
 }
 
 /**
