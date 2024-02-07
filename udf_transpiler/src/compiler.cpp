@@ -11,6 +11,7 @@
 #include "pg_query.h"
 #include "used_variable_finder.hpp"
 #include "utils.hpp"
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -1118,7 +1119,124 @@ void Compiler::pruneUnusedVariables(Function &f) {
   f.deleteVariables(toDelete);
 }
 
-void Compiler::convertOutOfSSAForm(Function &f) {}
+void Compiler::convertOutOfSSAForm(Function &f) {
+  LivenessDataflow dataflow(f);
+  auto liveness = dataflow.computeLiveness();
+  auto interferenceGraph = dataflow.computeInterfenceGraph();
+
+  Set<const Variable *> marked;
+  OrderedSet<Pair<const Variable *, const Variable *>> deferred;
+  Map<const Variable *, Set<const Variable *>> phiCongruent;
+  for (auto *var : f.getAllVariables()) {
+    phiCongruent[var].insert(var);
+  }
+
+  // for every phi
+  for (auto &block : f.getBasicBlocks()) {
+    for (auto &inst : block->getInstructions()) {
+      if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
+        auto &args = phi->getRHS();
+        // for each pair of arguments
+        for (std::size_t i = 0; i < args.size(); ++i) {
+          auto *x_i = args[i];
+          for (std::size_t j = i + 1; j < args.size(); ++j) {
+            auto *x_j = args[j];
+            if (interferenceGraph->interferes(x_i, x_j)) {
+              // TODO: proceed
+            }
+          }
+        }
+        // for the result variable and each argument variable
+        auto *x_i = phi->getLHS();
+        for (auto *x_j : args) {
+          if (interferenceGraph->interferes(x_i, x_j)) {
+            // TODO: proceed
+          }
+        }
+
+        // for each marked variable, remove all pairs
+        //  which have the marked variable as a component from deferred
+        for (auto *var : marked) {
+          for (auto it = deferred.begin(); it != deferred.end();) {
+            if (it->first == var || it->second == var) {
+              it = deferred.erase(it);
+            } else {
+              ++it;
+            }
+          }
+        }
+
+        // while there are still deferred elements
+        while (!deferred.empty()) {
+          // find the most frequently occurring variable
+          Counter maxCount = 0;
+          Map<const Variable *, Counter> freqCount;
+          for (auto *var : f.getAllVariables()) {
+            freqCount.insert({var, 0});
+          }
+
+          for (auto &[first, second] : deferred) {
+            freqCount[first]++;
+            freqCount[second]++;
+            maxCount = std::max(maxCount, freqCount[first]);
+            maxCount = std::max(maxCount, freqCount[second]);
+          }
+
+          const Variable *mostFreqVar = nullptr;
+          for (auto &[var, count] : freqCount) {
+            if (count == maxCount) {
+              mostFreqVar = var;
+              break;
+            }
+          }
+          ASSERT(mostFreqVar != nullptr,
+                 "Error, incorrectly retrieved most frequent element!");
+
+          // add it to the marked set
+          marked.insert(mostFreqVar);
+
+          // remove all pairs containing it from the deferred set
+          for (auto it = deferred.begin(); it != deferred.end();) {
+            if (it->first == mostFreqVar || it->second == mostFreqVar) {
+              it = deferred.erase(it);
+            } else {
+              ++it;
+            }
+          }
+        }
+
+        for (auto *x : marked) {
+          // TODO:
+          // 1. Insert x' = x at the appropriate program point
+          // 2. Update the phi to use x' instead of x
+          // 3. Modify the interference graph
+        }
+
+        // Make all variables in the phi belong to the same phi congruence class
+        Vec<const Variable *> variables = phi->getRHS();
+        variables.push_back(phi->getLHS());
+        for (auto *x : variables) {
+          for (auto *y : variables) {
+            phiCongruent[x].insert(y);
+          }
+        }
+      }
+    }
+  }
+
+  // remove every phi
+  for (auto &block : f.getBasicBlocks()) {
+    auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end();) {
+      auto *inst = it->get();
+      if (dynamic_cast<const PhiNode *>(inst)) {
+        it = block->removeInst(inst);
+      } else {
+        ++it;
+      }
+    }
+  }
+}
 
 /**
  * Generate code for a function

@@ -481,6 +481,7 @@ public:
     return labels;
   }
 
+  // TODO: Handle deletion of argument variables
   void deleteVariables(const Set<const Variable *> &toDelete) {
     for (auto it = variables.begin(); it != variables.end();) {
       // remove the variable if its in the set to delete
