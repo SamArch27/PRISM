@@ -2,10 +2,12 @@
 #include "aggify_code_generator.hpp"
 #include "aggify_dfa.hpp"
 #include "cfg_code_generator.hpp"
+#include "dominator_dataflow.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
 #include "file.hpp"
+#include "liveness_dataflow.hpp"
 #include "pg_query.h"
 #include "used_variable_finder.hpp"
 #include "utils.hpp"
@@ -224,7 +226,7 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
   // create a new function out of the orginal with empty basic blocks
   Function cursorLoopFunction(function);
   buildCursorLoopCFG(cursorLoopFunction, cursorLoopJson);
-  cursorLoopFunction.mergeBasicBlocks();
+  optimize(cursorLoopFunction);
 
   AggifyDFA aggifyDFA(cursorLoopFunction);
 
@@ -311,7 +313,7 @@ BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
 
 String Compiler::getJsonExpr(const json &json) {
   return json["PLpgSQL_expr"]["query"];
-};
+}
 
 List<json> Compiler::getJsonList(const json &body) {
   List<json> res;
@@ -319,12 +321,14 @@ List<json> Compiler::getJsonList(const json &body) {
     res.push_back(statement);
   }
   return res;
-};
+}
 
 void Compiler::buildCursorLoopCFG(Function &function, const json &ast) {
   const auto &body = ast["body"];
   auto *entryBlock = function.makeBasicBlock("entry");
   auto *functionExitBlock = function.makeBasicBlock("exit");
+  auto exitInst = Make<ExitInst>();
+  functionExitBlock->addInstruction(std::move(exitInst));
 
   // Get the statements from the body
   auto statements = getJsonList(body);
@@ -342,6 +346,8 @@ void Compiler::buildCFG(Function &function, const json &ast) {
 
   auto *entryBlock = function.makeBasicBlock("entry");
   auto *functionExitBlock = function.makeBasicBlock("exit");
+  auto exitInst = Make<ExitInst>();
+  functionExitBlock->addInstruction(std::move(exitInst));
 
   // Create a "declare" BasicBlock with all declarations
   auto declareBlock = function.makeBasicBlock();
@@ -366,7 +372,7 @@ void Compiler::buildCFG(Function &function, const json &ast) {
 CompilationResult Compiler::run() {
 
   auto asts = parseJson();
-  COUT << asts << ENDL;
+  std::cout << asts << std::endl;
   auto functions = getFunctions();
 
   auto header = "PLpgSQL_function";
@@ -398,8 +404,7 @@ CompilationResult Compiler::run() {
         continue;
       }
 
-      String variableType =
-          variable["datatype"]["PLpgSQL_type"]["typname"];
+      String variableType = variable["datatype"]["PLpgSQL_type"]["typname"];
 
       if (variableType == "UNKNOWN") {
         if (function.hasBinding(variableName)) {
@@ -420,9 +425,8 @@ CompilationResult Compiler::run() {
         auto varType = getTypeFromPostgresName(variableType);
         String defaultVal =
             variable.contains("default_val")
-                ? variable["default_val"]["PLpgSQL_expr"]["query"]
-                      .get<String>()
-                : varType->defaultValue(true);
+                ? variable["default_val"]["PLpgSQL_expr"]["query"].get<String>()
+                : varType->getDefaultValue(true);
         function.addVariable(variableName, std::move(varType),
                              !variable.contains("default_val"));
         pendingInitialization.emplace_back(variableName, defaultVal);
@@ -439,11 +443,11 @@ CompilationResult Compiler::run() {
 
     buildCFG(function, ast);
 
-    function.mergeBasicBlocks();
+    optimize(function);
 
     destroyDuckDBContext();
 
-    COUT << function << ENDL;
+    std::cout << function << std::endl;
     auto res = generateCode(function);
     codeRes.code += res.code;
     codeRes.registration += res.registration;
@@ -482,7 +486,7 @@ void Compiler::makeDuckDBContext(const Function &function) {
     }
     createTableString << name << " " << *type;
     insertTableString << "(NULL) ";
-    insertTableSecondRow << type->defaultValue(true);
+    insertTableSecondRow << type->getDefaultValue(true);
   }
   createTableString << ");";
   insertTableString << "),";
@@ -507,8 +511,21 @@ void Compiler::makeDuckDBContext(const Function &function) {
   }
 }
 
+Own<SelectExpression>
+Compiler::buildReplacedExpression(Function &f, const SelectExpression *original,
+                                  const Variable *oldVar,
+                                  const Variable *newVar) {
+  auto replacedText = original->getRawSQL();
+  std::regex wordRegex(oldVar->getName());
+  replacedText = std::regex_replace(replacedText, wordRegex, newVar->getName());
+  return bindExpression(f, replacedText)->clone();
+}
+
 Own<SelectExpression> Compiler::bindExpression(const Function &function,
                                                const String &expr) {
+  destroyDuckDBContext();
+  makeDuckDBContext(function);
+
   String selectExpressionCommand;
   if (toUpper(expr).find("SELECT") == String::npos)
     selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
@@ -520,7 +537,6 @@ Own<SelectExpression> Compiler::bindExpression(const Function &function,
   }
   auto clientContext = connection->context.get();
   clientContext->config.enable_optimizer = true;
-  // connectionContext->config.disableStatisticsPropagation = true;
   auto &config = duckdb::DBConfig::GetConfig(*clientContext);
   std::set<duckdb::OptimizerType> disable_optimizers_should_delete;
 
@@ -547,14 +563,20 @@ Own<SelectExpression> Compiler::bindExpression(const Function &function,
     }
 
     destroyDuckDBContext();
-
     EXCEPTION(e.what());
   }
 
   duckdb::UsedVariableFinder usedVariableFinder("tmp", plannerBinder);
   usedVariableFinder.VisitOperator(*boundExpression);
+
+  // for each used variable, bind it to a Variable*
+  Vec<const Variable *> usedVariables;
+  for (const auto &varName : usedVariableFinder.usedVariables) {
+    usedVariables.push_back(function.getBinding(varName));
+  }
+
   return Make<SelectExpression>(expr, std::move(boundExpression),
-                                usedVariableFinder.usedVariables);
+                                usedVariables);
 }
 
 json Compiler::parseJson() const {
@@ -666,8 +688,7 @@ Compiler::StringPair Compiler::unpackAssignment(const String &assignment) {
   return std::make_pair(matches.prefix(), matches.suffix());
 }
 
-Opt<Compiler::WidthScale>
-Compiler::getDecimalWidthScale(const String &type) {
+Opt<Compiler::WidthScale> Compiler::getDecimalWidthScale(const String &type) {
   std::regex decimalPattern("DECIMAL\\((\\d+),(\\d+)\\)",
                             std::regex_constants::icase);
   std::smatch decimalMatch;
@@ -689,12 +710,12 @@ Own<Type> Compiler::getTypeFromPostgresName(const String &name) const {
     auto widthScale = getDecimalWidthScale(resolvedName);
     if (widthScale) {
       auto [width, scale] = *widthScale;
-      return Make<DecimalType>(tag, width, scale);
+      return Make<Type>(true, width, scale, tag);
     } else {
-      return Make<DecimalType>(tag);
+      return Make<Type>(true, std::nullopt, std::nullopt, tag);
     }
   } else {
-    return Make<NonDecimalType>(tag);
+    return Make<Type>(false, std::nullopt, std::nullopt, tag);
   }
 }
 
@@ -714,6 +735,368 @@ String Compiler::resolveTypeName(const String &type) const {
                     matches, typeRegex);
   ASSERT(matches.size() == 4, "Invalid type format.");
   return matches[0];
+}
+
+void Compiler::insertPhiFunctions(
+    Function &f, const Own<DominanceFrontier> &dominanceFrontier) {
+
+  // For each variable, when it is assigned in a block, map to the block
+  Map<const Variable *, Set<BasicBlock *>> varToBlocksAssigned;
+
+  for (auto &block : f.getBasicBlocks()) {
+    for (auto &inst : block->getInstructions()) {
+      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+        auto *var = assign->getLHS();
+        varToBlocksAssigned[var].insert(block.get());
+      }
+    }
+  }
+
+  // Initialize worklists
+  Set<BasicBlock *> worklist;
+  Map<BasicBlock *, const Variable *> inWorklist;
+  Map<BasicBlock *, const Variable *> inserted;
+  for (auto &block : f.getBasicBlocks()) {
+    inserted[block.get()] = nullptr;
+    inWorklist[block.get()] = nullptr;
+  }
+
+  // for each variable
+  for (auto *var : f.getAllVariables()) {
+    // add to the worklist each block where it has been assigned
+    for (auto *block : varToBlocksAssigned[var]) {
+      inWorklist[block] = var;
+      worklist.insert(block);
+    }
+    while (!worklist.empty()) {
+      auto *block = *worklist.begin();
+      worklist.erase(block);
+
+      for (auto *m : dominanceFrontier->getFrontier(block)) {
+        if (inserted[m] != var) {
+          // place a phi instruction for var at m
+          auto numPreds = m->getPredecessors().size();
+          auto args = Vec<const Variable *>(numPreds, var);
+          auto phiInst = Make<PhiNode>(var, args);
+          m->insertBefore(m->getInitiator(), std::move(phiInst));
+          // update worklists
+          inserted[m] = var;
+          if (inWorklist[m] != var) {
+            inWorklist[m] = var;
+            worklist.insert(m);
+          }
+        }
+      }
+    }
+  }
+}
+
+void Compiler::renameVariablesToSSA(Function &f,
+                                    const Own<DominatorTree> &dominatorTree) {
+
+  Map<const Variable *, Counter> counter;
+  Map<const Variable *, Stack<Counter>> stacks;
+
+  // initialize data structures
+  for (auto *var : f.getAllVariables()) {
+    counter.insert({var, 0});
+    stacks.insert({var, Stack<Counter>({0})});
+  }
+
+  auto getOriginalName = [](const String &ssaName) {
+    return ssaName.substr(0, ssaName.find_first_of("_"));
+  };
+
+  auto accessCounter = [&](const Variable *var) -> Counter & {
+    return counter.at(f.getBinding(getOriginalName(var->getName())));
+  };
+
+  auto accessStack = [&](const Variable *var) -> Stack<Counter> & {
+    return stacks.at(f.getBinding(getOriginalName(var->getName())));
+  };
+
+  auto predNumber = [&](BasicBlock *child, BasicBlock *parent) {
+    const auto &preds = child->getPredecessors();
+    auto it = preds.find(parent);
+    ASSERT(it != preds.end(),
+           "Error! No predecessor found with predNumber function!");
+    return std::distance(preds.begin(), it);
+  };
+
+  auto renameVariable = [&](const Variable *var, bool updateVariable) {
+    // Map LHS variable to new SSA name
+    auto i = updateVariable ? accessCounter(var) : accessStack(var).top();
+    auto oldName = getOriginalName(var->getName());
+    auto newName = oldName + "_" + std::to_string(i);
+    auto *oldVar = f.getBinding(oldName);
+    f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+
+    // Update stack and counters
+    if (updateVariable) {
+      accessStack(var).push(i);
+      accessCounter(var) = i + 1;
+    }
+    return f.getBinding(newName);
+  };
+
+  auto renameSelectExpression = [&](const SelectExpression *expr) {
+    // For each variable, map it to its SSA variable
+    Map<String, String> oldToNew;
+
+    // Map RHS variables to new SSA variable names
+    for (auto *var : expr->getUsedVariables()) {
+      auto i = accessStack(var).top();
+      auto newName = getOriginalName(var->getName()) + "_" + std::to_string(i);
+      oldToNew.insert({var->getName(), newName});
+    }
+
+    // Map old variables to new ones
+    Map<const Variable *, const Variable *> varMapping;
+    for (auto &[oldName, newName] : oldToNew) {
+      auto *oldVar = f.getBinding(oldName);
+      f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+      varMapping.insert({oldVar, f.getBinding(newName)});
+    }
+
+    // For every variable, rebind the select expression with its new equivalent
+    Own<SelectExpression> replacedExpression = expr->clone();
+    for (auto &[oldVar, newVar] : varMapping) {
+      replacedExpression =
+          buildReplacedExpression(f, replacedExpression.get(), oldVar, newVar);
+    }
+    return replacedExpression;
+  };
+
+  std::function<void(BasicBlock *)> rename = [&](BasicBlock *block) -> void {
+    const auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+      if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
+        auto newPhi =
+            Make<PhiNode>(renameVariable(phi->getLHS(), true), phi->getRHS());
+        it = block->replaceInst(it->get(), std::move(newPhi));
+      } else if (auto *returnInst =
+                     dynamic_cast<const ReturnInst *>(it->get())) {
+        auto newReturn =
+            Make<ReturnInst>(renameSelectExpression(returnInst->getExpr()),
+                             returnInst->getExitBlock());
+        it = block->replaceInst(it->get(), std::move(newReturn));
+      } else if (auto *branchInst =
+                     dynamic_cast<const BranchInst *>(it->get())) {
+        if (branchInst->isUnconditional()) {
+          continue;
+        }
+        auto newBranch =
+            Make<BranchInst>(branchInst->getIfTrue(), branchInst->getIfFalse(),
+                             renameSelectExpression(branchInst->getCond()));
+        it = block->replaceInst(it->get(), std::move(newBranch));
+      } else if (auto *assign = dynamic_cast<const Assignment *>(it->get())) {
+        auto newAssignment =
+            Make<Assignment>(renameVariable(assign->getLHS(), true),
+                             renameSelectExpression(assign->getRHS()));
+        it = block->replaceInst(it->get(), std::move(newAssignment));
+      } else if (dynamic_cast<const ExitInst *>(it->get())) {
+        // Ignore exit block
+        continue;
+      } else {
+        ERROR("Unhandled instruction type during SSA renaming!");
+      }
+    }
+
+    // for each successor
+    for (auto *succ : block->getSuccessors()) {
+      auto j = predNumber(succ, block);
+      // for each phi instruction in succ
+      auto &instructions = succ->getInstructions();
+      for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+        auto &inst = *it;
+        if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
+          auto newArguments = phi->getRHS();
+          newArguments[j] = renameVariable(phi->getRHS()[j], false);
+          auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
+          it = succ->replaceInst(inst.get(), std::move(newPhi));
+        }
+      }
+    }
+
+    for (const auto &childLabel :
+         dominatorTree->getChildren(block->getLabel())) {
+      rename(f.getBlockFromLabel(childLabel));
+    }
+
+    // for each assignment, pop the stack
+    for (auto &inst : block->getInstructions()) {
+      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+        accessStack(assign->getLHS()).pop();
+      }
+    }
+  };
+  rename(f.getEntryBlock());
+}
+
+void Compiler::optimize(Function &f) {
+  mergeBasicBlocks(f);
+  // std::cout << f << std::endl;
+  convertToSSAForm(f);
+  // std::cout << f << std::endl;
+  performCopyPropagation(f);
+  std::cout << f << std::endl;
+  LivenessDataflow dataflow(f);
+  dataflow.runAnalysis();
+  auto liveness = dataflow.computeLiveness();
+  std::cout << "Computing liveness!" << std::endl;
+  std::cout << *liveness << std::endl;
+}
+
+void Compiler::mergeBasicBlocks(Function &f) {
+  f.visitBFS([&](BasicBlock *block) {
+    while (true) {
+
+      // skip if we are entry or exit
+      if (block == f.getEntryBlock() || block == f.getExitBlock()) {
+        return;
+      }
+      // if we have an unique successor
+      auto successors = block->getSuccessors();
+      if (successors.size() != 1) {
+        return;
+      }
+      auto *uniqueSucc = *successors.begin();
+      // that isn't entry/exit
+      if (uniqueSucc == f.getEntryBlock() || uniqueSucc == f.getExitBlock()) {
+        return;
+      }
+      // and we are the unique predecessor
+      if (uniqueSucc->getPredecessors().size() != 1) {
+        return;
+      }
+
+      // merge the two blocks
+      block->appendBasicBlock(uniqueSucc);
+
+      // finally remove the basic block from the function
+      f.removeBasicBlock(uniqueSucc);
+    }
+  });
+}
+
+void Compiler::convertToSSAForm(Function &f) {
+  DominatorDataflow dataflow(f);
+  dataflow.runAnalysis();
+  auto dominators = dataflow.computeDominators();
+
+  // print dominator info
+  std::cout << "\nDominators:" << std::endl;
+  std::cout << *dominators << std::endl;
+
+  auto dominanceFrontier = dataflow.computeDominanceFrontier(dominators);
+
+  // print dominance frontier
+  std::cout << "\nDominance Frontier:" << std::endl;
+  std::cout << *dominanceFrontier << std::endl;
+
+  auto dominatorTree = dataflow.computeDominatorTree(dominators);
+
+  // print dominator tree
+  std::cout << *dominatorTree << std::endl;
+
+  insertPhiFunctions(f, dominanceFrontier);
+  renameVariablesToSSA(f, dominatorTree);
+}
+
+void Compiler::performCopyPropagation(Function &f) {
+  for (auto &basicBlock : f.getBasicBlocks()) {
+    auto &instructions = basicBlock->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+      auto *inst = it->get();
+      // check for x = y assignment
+      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+        auto *lhs = assign->getLHS();
+        auto *rhs = assign->getRHS();
+
+        // skip SQL expressions
+        if (rhs->isSQLExpression()) {
+          continue;
+        }
+
+        // Try converting the RHS to a variable
+        auto *var = f.getBinding(rhs->getRawSQL());
+        if (var == nullptr) {
+          continue;
+        }
+
+        renameVariableGlobally(f, lhs, var);
+        it = std::prev(basicBlock->removeInst(inst));
+
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+        if (!phi->hasIdenticalArguments()) {
+          continue;
+        }
+
+        renameVariableGlobally(f, phi->getLHS(), phi->getRHS().front());
+        it = std::prev(basicBlock->removeInst(inst));
+      }
+    }
+  }
+}
+
+void Compiler::renameVariableGlobally(Function &f, const Variable *toReplace,
+                                      const Variable *newVar) {
+  for (auto &block : f.getBasicBlocks()) {
+    auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+      auto *inst = it->get();
+
+      // skip the instruction if it doesn't use the variable we are replacing
+      const auto &ops = inst->getOperands();
+      if (std::find(ops.begin(), ops.end(), toReplace) == ops.end()) {
+        continue;
+      }
+
+      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+        auto *rhs = assign->getRHS();
+        // replace RHS with new expression
+        auto newAssign = Make<Assignment>(
+            assign->getLHS(),
+            buildReplacedExpression(f, rhs, toReplace, newVar));
+
+        it = std::prev(block->replaceInst(it->get(), std::move(newAssign)));
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
+        auto newArguments = phi->getRHS();
+        for (auto &arg : newArguments) {
+          if (arg == toReplace) {
+            arg = newVar;
+          }
+        }
+
+        auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
+        it = std::prev(block->replaceInst(it->get(), std::move(newPhi)));
+
+      } else if (auto *returnInst =
+                     dynamic_cast<const ReturnInst *>(it->get())) {
+        if (!returnInst->getExpr()->usesVariable(toReplace)) {
+          continue;
+        }
+        auto newReturn =
+            Make<ReturnInst>(buildReplacedExpression(f, returnInst->getExpr(),
+                                                     toReplace, newVar),
+                             returnInst->getExitBlock());
+        it = std::prev(block->replaceInst(it->get(), std::move(newReturn)));
+      } else if (auto *branchInst =
+                     dynamic_cast<const BranchInst *>(it->get())) {
+        if (branchInst->isUnconditional()) {
+          continue;
+        }
+        if (!branchInst->getCond()->usesVariable(toReplace)) {
+          continue;
+        }
+        auto newBranch =
+            Make<BranchInst>(branchInst->getIfTrue(), branchInst->getIfFalse(),
+                             buildReplacedExpression(f, branchInst->getCond(),
+                                                     toReplace, newVar));
+        it = std::prev(block->replaceInst(it->get(), std::move(newBranch)));
+      }
+    }
+  }
 }
 
 /**

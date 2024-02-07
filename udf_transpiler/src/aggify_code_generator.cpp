@@ -33,8 +33,8 @@ Vec<String> AggifyCodeGenerator::getOrginalCursorLoopCol(const json &ast) {
   return res;
 }
 
-AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const json &ast,
-                                        const AggifyDFA &dfaResult, size_t id) {
+Vec<String> AggifyCodeGenerator::run(const Function &func, const json &ast,
+                                     const AggifyDFA &dfaResult, size_t id) {
   std::set<String> cursorVars;
   for (const json &vars : ast["var"]["PLpgSQL_row"]["fields"]) {
     cursorVars.insert(vars["name"]);
@@ -119,7 +119,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const j
     basicBlockCodeGenerator(bbUniq.get(), func, function_info);
   }
 
-  String body = vectorJoin(container.basicBlockCodes, "\n");
+  String body = joinVector(container.basicBlockCodes, "\n");
 
   fmt::dynamic_format_arg_store<fmt::format_context> store;
   store.push_back(fmt::arg("id", id));

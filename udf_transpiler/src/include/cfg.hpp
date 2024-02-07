@@ -6,12 +6,13 @@
 
 #pragma once
 
+#include "compiler_fmt/core.h"
 #include "duckdb/main/connection.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "types.hpp"
 #include "utils.hpp"
+#include <algorithm>
 #include <functional>
-#include "compiler_fmt/core.h"
 #include <json.hpp>
 #include <memory>
 #include <optional>
@@ -25,39 +26,6 @@
 using LogicalPlan = duckdb::LogicalOperator;
 
 std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr);
-
-class SelectExpression {
-public:
-
-  SelectExpression(const String &rawSQL, Shared<LogicalPlan> logicalPlan,
-                   const Vec<String> &usedVariables)
-
-      : rawSQL(rawSQL), logicalPlan(logicalPlan), usedVariables(usedVariables) {
-  }
-
-  Own<SelectExpression> clone() const {
-    return Make<SelectExpression>(rawSQL, logicalPlan, usedVariables);
-  }
-
-  friend std::ostream &operator<<(std::ostream &os,
-                                  const SelectExpression &expr) {
-    expr.print(os);
-    return os;
-  }
-
-  String getRawSQL() const { return rawSQL; }
-  const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
-  const Vec<String> &getUsedVariables() const { return usedVariables; }
-
-protected:
-  void print(std::ostream &os) const { os << rawSQL; }
-
-private:
-  String rawSQL;
-  Shared<LogicalPlan> logicalPlan;
-  duckdb::ClientContext *clientContext;
-  Vec<String> usedVariables;
-};
 
 class Variable {
 public:
@@ -84,29 +52,101 @@ private:
   bool null;
 };
 
+class SelectExpression {
+public:
+  SelectExpression(const String &rawSQL, Shared<LogicalPlan> logicalPlan,
+                   const Vec<const Variable *> &usedVariables)
+
+      : rawSQL(rawSQL), logicalPlan(logicalPlan), usedVariables(usedVariables) {
+  }
+
+  Own<SelectExpression> clone() const {
+    return Make<SelectExpression>(rawSQL, logicalPlan, usedVariables);
+  }
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const SelectExpression &expr) {
+    expr.print(os);
+    return os;
+  }
+
+  bool usesVariable(const Variable *var) const {
+    return std::find(usedVariables.begin(), usedVariables.end(), var) !=
+           usedVariables.end();
+  }
+
+  bool isSQLExpression() const {
+    return toUpper(rawSQL).find(" FROM ") != String::npos;
+  }
+
+  String getRawSQL() const { return rawSQL; }
+  const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
+  const Vec<const Variable *> &getUsedVariables() const {
+    return usedVariables;
+  }
+
+protected:
+  void print(std::ostream &os) const { os << rawSQL; }
+
+private:
+  String rawSQL;
+  Shared<LogicalPlan> logicalPlan;
+  duckdb::ClientContext *clientContext;
+  Vec<const Variable *> usedVariables;
+};
+
 class BasicBlock;
 
 class Instruction {
 public:
+  Instruction() {}
+
+  virtual ~Instruction() = default;
+
   friend std::ostream &operator<<(std::ostream &os, const Instruction &inst) {
     inst.print(os);
     return os;
   }
   virtual Own<Instruction> clone() const = 0;
   virtual bool isTerminator() const = 0;
+
+  virtual const Variable *getResultOperand() const = 0;
+  virtual Vec<const Variable *> getOperands() const = 0;
   virtual Vec<BasicBlock *> getSuccessors() const = 0;
+  void setParent(BasicBlock *parentBlock) { parent = parentBlock; }
+  BasicBlock *getParent() { return parent; }
 
 protected:
   virtual void print(std::ostream &os) const = 0;
+
+private:
+  BasicBlock *parent;
 };
 
 class PhiNode : public Instruction {
 public:
   PhiNode(const Variable *var, const Vec<const Variable *> &arguments)
-      : var(var), arguments(arguments) {}
+      : Instruction(), var(var), arguments(arguments) {}
+
+  ~PhiNode() override = default;
 
   Own<Instruction> clone() const override {
     return Make<PhiNode>(var, arguments);
+  }
+
+  const Variable *getResultOperand() const override { return var; }
+
+  Vec<const Variable *> getOperands() const override { return arguments; }
+
+  const Variable *getLHS() const { return var; }
+
+  const Vec<const Variable *> &getRHS() const { return arguments; }
+
+  bool hasIdenticalArguments() const {
+    auto *firstArgument = arguments.front();
+    return std::all_of(
+        arguments.begin(), arguments.end(),
+        [&](const Variable *arg) { return arg == firstArgument; });
   }
 
   bool isTerminator() const override { return false; }
@@ -120,7 +160,7 @@ public:
 
 protected:
   void print(std::ostream &os) const override {
-    os << *var << " = φ(";
+    os << *var << " = Φ(";
     bool first = true;
     for (auto *arg : arguments) {
       if (first) {
@@ -128,7 +168,7 @@ protected:
       } else {
         os << ",";
       }
-      os << arg;
+      os << *arg;
     }
     os << ")";
   }
@@ -143,12 +183,20 @@ public:
   Assignment(const Variable *var, Own<SelectExpression> expr)
       : Instruction(), var(var), expr(std::move(expr)) {}
 
+  ~Assignment() override = default;
+
   Own<Instruction> clone() const override {
     return Make<Assignment>(var, expr->clone());
   }
 
-  const Variable *getVar() const { return var; }
-  const SelectExpression *getExpr() const { return expr.get(); }
+  const Variable *getResultOperand() const override { return var; }
+
+  Vec<const Variable *> getOperands() const override {
+    return expr->getUsedVariables();
+  }
+
+  const Variable *getLHS() const { return var; }
+  const SelectExpression *getRHS() const { return expr.get(); }
   friend std::ostream &operator<<(std::ostream &os,
                                   const Assignment &assignment) {
     assignment.print(os);
@@ -159,7 +207,7 @@ public:
 
 protected:
   void print(std::ostream &os) const override {
-    os << *var << " = " << *getExpr();
+    os << *var << " = " << *getRHS();
   }
 
 private:
@@ -191,6 +239,7 @@ public:
   void addInstruction(Own<Instruction> inst) {
     // if we are inserting a terminator instruction then we update the
     // successor/predecessors appropriately
+    inst->setParent(this);
     if (inst->isTerminator()) {
       for (auto *succBlock : inst->getSuccessors()) {
         addSuccessor(succBlock);
@@ -200,8 +249,30 @@ public:
     instructions.emplace_back(std::move(inst));
   }
 
-  void insertBefore(const InstIterator iter, Own<Instruction> inst) {
-    instructions.insert(iter, std::move(inst));
+  List<Own<Instruction>>::iterator insertBefore(const Instruction *targetInst,
+                                                Own<Instruction> newInst) {
+
+    auto it = std::find_if(
+        instructions.begin(), instructions.end(),
+        [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
+    ASSERT((it != instructions.end()),
+           "Instruction must exist when performing insertBefore()!");
+    newInst->setParent(this);
+    return instructions.emplace(it, std::move(newInst));
+  }
+
+  List<Own<Instruction>>::iterator removeInst(const Instruction *targetInst) {
+    auto it = std::find_if(
+        instructions.begin(), instructions.end(),
+        [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
+    return instructions.erase(it);
+  }
+
+  List<Own<Instruction>>::iterator replaceInst(const Instruction *targetInst,
+                                               Own<Instruction> newInst) {
+    auto it = insertBefore(targetInst, std::move(newInst));
+    removeInst(targetInst);
+    return it;
   }
 
   const ListOwn<Instruction> &getInstructions() const { return instructions; }
@@ -215,6 +286,8 @@ public:
     }
   }
 
+  Instruction *getInitiator() { return instructions.begin()->get(); }
+
   Instruction *getTerminator() {
     auto last = std::prev(instructions.end());
     ASSERT((*last)->isTerminator(),
@@ -226,9 +299,10 @@ public:
 
 protected:
   void print(std::ostream &os) const {
-    os << label << ":" << ENDL;
+    os << label << ":" << std::endl;
     for (const auto &inst : instructions) {
-      os << *inst << ENDL;
+
+      os << *inst << std::endl;
     }
   }
 
@@ -239,13 +313,44 @@ private:
   Set<BasicBlock *> successors;
 };
 
+class ExitInst : public Instruction {
+public:
+  ExitInst() : Instruction() {}
+
+  ~ExitInst() override = default;
+
+  Own<Instruction> clone() const override { return Make<ExitInst>(); }
+
+  const Variable *getResultOperand() const override { return nullptr; }
+
+  Vec<const Variable *> getOperands() const override { return {}; }
+
+  friend std::ostream &operator<<(std::ostream &os, const ExitInst &exitInst) {
+    exitInst.print(os);
+    return os;
+  }
+
+protected:
+  void print(std::ostream &os) const override { os << "EXIT;"; }
+  bool isTerminator() const override { return true; }
+  Vec<BasicBlock *> getSuccessors() const override { return {}; }
+};
+
 class ReturnInst : public Instruction {
 public:
   ReturnInst(Own<SelectExpression> expr, BasicBlock *exitBlock)
       : Instruction(), expr(std::move(expr)), exitBlock(exitBlock) {}
 
+  ~ReturnInst() override = default;
+
   Own<Instruction> clone() const override {
     return Make<ReturnInst>(expr->clone(), exitBlock);
+  }
+
+  const Variable *getResultOperand() const override { return nullptr; }
+
+  Vec<const Variable *> getOperands() const override {
+    return expr->getUsedVariables();
   }
 
   friend std::ostream &operator<<(std::ostream &os,
@@ -256,7 +361,8 @@ public:
 
   bool isTerminator() const override { return true; }
   Vec<BasicBlock *> getSuccessors() const override { return {exitBlock}; }
-  SelectExpression *getExpr() const { return expr.get(); }
+  const SelectExpression *getExpr() const { return expr.get(); }
+  BasicBlock *getExitBlock() const { return exitBlock; }
 
 protected:
   void print(std::ostream &os) const override {
@@ -278,11 +384,23 @@ public:
       : Instruction(), ifTrue(ifTrue), ifFalse(nullptr), cond(),
         conditional(false) {}
 
+  ~BranchInst() override = default;
+
   Own<Instruction> clone() const override {
     if (isConditional()) {
       return Make<BranchInst>(ifTrue, ifFalse, cond->clone());
     } else {
       return Make<BranchInst>(ifTrue);
+    }
+  }
+
+  const Variable *getResultOperand() const override { return nullptr; }
+
+  Vec<const Variable *> getOperands() const override {
+    if (isConditional()) {
+      return cond->getUsedVariables();
+    } else {
+      return {};
     }
   }
 
@@ -307,7 +425,7 @@ public:
 
   BasicBlock *getIfTrue() const { return ifTrue; }
   BasicBlock *getIfFalse() const { return ifFalse; }
-  SelectExpression *getCond() const { return cond.get(); }
+  const SelectExpression *getCond() const { return cond.get(); }
 
 protected:
   void print(std::ostream &os) const override {
@@ -340,6 +458,8 @@ public:
   VecOwn<BasicBlock> basicBlocks;
   // more info
 };
+
+class DominatorTree;
 
 class Function {
 public:
@@ -375,9 +495,22 @@ public:
     return os;
   }
 
+  template <typename Iter>
+  static Vec<String> getBasicBlockLabels(Iter it, Iter end) {
+    Vec<String> labels;
+    labels.reserve(std::distance(it, end));
+    for (; it != end; ++it) {
+      auto *block = *it;
+      labels.push_back(block->getLabel());
+    }
+    return labels;
+  }
+
   BasicBlock *makeBasicBlock(const String &label) {
     basicBlocks.emplace_back(Make<BasicBlock>(label));
-    return basicBlocks.back().get();
+    auto *newBlock = basicBlocks.back().get();
+    labelToBasicBlock.insert({label, newBlock});
+    return newBlock;
   }
 
   BasicBlock *makeBasicBlock() {
@@ -387,14 +520,14 @@ public:
 
   void addArgument(const String &name, Own<Type> type) {
     auto var = Make<Variable>(name, std::move(type));
-    arguments.emplace_back(std::move(var));
-    bindings.emplace(name, arguments.back().get());
+    auto [it, _] = arguments.insert(std::move(var));
+    bindings.emplace(name, it->get());
   }
 
   void addVariable(const String &name, Own<Type> &&type, bool isNULL) {
     auto var = Make<Variable>(name, std::move(type), isNULL);
-    variables.emplace_back(std::move(var));
-    bindings.emplace(name, variables.back().get());
+    auto [it, _] = variables.insert(std::move(var));
+    bindings.emplace(name, it->get());
   }
 
   void addVarInitialization(const Variable *var, Own<SelectExpression> expr) {
@@ -407,8 +540,18 @@ public:
     ++labelNumber;
     return label;
   }
-  const VecOwn<Variable> &getArguments() const { return arguments; }
-  const VecOwn<Variable> &getVariables() const { return variables; }
+  const SetOwn<Variable> &getArguments() const { return arguments; }
+  const SetOwn<Variable> &getVariables() const { return variables; }
+  Set<Variable *> getAllVariables() const {
+    Set<Variable *> allVariables;
+    for (auto &var : variables) {
+      allVariables.insert(var.get());
+    }
+    for (auto &arg : arguments) {
+      allVariables.insert(arg.get());
+    }
+    return allVariables;
+  }
   VecOwn<Assignment> takeDeclarations() { return std::move(declarations); }
 
   String getFunctionName() const { return functionName; }
@@ -427,20 +570,20 @@ public:
 
   const Variable *getBinding(const String &name) const {
     auto cleanedName = getCleanedVariableName(name);
-    ASSERT(
-        hasBinding(cleanedName),
-        fmt::format("Error: Variable {} is not in bindings map.", cleanedName));
+    if (!hasBinding(cleanedName)) {
+      return nullptr;
+    }
     return bindings.at(cleanedName);
   }
 
-  const Map<String, Variable *> &getAllBindings() const {
-    return bindings;
-  }
+  const Map<String, Variable *> &getAllBindings() const { return bindings; }
 
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
   BasicBlock *getExitBlock() { return basicBlocks[1].get(); }
 
-  const VecOwn<BasicBlock> &getAllBasicBlocks() { return basicBlocks; }
+  BasicBlock *getBlockFromLabel(const String &label) {
+    return labelToBasicBlock.at(label);
+  }
 
   void visitBFS(std::function<void(BasicBlock *)> f) {
     Queue<BasicBlock *> q;
@@ -451,10 +594,6 @@ public:
       auto *block = q.front();
       q.pop();
 
-      if (block == getExitBlock()) {
-        continue;
-      }
-
       if (visited.find(block) != visited.end()) {
         continue;
       }
@@ -462,64 +601,8 @@ public:
       visited.insert(block);
       f(block);
 
-      if (block == getExitBlock()) {
-        continue;
-      }
-
       for (auto &succ : block->getSuccessors()) {
         q.push(succ);
-      }
-    }
-  }
-
-  void mergeBasicBlocks() {
-    visitBFS([this](BasicBlock *block) {
-      while (true) {
-
-        // skip if we are entry or exit
-        if (block == getEntryBlock() || block == getExitBlock()) {
-          return;
-        }
-        // if we have an unique successor
-        auto successors = block->getSuccessors();
-        if (successors.size() != 1) {
-          return;
-        }
-        auto *uniqueSucc = *successors.begin();
-        // that isn't entry/exit
-        if (uniqueSucc == getEntryBlock() || uniqueSucc == getExitBlock()) {
-          return;
-        }
-        // and we are the unique predecessor
-        if (uniqueSucc->getPredecessors().size() != 1) {
-          return;
-        }
-
-        // merge the two blocks
-        block->appendBasicBlock(uniqueSucc);
-
-        // finally remove the basic block from the function
-        removeBasicBlock(uniqueSucc);
-      }
-    });
-  }
-
-  void removeBasicBlock(BasicBlock *toRemove) {
-    auto it = basicBlocks.begin();
-    while (it != basicBlocks.end()) {
-      if (it->get() == toRemove) {
-        // make all predecessors not reference this
-        for (auto &pred : toRemove->getPredecessors()) {
-          pred->removeSuccessor(toRemove);
-        }
-        // make all successors not reference this
-        for (auto &succ : toRemove->getSuccessors()) {
-          succ->removePredecessor(toRemove);
-        }
-        // finally erase the block
-        it = basicBlocks.erase(it);
-      } else {
-        ++it;
       }
     }
   }
@@ -529,34 +612,32 @@ public:
 
   // protected:
   void print(std::ostream &os) const {
-    os << "Function Name: " << functionName << ENDL;
-    os << "Return Type: " << *returnType << ENDL;
-    os << "Arguments: " << ENDL;
+    os << "Function Name: " << functionName << std::endl;
+    os << "Return Type: " << *returnType << std::endl;
+    os << "Arguments: " << std::endl;
     for (const auto &argument : arguments) {
-      os << "\t" << *argument << ENDL;
+      os << "\t" << *argument << std::endl;
     }
-    os << "Variables: " << ENDL;
+    os << "Variables: " << std::endl;
     for (const auto &variable : variables) {
-      os << "\t" << *variable << ENDL;
+      os << "\t" << *variable << std::endl;
     }
-    os << "Declarations: " << ENDL;
+    os << "Declarations: " << std::endl;
     for (const auto &declaration : declarations) {
-      os << "\t" << *declaration << ENDL;
+      os << "\t" << *declaration << std::endl;
     }
 
-    os << "Control Flow Graph: \n" << ENDL;
+    os << "Control Flow Graph: \n" << std::endl;
 
-    os << "digraph cfg {" << ENDL;
+    os << "digraph cfg {" << std::endl;
     for (const auto &block : basicBlocks) {
       os << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
-      if (block->getLabel() != "exit") {
-        for (auto *succ : block->getSuccessors()) {
-          os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
-             << ENDL;
-        }
+      for (auto *succ : block->getSuccessors()) {
+        os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
+           << std::endl;
       }
     }
-    os << "}" << ENDL;
+    os << "}" << std::endl;
   }
 
   // void newState() {
@@ -584,6 +665,8 @@ public:
 
   // const Vec<AggifyCodeGeneratorResult> &getCustomAggs() const { return custom_aggs; }
 
+  void removeBasicBlock(BasicBlock *toRemove);
+
 private:
   class CompilationState {
   public:
@@ -593,7 +676,7 @@ private:
     CompilationState(std::size_t _labelNumber, VecOwn<BasicBlock> &_basicBlocks)
         : labelNumber(_labelNumber) {
       for (auto &bb : _basicBlocks) {
-        COUT << "Pushing: " << *bb << ENDL;
+        std::cout << "Pushing: " << *bb << std::endl;
         this->basicBlocks.push_back(std::move(bb));
       }
     }
@@ -602,12 +685,13 @@ private:
   std::size_t labelNumber;
   String functionName;
   Own<Type> returnType;
-  VecOwn<Variable> arguments;
-  VecOwn<Variable> variables;
+  SetOwn<Variable> arguments;
+  SetOwn<Variable> variables;
   VecOwn<Assignment> declarations;
   Map<String, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
   // Vec<AggifyCodeGeneratorResult> custom_aggs;
+  Map<String, BasicBlock *> labelToBasicBlock;
 };
 
 /**

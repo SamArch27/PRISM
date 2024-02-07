@@ -2,12 +2,13 @@
 #pragma once
 
 #include "cfg.hpp"
+#include "compiler_fmt/core.h"
+#include "dominator_dataflow.hpp"
 #include "duckdb/main/connection.hpp"
 #include "duckdb/planner/logical_operator.hpp"
 #include "types.hpp"
 #include "utils.hpp"
 #include <functional>
-#include "compiler_fmt/core.h"
 #include <json.hpp>
 #include <memory>
 #include <optional>
@@ -23,6 +24,9 @@
 /* Compiler */
 
 using json = nlohmann::json;
+
+class DominanceFrontier;
+class DominatorTree;
 
 struct Continuations {
   Continuations(BasicBlock *fallthrough, BasicBlock *loopHeader,
@@ -98,6 +102,8 @@ public:
                            const Continuations &continuations);
   CompilationResult run();
 
+  void optimize(Function &f);
+
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;
   static constexpr std::size_t DECIMAL_SCALE = 3;
@@ -115,6 +121,11 @@ private:
   List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
 
+  void renameVariableGlobally(Function &f, const Variable *toReplace,
+                              const Variable *newVar);
+  Own<SelectExpression>
+  buildReplacedExpression(Function &f, const SelectExpression *original,
+                          const Variable *oldVar, const Variable *newVar);
   Own<SelectExpression> bindExpression(const Function &function,
                                        const String &expression);
   static StringPair unpackAssignment(const String &assignment);
@@ -122,6 +133,14 @@ private:
   static PostgresTypeTag getPostgresTag(const String &name);
   Own<Type> getTypeFromPostgresName(const String &name) const;
   String resolveTypeName(const String &type) const;
+
+  void performCopyPropagation(Function &f);
+  void mergeBasicBlocks(Function &f);
+  void convertToSSAForm(Function &f);
+  void insertPhiFunctions(Function &f,
+                          const Own<DominanceFrontier> &dominanceFrontier);
+  void renameVariablesToSSA(Function &f,
+                            const Own<DominatorTree> &dominatorTree);
 
   duckdb::Connection *connection;
   String programText;

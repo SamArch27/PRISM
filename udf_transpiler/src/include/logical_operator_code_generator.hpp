@@ -28,7 +28,7 @@ public:
   String toString() {
     if (lines.empty())
       return "";
-    return vectorJoin(lines, "\n") + "\n";
+    return joinVector(lines, "\n") + "\n";
   }
 
   String newTmpVar() {
@@ -53,12 +53,10 @@ private:
                                  String &function_name,
                                  Vec<String> &template_args,
                                  const Vec<Expression *> &children,
-                                 CodeGenInfo &insert,
-                                 List<String> &args);
-  static String
-  CodeGenScalarFunction(const ScalarFunctionInfo &function_info,
-                        const Vec<Expression *> &children,
-                        CodeGenInfo &insert);
+                                 CodeGenInfo &insert, std::list<String> &args);
+  static String CodeGenScalarFunction(const ScalarFunctionInfo &function_info,
+                                      const Vec<Expression *> &children,
+                                      CodeGenInfo &insert);
 };
 
 class LogicalOperatorCodeGenerator : public LogicalOperatorVisitor {
@@ -75,5 +73,5 @@ public:
 
 template <>
 String BoundExpressionCodeGenerator::Transpile(const Expression &exp,
-                                                    CodeGenInfo &insert);
+                                               CodeGenInfo &insert);
 } // namespace duckdb

@@ -3,7 +3,7 @@
 bool AggifyDFA::analyzeBasicBlock(BasicBlock *bb, const Function &func) {
   for (auto &inst : bb->getInstructions()) {
     if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-      returnVarName = assign->getVar()->getName();
+      returnVarName = assign->getLHS()->getName();
       return true;
     }
   }

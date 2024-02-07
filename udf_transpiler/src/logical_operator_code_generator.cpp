@@ -13,8 +13,8 @@
 #include "duckdb/planner/logical_operator.hpp"
 #include "duckdb/planner/logical_operator_visitor.hpp"
 #define FMT_HEADER_ONLY
-#include "duckdb/common/enums/expression_type.hpp"
 #include "compiler_fmt/core.h"
+#include "duckdb/common/enums/expression_type.hpp"
 #include "utils.hpp"
 #include <iostream>
 
@@ -49,8 +49,8 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
   int target_width = function_info.width_scale2.first;
   LogicalType source_type = LogicalType::DECIMAL(source_width, source_scale);
   LogicalType target_type = LogicalType::DECIMAL(target_width, target_scale);
-  COUT << source_width << ", " << source_scale << ENDL;
-  COUT << target_width << ", " << target_scale << ENDL;
+  std::cout << source_width << ", " << source_scale << std::endl;
+  std::cout << target_width << ", " << target_scale << std::endl;
   String source_physical =
       ScalarFunctionInfo::DecimalTypeToCppType(source_width, source_scale);
   String target_physical =
@@ -204,7 +204,7 @@ String BoundExpressionCodeGenerator::CodeGenScalarFunction(
     ret += ">";
   }
   ret += "(";
-  ret += listJoin(args, ", ");
+  ret += joinList(args, ", ");
   ret += ")";
   return ret;
 }
@@ -228,7 +228,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp,
     }
     // ERROR(fmt::format("Function {} does not support transpilation yet.",
     // exp.function.name));
-    return fmt::format("[{}({})->{}]", exp.GetName(), listJoin(args, ", "),
+    return fmt::format("[{}({})->{}]", exp.GetName(), joinList(args, ", "),
                        exp.return_type.ToString());
     // throw Exception();
   }
@@ -298,9 +298,8 @@ BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp,
 
 // udf_todo
 template <>
-String
-BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp,
-                                        CodeGenInfo &insert) {
+String BoundExpressionCodeGenerator::Transpile(const BoundCastExpression &exp,
+                                               CodeGenInfo &insert) {
   if (exp.bound_cast.has_function_info) {
     return CodeGenScalarFunction(exp.bound_cast.function_info,
                                  {exp.child.get()}, insert);
@@ -355,7 +354,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundColumnRefExpression &exp,
 
 template <>
 String BoundExpressionCodeGenerator::Transpile(const Expression &exp,
-                                                    CodeGenInfo &insert) {
+                                               CodeGenInfo &insert) {
   switch (exp.GetExpressionClass()) {
   case ExpressionClass::BOUND_FUNCTION:
     return Transpile(exp.Cast<BoundFunctionExpression>(), insert);

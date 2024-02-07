@@ -1,6 +1,7 @@
 #include "types.hpp"
 #include "utils.hpp"
 #include <regex>
+#define FMT_HEADER_ONLY
 
 std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
   switch (tag) {
@@ -29,7 +30,7 @@ std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
     os << "HUGEINT";
     break;
   case DuckdbTypeTag::INTEGER:
-    os << "INTEGER";
+    os << "INT";
     break;
   case DuckdbTypeTag::INTERVAL:
     os << "INTERVAL";
@@ -213,26 +214,8 @@ DuckdbTypeTag Type::lookupDuckdbTag(PostgresTypeTag pgTag) const {
   }
 }
 
-CppTypeTag DecimalType::lookupCppTag(DuckdbTypeTag duckdbTag, int width) const {
-  switch (duckdbTag) {
-  case DuckdbTypeTag::DECIMAL:
-    ASSERT(width > 0, "Width of decimal should be > 0.");
-    if (width <= 4)
-      return CppTypeTag::INT16_T;
-    else if (width <= 9)
-      return CppTypeTag::INT32_T;
-    else if (width <= 18)
-      return CppTypeTag::INT64_T;
-    else if (width <= 38)
-      return CppTypeTag::HUGEINT_T;
-    else
-      ERROR("Width larger than 38.");
-  default:
-    ERROR("Encountered NonDecimalType in DecimalType function");
-  }
-}
-
-CppTypeTag NonDecimalType::lookupCppTag(DuckdbTypeTag duckdbTag) const {
+CppTypeTag Type::lookupCppTag(DuckdbTypeTag duckdbTag, Opt<int> width,
+                              Opt<int> scale) const {
   switch (duckdbTag) {
   case DuckdbTypeTag::BIGINT:
     return CppTypeTag::INT64_T;
@@ -245,7 +228,17 @@ CppTypeTag NonDecimalType::lookupCppTag(DuckdbTypeTag duckdbTag) const {
   case DuckdbTypeTag::DATE:
     return CppTypeTag::INT32_T;
   case DuckdbTypeTag::DECIMAL:
-    ERROR("DECIMAL type in NonDecimalType class!");
+    ASSERT(width > 0, "Width of decimal should be > 0.");
+    if (width <= 4)
+      return CppTypeTag::INT16_T;
+    else if (width <= 9)
+      return CppTypeTag::INT32_T;
+    else if (width <= 18)
+      return CppTypeTag::INT64_T;
+    else if (width <= 38)
+      return CppTypeTag::HUGEINT_T;
+    else
+      ERROR("Width larger than 38.");
   case DuckdbTypeTag::DOUBLE:
     return CppTypeTag::DOUBLE;
   case DuckdbTypeTag::HUGEINT:
@@ -278,5 +271,15 @@ CppTypeTag NonDecimalType::lookupCppTag(DuckdbTypeTag duckdbTag) const {
     ERROR("UUID type is unsupported.");
   case DuckdbTypeTag::VARCHAR:
     return CppTypeTag::STRING_T;
+  }
+}
+
+void Type::print(std::ostream &os) const {
+  if (isDecimal()) {
+    os << fmt::format("DECIMAL({}, {})", *width, *scale);
+  } else {
+    std::stringstream ss;
+    ss << duckdbTag;
+    os << ss.str();
   }
 }

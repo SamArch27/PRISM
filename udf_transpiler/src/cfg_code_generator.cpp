@@ -11,15 +11,15 @@ String CFGCodeGenerator::createReturnValue(const String &retName,
                                            const Type *retType,
                                            const String &retValue) {
 
-  if (dynamic_cast<const DecimalType *>(retType)) {
-    auto width = dynamic_cast<const DecimalType *>(retType)->getWidth();
-    auto scale = dynamic_cast<const DecimalType *>(retType)->getScale();
+  if (retType->isDecimal()) {
+    auto width = retType->getWidth();
+    auto scale = retType->getScale();
     return fmt::format("{} = Value::DECIMAL({}, {}, {})", retName, retValue,
-                       width, scale);
+                       *width, *scale);
   } else if (retType->isNumeric()) {
     return fmt::format("{} = Value::{}({})", retName, retType->getDuckDBType(),
                        retValue);
-  } else if (retType->isBLOB()) {
+  } else if (retType->isBlob()) {
     return fmt::format(
         "{0} = Value({1});\n{0}.GetTypeMutable() = LogicalType::{2}", retName,
         retValue, retType->getDuckDBType());
@@ -39,23 +39,18 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
   code += fmt::format("/* ==== Basic block {} start ==== */\n", bb->getLabel());
   code += fmt::format("{}:\n", bb->getLabel());
 
-  if (bb->getLabel() == "exit") {
-    code += fmt::format("return;\n");
-    goto end;
-  }
   for (auto &inst : bb->getInstructions()) {
     try {
       if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-        if (toUpper(assign->getExpr()->getRawSQL()).find(" FROM ") !=
-            String::npos) {
+        if (assign->getRHS()->isSQLExpression()) {
           ERROR("FROM clause should not be compiled.");
         }
         duckdb::LogicalOperatorCodeGenerator locg;
-        auto *plan = assign->getExpr()->getLogicalPlan();
+        auto *plan = assign->getRHS()->getLogicalPlan();
         locg.VisitOperator(*plan, function_info);
         auto [header, res] = locg.getResult();
         code += header;
-        code += fmt::format("{} = {};\n", assign->getVar()->getName(), res);
+        code += fmt::format("{} = {};\n", assign->getLHS()->getName(), res);
       } else if (auto *ret = dynamic_cast<const ReturnInst *>(inst.get())) {
         duckdb::LogicalOperatorCodeGenerator locg;
         auto *plan = ret->getExpr()->getLogicalPlan();
@@ -79,6 +74,12 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
         } else {
           code += fmt::format("goto {};\n", br->getIfTrue()->getLabel());
         }
+      } else if (dynamic_cast<const ExitInst *>(inst.get())) {
+        code += fmt::format("return;\n");
+      } else if (dynamic_cast<const PhiNode *>(inst.get())) {
+        ERROR("Encountered a phi instruction which should have been removed "
+              "before code-generation to C++!");
+
       } else {
         ERROR("Instruction does not fall into a specific type.");
       }
@@ -88,7 +89,6 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
       throw duckdb::ParserException(ss.str());
     }
   }
-end:
   container.basicBlockCodes.push_back(code);
   return;
 }
@@ -98,30 +98,30 @@ end:
  */
 String CFGCodeGenerator::extractVarFromChunk(const Function &func) {
   String code;
-  const auto &args = func.getArguments();
-  for (size_t i = 0; i < args.size(); i++) {
-    auto &arg = args[i];
+
+  std::size_t i = 0;
+  for (const auto &arg : func.getArguments()) {
     String extract_data_from_value = fmt::format("v{}.GetValueUnsafe<{}>()", i,
                                                  arg->getType()->getCppType());
     code += fmt::format("{} {} = {};\n", arg->getType()->getCppType(),
                         arg->getName(), extract_data_from_value);
+
+    ++i;
   }
 
   // just declare the local variables, they will be initialized in the basic
   // blocks also create the null indicator for each variable
-  const auto &vars = func.getVariables();
-  for (size_t i = 0; i < vars.size(); i++) {
-    auto &var = vars[i];
+  i = 0;
+  for (const auto &var : func.getVariables()) {
     code +=
         fmt::format("{} {};\n", var->getType()->getCppType(), var->getName());
     code += fmt::format("bool {}_null = {};\n", var->getName(),
                         var->isNull() ? "true" : "false");
+    ++i;
   }
 
   return code;
 }
-
-
 
 CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
   COUT << fmt::format("Generating code for function {}", func.getFunctionName())
@@ -183,9 +183,9 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
       fmt::runtime(config.function["fbodyshell"].Scalar()),
       fmt::arg("function_name", func.getFunctionName()),
       fmt::arg("fbody_args", fbody_args),
-      fmt::arg("check_null", vectorJoin(check_null, " or ")),
+      fmt::arg("check_null", joinVector(check_null, " or ")),
       fmt::arg("vars_init", vars_init),
-      fmt::arg("action", vectorJoin(container.basicBlockCodes, "\n")));
+      fmt::arg("action", joinVector(container.basicBlockCodes, "\n")));
 
   container.main =
       fmt::format(fmt::runtime(config.function["fshell2"].Scalar()),
@@ -204,11 +204,11 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
       fmt::arg("function_name", func.getFunctionName()),
       fmt::arg("return_logical_type",
                func.getReturnType()->getDuckDBLogicalType()),
-      fmt::arg("args_logical_types", vectorJoin(args_logical_types, ", ")));
+      fmt::arg("args_logical_types", joinVector(args_logical_types, ", ")));
 
-  COUT << container.body << ENDL;
-  COUT << container.main << ENDL;
-  COUT << container.registration << ENDL;
+  std::cout << container.body << std::endl;
+  std::cout << container.main << std::endl;
+  std::cout << container.registration << std::endl;
 
   return {container.body + "\n" + container.main, container.registration};
 }

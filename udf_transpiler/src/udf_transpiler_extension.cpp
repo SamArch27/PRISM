@@ -50,10 +50,10 @@ inline String Udf_transpilerPragmaFun(ClientContext &context,
   insertDefAndReg(res.code, res.registration, udfCount);
   // compile the template
   COUT << "Compiling the UDF..." << ENDL;
-  compileUdf();
+  compileUDF();
   // load the compiled library
   COUT << "Installing and loading the UDF..." << ENDL;
-  loadUdf(con);
+  loadUDF(con);
   return "select '' as 'Transpilation Done.';";
 }
 
@@ -87,11 +87,11 @@ inline String Udf_CodeGeneratorPragmaFun(ClientContext &context,
 inline String Udf_BuilderPragmaFun(ClientContext &context,
                                    const FunctionParameters &parameters) {
   COUT << "Compiling the UDF..." << ENDL;
-  compileUdf();
+  compileUDF();
   // load the compiled library
-  COUT << "Installing and loading the UDF..." << ENDL;
+  std::cout << "Installing and loading the UDF..." << std::endl;
   Connection con(*db_instance);
-  loadUdf(con);
+  loadUDF(con);
   return "select '' as 'Building and linking Done.';";
 }
 
@@ -100,9 +100,9 @@ inline String Udaf_BuilderPragmaFun(ClientContext &context,
   COUT << "Compiling the UDAF..." << ENDL;
   compileUdaf();
   // load the compiled library
-  COUT << "Installing and loading the UDF..." << ENDL;
+  std::cout << "Installing and loading the UDF..." << std::endl;
   Connection con(*db_instance);
-  loadUdaf(con);
+  loadUDAF(con);
   return "select '' as 'Building and linking Done.';";
 }
 
@@ -144,9 +144,9 @@ inline String LOCodeGenPragmaFun(ClientContext &_context,
            "' as 'Partial Evaluation Failed.';";
   }
   // context->config.enable_optimizer = mem;
-  COUT << locg.getResult().first << ENDL;
-  COUT << ENDL;
-  COUT << locg.getResult().second << ENDL;
+  std::cout << locg.getResult().first << std::endl;
+  std::cout << std::endl;
+  std::cout << locg.getResult().second << std::endl;
   return "select '' as 'Partial Evaluation Done.';";
 }
 

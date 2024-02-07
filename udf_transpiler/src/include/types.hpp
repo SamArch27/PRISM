@@ -96,17 +96,48 @@ std::ostream &operator<<(std::ostream &os, CppTypeTag);
 
 class Type {
 public:
-  
-  const static inline std::set<DuckdbTypeTag> NumricTypes = {
-    DuckdbTypeTag::BOOLEAN, DuckdbTypeTag::TINYINT, DuckdbTypeTag::SMALLINT,
-    DuckdbTypeTag::INTEGER, DuckdbTypeTag::BIGINT, DuckdbTypeTag::DATE, 
-    DuckdbTypeTag::TIME, DuckdbTypeTag::TIMESTAMP, DuckdbTypeTag::UBIGINT,
-    DuckdbTypeTag::UINTEGER, DuckdbTypeTag::DOUBLE
+  static constexpr int DEFAULT_WIDTH = 18;
+  static constexpr int DEFAULT_SCALE = 3;
+
+  Type(bool decimal, Opt<int> width, Opt<int> scale,
+       PostgresTypeTag postgresTag)
+      : decimal(decimal), width(getWidth(isDecimal(), width)),
+        scale(getScale(isDecimal(), scale)), postgresTag(postgresTag),
+        duckdbTag(lookupDuckdbTag(postgresTag)),
+        cppTag(lookupCppTag(duckdbTag, width, scale)) {}
+
+  static Opt<int> getWidth(bool decimal, Opt<int> width) {
+    if (decimal) {
+      if (!width) {
+        return DEFAULT_WIDTH;
+      }
+    }
+    return width;
+  }
+
+  static Opt<int> getScale(bool decimal, Opt<int> scale) {
+    if (decimal) {
+      if (!scale) {
+        return DEFAULT_SCALE;
+      }
+    }
+    return scale;
+  }
+
+  Own<Type> clone() const {
+    return Make<Type>(decimal, width, scale, postgresTag);
   };
 
-  const static inline std::set<DuckdbTypeTag> BLOBTypes = {
-    DuckdbTypeTag::BLOB, DuckdbTypeTag::VARCHAR
-  };
+  const static inline Set<DuckdbTypeTag> NumericTypes = {
+      DuckdbTypeTag::BOOLEAN,  DuckdbTypeTag::TINYINT,
+      DuckdbTypeTag::SMALLINT, DuckdbTypeTag::INTEGER,
+      DuckdbTypeTag::BIGINT,   DuckdbTypeTag::DATE,
+      DuckdbTypeTag::TIME,     DuckdbTypeTag::TIMESTAMP,
+      DuckdbTypeTag::UBIGINT,  DuckdbTypeTag::UINTEGER,
+      DuckdbTypeTag::DECIMAL,  DuckdbTypeTag::DOUBLE};
+
+  const static inline Set<DuckdbTypeTag> BlobTypes = {DuckdbTypeTag::BLOB,
+                                                      DuckdbTypeTag::VARCHAR};
 
   DuckdbTypeTag getDuckDBTag() const { return duckdbTag; }
   CppTypeTag getCppTag() const { return cppTag; }
@@ -114,145 +145,64 @@ public:
     type.print(os);
     return os;
   }
-  // no need to consider decimal case here
-  virtual String getDuckDBType() const = 0;
-  virtual String getCppType() const = 0;
-  virtual String defaultValue(bool singleQuote) const = 0;
-  String getDuckDBLogicalType() const {
-    // if(dynamic_cast<const DecimalType*>(this))
-    //   return "LogicalType::Decimal";
-    return "LogicalType::" + getDuckDBType();
-  }
-  bool isNumeric() const { return NumricTypes.count(duckdbTag); }
-  bool isBLOB() const { return BLOBTypes.count(duckdbTag); }
+  Opt<int> getWidth() const { return width; }
+  Opt<int> getScale() const { return scale; }
 
-  virtual Own<Type> clone() const = 0;
-
-protected:
-  Type(DuckdbTypeTag duckdbTag, CppTypeTag cppTag)
-      : duckdbTag(duckdbTag), cppTag(cppTag) {}
-
-  virtual void print(std::ostream &os) const = 0;
-
-  DuckdbTypeTag lookupDuckdbTag(PostgresTypeTag pgTag) const;
-
-  DuckdbTypeTag duckdbTag;
-  CppTypeTag cppTag;
-};
-
-class DecimalType : public Type {
-
-  static constexpr int DEFAULT_WIDTH = 18;
-  static constexpr int DEFAULT_SCALE = 3;
-
-public:
-  DecimalType(DuckdbTypeTag duckdbTag, int width = DEFAULT_WIDTH,
-              int scale = DEFAULT_SCALE)
-      : Type(duckdbTag, lookupCppTag(duckdbTag, width)), width(width),
-        scale(scale) {
-    if (duckdbTag != DuckdbTypeTag::DECIMAL) {
-      ERROR("Calling DecimalType constructor for non-decimal type!");
-    }
-  }
-  DecimalType(PostgresTypeTag pgTag, int width = DEFAULT_WIDTH,
-              int scale = DEFAULT_SCALE)
-      : DecimalType(lookupDuckdbTag(pgTag), width, scale) {}
-
-  friend std::ostream &operator<<(std::ostream &os, const DecimalType &type) {
-    type.print(os);
-    return os;
-  }
-
-  String getDuckDBType() const override{
-    // ERROR("Calling DecimalType::getDuckDBType()!");
-    return fmt::format("DECIMAL({}, {})", width, scale);
-  }
-
-  String getCppType() const override{
-    ASSERT(width > 0, "Width of decimal should be > 0.");
-    if (width <= 4)
-      return "int16_t";
-    else if (width <= 9)
-      return "int32_t";
-    else if (width <= 18)
-      return "int64_t";
-    else if (width <= 38)
-      return "duckdb::hugeint_t";
-    else
-      ERROR("Width larger than 38.");
-  }
-
-  String defaultValue(bool singleQuote) const override {
-    return "0";
-  }
-
-  int getWidth() const { return width; }
-  int getScale() const { return scale; }
-
-  Own<Type> clone() const override{
-    return Make<DecimalType>(duckdbTag, width, scale);
-  }
-
-private:
-  void print(std::ostream &os) const override {
-    os << fmt::format("DECIMAL({}, {})", width, scale);
-  }
-
-  CppTypeTag lookupCppTag(DuckdbTypeTag duckdbTag, int width) const;
-
-  int width;
-  int scale;
-};
-
-class NonDecimalType : public Type {
-public:
-  NonDecimalType(DuckdbTypeTag duckdbTag)
-      : Type(duckdbTag, lookupCppTag(duckdbTag)) {
-    if (duckdbTag == DuckdbTypeTag::DECIMAL) {
-      ERROR("Calling NonDecimalType constructor with decimal type!");
-    }
-  }
-  NonDecimalType(PostgresTypeTag pgTag)
-      : NonDecimalType(lookupDuckdbTag(pgTag)) {}
-
-  friend std::ostream &operator<<(std::ostream &os,
-                                  const NonDecimalType &type) {
-    type.print(os);
-    return os;
-  }
-
-  String getDuckDBType() const override{
+  String getDuckDBType() const {
     std::stringstream ss;
-    ss << duckdbTag;
+    ss << *this;
     return ss.str();
   }
 
-  String getCppType() const override{
-    std::stringstream ss;
-    ss << cppTag;
-    return ss.str();
+  String getCppType() const {
+    if (isDecimal()) {
+      ASSERT(width > 0, "Width of decimal should be > 0.");
+      if (width <= 4)
+        return "int16_t";
+      else if (width <= 9)
+        return "int32_t";
+      else if (width <= 18)
+        return "int64_t";
+      else if (width <= 38)
+        return "duckdb::hugeint_t";
+      else
+        ERROR("Width larger than 38.");
+    } else {
+      std::stringstream ss;
+      ss << cppTag;
+      return ss.str();
+    }
   }
-
-  String defaultValue(bool singleQuote) const override{
-    if(isNumeric()){
+  String getDefaultValue(bool singleQuote) const {
+    if (isNumeric()) {
       return "0";
-    }
-    else if(isBLOB()){
-      if(singleQuote)
+    } else if (isBlob()) {
+      if (singleQuote)
         return "''";
       else
         return "\"\"";
-    }
-    else{
+    } else {
       ERROR("Cannot get default value for non-numeric and non-BLOB type!");
     }
   }
 
-  Own<Type> clone() const override{
-    return Make<NonDecimalType>(duckdbTag);
+  String getDuckDBLogicalType() const {
+    return "LogicalType::" + getDuckDBType();
   }
+  bool isDecimal() const { return decimal; }
+  bool isNumeric() const { return NumericTypes.count(duckdbTag); }
+  bool isBlob() const { return BlobTypes.count(duckdbTag); }
 
-private:
-  void print(std::ostream &os) const override { os << duckdbTag; }
-  CppTypeTag lookupCppTag(DuckdbTypeTag duckdbTag) const;
+protected:
+  void print(std::ostream &os) const;
+  DuckdbTypeTag lookupDuckdbTag(PostgresTypeTag pgTag) const;
+  CppTypeTag lookupCppTag(DuckdbTypeTag duckdbTag, Opt<int> width,
+                          Opt<int> scale) const;
+
+  bool decimal;
+  Opt<int> width;
+  Opt<int> scale;
+  PostgresTypeTag postgresTag;
+  DuckdbTypeTag duckdbTag;
+  CppTypeTag cppTag;
 };
