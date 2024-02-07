@@ -121,8 +121,8 @@ private:
   List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
 
-  void renameVariableGlobally(Function &f, const Variable *toReplace,
-                              const Variable *newVar);
+  void replaceUsesWith(Function &f, const Variable *toReplace,
+                       const Variable *newVar);
   Own<SelectExpression>
   buildReplacedExpression(Function &f, const SelectExpression *original,
                           const Variable *oldVar, const Variable *newVar);
