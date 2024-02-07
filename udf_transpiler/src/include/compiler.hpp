@@ -141,6 +141,7 @@ private:
                           const Own<DominanceFrontier> &dominanceFrontier);
   void renameVariablesToSSA(Function &f,
                             const Own<DominatorTree> &dominatorTree);
+  void pruneUnusedVariables(Function &f);
   void convertOutOfSSAForm(Function &f);
 
   duckdb::Connection *connection;

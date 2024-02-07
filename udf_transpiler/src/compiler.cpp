@@ -939,6 +939,8 @@ void Compiler::optimize(Function &f) {
   performCopyPropagation(f);
   std::cout << f << std::endl;
   convertOutOfSSAForm(f);
+  pruneUnusedVariables(f);
+  std::cout << f << std::endl;
 }
 
 void Compiler::mergeBasicBlocks(Function &f) {
@@ -1093,16 +1095,30 @@ void Compiler::replaceUsesWith(Function &f, const Variable *toReplace,
   }
 }
 
-void Compiler::convertOutOfSSAForm(Function &f) {
-  LivenessDataflow dataflow(f);
-  dataflow.runAnalysis();
-  auto liveness = dataflow.computeLiveness();
-  // std::cout << "Computing liveness!" << std::endl;
-  // std::cout << *liveness << std::endl;
-  auto interferenceGraph = dataflow.computeInterfenceGraph();
-  std::cout << "Computing interference graph!" << std::endl;
-  std::cout << *interferenceGraph << std::endl;
+void Compiler::pruneUnusedVariables(Function &f) {
+  // collect all used variables
+  Set<const Variable *> usedVariables;
+  for (auto &block : f.getBasicBlocks()) {
+    for (auto &inst : block->getInstructions()) {
+      if (inst->getResultOperand()) {
+        usedVariables.insert(inst->getResultOperand());
+      }
+    }
+  }
+
+  // delete variables not in the set
+  Set<const Variable *> toDelete;
+  for (const Variable *v : f.getAllVariables()) {
+    if (usedVariables.find(v) == usedVariables.end()) {
+      toDelete.insert(v);
+    }
+  }
+
+  // delete unused variables
+  f.deleteVariables(toDelete);
 }
+
+void Compiler::convertOutOfSSAForm(Function &f) {}
 
 /**
  * Generate code for a function

@@ -481,6 +481,18 @@ public:
     return labels;
   }
 
+  void deleteVariables(const Set<const Variable *> &toDelete) {
+    for (auto it = variables.begin(); it != variables.end();) {
+      // remove the variable if its in the set to delete
+      auto *var = it->get();
+      if (toDelete.find(var) != toDelete.end()) {
+        it = variables.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
   BasicBlock *makeBasicBlock(const String &label) {
     basicBlocks.emplace_back(Make<BasicBlock>(label));
     auto *newBlock = basicBlocks.back().get();
