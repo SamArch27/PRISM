@@ -164,7 +164,7 @@ protected:
       if (first) {
         first = false;
       } else {
-        os << ",";
+        os << ", ";
       }
       os << *arg;
     }
