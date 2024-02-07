@@ -934,9 +934,7 @@ void Compiler::renameVariablesToSSA(Function &f,
 
 void Compiler::optimize(Function &f) {
   mergeBasicBlocks(f);
-  // std::cout << f << std::endl;
   convertToSSAForm(f);
-  // std::cout << f << std::endl;
   performCopyPropagation(f);
   std::cout << f << std::endl;
   LivenessDataflow dataflow(f);
@@ -1023,7 +1021,7 @@ void Compiler::performCopyPropagation(Function &f) {
           continue;
         }
 
-        renameVariableGlobally(f, lhs, var);
+        replaceUsesWith(f, lhs, var);
         it = std::prev(basicBlock->removeInst(inst));
 
       } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
@@ -1031,15 +1029,15 @@ void Compiler::performCopyPropagation(Function &f) {
           continue;
         }
 
-        renameVariableGlobally(f, phi->getLHS(), phi->getRHS().front());
+        replaceUsesWith(f, phi->getLHS(), phi->getRHS().front());
         it = std::prev(basicBlock->removeInst(inst));
       }
     }
   }
 }
 
-void Compiler::renameVariableGlobally(Function &f, const Variable *toReplace,
-                                      const Variable *newVar) {
+void Compiler::replaceUsesWith(Function &f, const Variable *toReplace,
+                               const Variable *newVar) {
   for (auto &block : f.getBasicBlocks()) {
     auto &instructions = block->getInstructions();
     for (auto it = instructions.begin(); it != instructions.end(); ++it) {

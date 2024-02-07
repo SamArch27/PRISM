@@ -88,7 +88,9 @@ void DataflowFramework<T, forward>::runForwards() {
 template <typename T, bool forward>
 void DataflowFramework<T, forward>::runBackwards() {
   Set<BasicBlock *> worklist;
-  worklist.insert(f.getExitBlock());
+  for (auto *exitBlock : f.getExitBlock()->getPredecessors()) {
+    worklist.insert(exitBlock);
+  }
 
   while (!worklist.empty()) {
     BasicBlock *basicBlock = *worklist.begin();
@@ -132,7 +134,9 @@ void DataflowFramework<T, forward>::runBackwards() {
     }
 
     if (results[basicBlock->getInitiator()].in != oldIn) {
+      std::cout << "Add to worklist: ";
       for (auto *pred : basicBlock->getPredecessors()) {
+        std::cout << *pred << ",";
         worklist.insert(pred);
       }
     }

@@ -81,6 +81,6 @@ protected:
   void genBoundaryInner() override;
 
   Map<const Variable *, const Instruction *> def;
-  Vec<const Variable *> variables;
-  Map<const Variable *, std::size_t> varToIndex;
+  Vec<const Instruction *> definingInstructions;
+  Map<const Instruction *, std::size_t> instToIndex;
 };
