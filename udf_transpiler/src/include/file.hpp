@@ -10,7 +10,7 @@
 
 void insertDefAndReg(const String &defs, const String &regs,
                         int udfCount);
-void compileUdf();
-void loadUdf(duckdb::Connection &connection);
-void compileUdaf();
-void loadUdaf(duckdb::Connection &connection);
+void compileUDF();
+void loadUDF(duckdb::Connection &connection);
+void compileUDAF();
+void loadUDAF(duckdb::Connection &connection);

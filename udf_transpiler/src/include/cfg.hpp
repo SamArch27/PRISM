@@ -478,12 +478,14 @@ public:
     returnType = other.returnType->clone();
     Map<Variable *, Variable *> otherVarToNewVar;
     for (const auto &arg : other.arguments) {
-      arguments.emplace_back(arg->clone());
-      otherVarToNewVar[arg.get()] = arguments.back().get();
+      auto argClone = arg->clone();
+      arguments.insert(std::move(argClone));
+      otherVarToNewVar[arg.get()] = argClone.get();
     }
     for (const auto &var : other.variables) {
-      variables.emplace_back(var->clone());
-      otherVarToNewVar[var.get()] = variables.back().get();
+      auto varClone = var->clone();
+      variables.insert(std::move(varClone));
+      otherVarToNewVar[var.get()] = varClone.get();
     }
     for (const auto &bind : other.bindings) {
       bindings.emplace(bind.first, otherVarToNewVar.at(bind.second));

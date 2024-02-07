@@ -98,7 +98,7 @@ inline String Udf_BuilderPragmaFun(ClientContext &context,
 inline String Udaf_BuilderPragmaFun(ClientContext &context,
                                     const FunctionParameters &parameters) {
   COUT << "Compiling the UDAF..." << ENDL;
-  compileUdaf();
+  compileUDAF();
   // load the compiled library
   std::cout << "Installing and loading the UDF..." << std::endl;
   Connection con(*db_instance);

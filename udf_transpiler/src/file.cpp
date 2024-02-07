@@ -144,7 +144,7 @@ void compileUDF() {
   std::cout << exec(cmd.c_str()) << std::endl;
 }
 
-void compileUdaf() {
+void compileUDAF() {
   String cmd = "cd " + current_dir + "/../" + ";make udafs";
   std::cout << cmd << std::endl;
   std::cout << exec(cmd.c_str()) << std::endl;

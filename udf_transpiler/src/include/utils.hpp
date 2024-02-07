@@ -5,6 +5,7 @@
 #include <numeric>
 #include <optional>
 #include <queue>
+#include <stack>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -53,6 +54,9 @@ template <typename A> using Opt = std::optional<A>;
 template <typename A, typename B> using Map = std::unordered_map<A, B>;
 
 using String = std::string;
+
+#define COUT std::cout
+#define ENDL std::endl
 
 #define ASSERT(condition, message)                                             \
   do {                                                                         \

@@ -33,7 +33,7 @@ Vec<String> AggifyCodeGenerator::getOrginalCursorLoopCol(const json &ast) {
   return res;
 }
 
-Vec<String> AggifyCodeGenerator::run(const Function &func, const json &ast,
+AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const json &ast,
                                      const AggifyDFA &dfaResult, size_t id) {
   std::set<String> cursorVars;
   for (const json &vars : ast["var"]["PLpgSQL_row"]["fields"]) {

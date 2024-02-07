@@ -237,10 +237,10 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
   insertDefAndReg(res.code, res.registration, udfCount);
   // compile the template
   COUT << "Compiling the UDAF..." << ENDL;
-  compileUdf();
+  compileUDF();
   // load the compiled library
   COUT << "Installing and loading the UDAF..." << ENDL;
-  loadUdf(*connection);
+  loadUDF(*connection);
 
   // udf_todo: replace the cursor loop with custom aggregate
   String customAggCaller = res.caller;
@@ -1104,9 +1104,7 @@ void Compiler::renameVariableGlobally(Function &f, const Variable *toReplace,
  * Initialize a CFGCodeGenerator and run it through the function
  */
 CFGCodeGeneratorResult Compiler::generateCode(const Function &func) {
-
-  // AggifyCodeGenerator aggifyCodeGenerator(config, );
-
+  
   CFGCodeGenerator codeGenerator(config);
   auto res = codeGenerator.run(func);
   return res;
