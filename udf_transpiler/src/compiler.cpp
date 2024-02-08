@@ -939,8 +939,8 @@ void Compiler::optimize(Function &f) {
   std::cout << f << std::endl;
   performCopyPropagation(f);
   std::cout << f << std::endl;
-  convertOutOfSSAForm(f);
   pruneUnusedVariables(f);
+  convertOutOfSSAForm(f);
   std::cout << f << std::endl;
 }
 
@@ -1121,6 +1121,7 @@ void Compiler::pruneUnusedVariables(Function &f) {
 
 void Compiler::convertOutOfSSAForm(Function &f) {
   LivenessDataflow dataflow(f);
+  dataflow.runAnalysis();
   auto liveness = dataflow.computeLiveness();
   auto interferenceGraph = dataflow.computeInterfenceGraph();
 
