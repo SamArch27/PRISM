@@ -82,6 +82,11 @@ public:
            rightEdges.find(left) != rightEdges.end();
   }
 
+  void removeEdge(const Variable *left, const Variable *right) {
+    edge[left].erase(right);
+    edge[right].erase(left);
+  }
+
   friend std::ostream &operator<<(std::ostream &os,
                                   const InterferenceGraph &interferenceGraph) {
     interferenceGraph.print(os);

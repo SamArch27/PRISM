@@ -829,8 +829,9 @@ void Compiler::renameVariablesToSSA(Function &f,
     auto oldName = getOriginalName(var->getName());
     auto newName = oldName + "_" + std::to_string(i);
     auto *oldVar = f.getBinding(oldName);
-    f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
-
+    if (!f.hasBinding(newName)) {
+      f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+    }
     // Update stack and counters
     if (updateVariable) {
       accessStack(var).push(i);
@@ -854,7 +855,9 @@ void Compiler::renameVariablesToSSA(Function &f,
     Map<const Variable *, const Variable *> varMapping;
     for (auto &[oldName, newName] : oldToNew) {
       auto *oldVar = f.getBinding(oldName);
-      f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+      if (!f.hasBinding(newName)) {
+        f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+      }
       varMapping.insert({oldVar, f.getBinding(newName)});
     }
 
@@ -935,11 +938,12 @@ void Compiler::renameVariablesToSSA(Function &f,
 
 void Compiler::optimize(Function &f) {
   mergeBasicBlocks(f);
+  std::cout << f << std::endl;
   convertToSSAForm(f);
   std::cout << f << std::endl;
   performCopyPropagation(f);
   std::cout << f << std::endl;
-  pruneUnusedVariables(f);
+  // pruneUnusedVariables(f);
   convertOutOfSSAForm(f);
   std::cout << f << std::endl;
 }
@@ -1016,10 +1020,10 @@ void Compiler::performCopyPropagation(Function &f) {
         }
 
         // Try converting the RHS to a variable
-        auto *var = f.getBinding(rhs->getRawSQL());
-        if (var == nullptr) {
+        if (!f.hasBinding(rhs->getRawSQL())) {
           continue;
         }
+        auto *var = f.getBinding(rhs->getRawSQL());
 
         replaceUsesWith(f, lhs, var);
         it = std::prev(basicBlock->removeInst(inst));
@@ -1120,10 +1124,10 @@ void Compiler::pruneUnusedVariables(Function &f) {
 }
 
 void Compiler::convertOutOfSSAForm(Function &f) {
-  LivenessDataflow dataflow(f);
-  dataflow.runAnalysis();
-  auto liveness = dataflow.computeLiveness();
-  auto interferenceGraph = dataflow.computeInterfenceGraph();
+  auto dataflow = Make<LivenessDataflow>(f);
+  dataflow->runAnalysis();
+  auto liveness = dataflow->computeLiveness();
+  auto interferenceGraph = dataflow->computeInterfenceGraph();
 
   Set<const Variable *> marked;
   OrderedSet<Pair<const Variable *, const Variable *>> deferred;
@@ -1132,10 +1136,24 @@ void Compiler::convertOutOfSSAForm(Function &f) {
     phiCongruent[var].insert(var);
   }
 
+  auto intersect = [](const Set<const Variable *> &lhs,
+                      const Set<const Variable *> &rhs) {
+    Set<const Variable *> result;
+    for (auto *var : lhs) {
+      if (rhs.find(var) != rhs.end()) {
+        result.insert(var);
+      }
+    }
+    return result;
+  };
+
   // for every phi
   for (auto &block : f.getBasicBlocks()) {
-    for (auto &inst : block->getInstructions()) {
-      if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
+    auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+      auto *inst = it->get();
+      std::cout << "Instruction: " << *inst << std::endl;
+      if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
         auto &args = phi->getRHS();
         // for each pair of arguments
         for (std::size_t i = 0; i < args.size(); ++i) {
@@ -1143,15 +1161,65 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           for (std::size_t j = i + 1; j < args.size(); ++j) {
             auto *x_j = args[j];
             if (interferenceGraph->interferes(x_i, x_j)) {
-              // TODO: proceed
+              // Resolve according to the four cases
+              auto *n_i = f.getDefiningBlock(x_i);
+              auto *n_j = f.getDefiningBlock(x_j);
+
+              bool lhsConflict =
+                  !intersect(phiCongruent[x_i], liveness->getLiveOut(n_j))
+                       .empty();
+              bool rhsConflict =
+                  !intersect(phiCongruent[x_j], liveness->getLiveOut(n_i))
+                       .empty();
+              if (lhsConflict && !rhsConflict) {
+                // mark x_i
+                marked.insert(x_i);
+              } else if (!lhsConflict && rhsConflict) {
+                // mark x_j
+                marked.insert(x_j);
+              } else if (!lhsConflict && !rhsConflict) {
+                // unsure so we defer (x_i,x_j)
+                deferred.insert({x_i, x_j});
+              } else {
+                // mark both
+                marked.insert(x_i);
+                marked.insert(x_j);
+              }
             }
           }
         }
         // for the result variable and each argument variable
         auto *x_i = phi->getLHS();
-        for (auto *x_j : args) {
+        for (auto *x_j : phi->getRHS()) {
           if (interferenceGraph->interferes(x_i, x_j)) {
-            // TODO: proceed
+            // Resolve according to the four cases
+            auto *n = block.get(); // defining block for x_i is trivially n
+            auto *n_j = f.getDefiningBlock(x_j);
+
+            bool selfConflict =
+                !intersect(phiCongruent[x_i], liveness->getLiveOut(n)).empty();
+            bool lhsConflict =
+                !intersect(phiCongruent[x_i], liveness->getLiveOut(n_j))
+                     .empty();
+            bool rhsInConflict =
+                !intersect(phiCongruent[x_j], liveness->getLiveIn(n)).empty();
+            bool rhsOutConflict =
+                !intersect(phiCongruent[x_j], liveness->getLiveOut(n)).empty();
+
+            if (selfConflict && !rhsInConflict) {
+              // mark x_i
+              marked.insert(x_i);
+            } else if (!selfConflict && rhsInConflict) {
+              // mark x_j
+              marked.insert(x_j);
+            } else if (!lhsConflict && !rhsOutConflict) {
+              // unsure so we defer (x_i, x_j)
+              deferred.insert({x_i, x_j});
+            } else if (lhsConflict && rhsOutConflict) {
+              // mark both
+              marked.insert(x_i);
+              marked.insert(x_j);
+            }
           }
         }
 
@@ -1207,13 +1275,51 @@ void Compiler::convertOutOfSSAForm(Function &f) {
         }
 
         for (auto *x : marked) {
-          // TODO:
-          // 1. Insert x' = x at the appropriate program point
-          // 2. Update the phi to use x' instead of x
-          // 3. Modify the interference graph
+          // Make a new variable x'
+          auto newName = x->getName() + "_prime";
+          if (!f.hasBinding(newName)) {
+            f.addVariable(newName, x->getType()->clone(), x->isNull());
+          }
+          auto xPrime = f.getBinding(newName);
+
+          // 1. Update the phi instruction to use x' instead of x
+          auto newResult = phi->getLHS();
+          auto newArgs = phi->getRHS();
+          bool modifyingResult = (newResult == x);
+
+          if (modifyingResult) {
+            newResult = xPrime;
+          } else {
+            for (auto &newArg : newArgs) {
+              if (newArg == x) {
+                newArg = xPrime;
+              }
+            }
+          }
+          auto newPhi = Make<PhiNode>(newResult, newArgs);
+          it = block->replaceInst(phi, std::move(newPhi));
+          phi = dynamic_cast<const PhiNode *>(it->get());
+
+          // 2. Insert the new assignment in the right place
+          if (modifyingResult) {
+            // Insert after the phi instruction if we are modifying the result
+            // x = x'
+            auto newAssignment =
+                Make<Assignment>(x, bindExpression(f, newName));
+            block->insertAfter(it->get(), std::move(newAssignment));
+          } else {
+            // Otherwise insert at the end of the defining block
+            // x' = x
+            auto newAssignment =
+                Make<Assignment>(xPrime, bindExpression(f, x->getName()));
+            auto *toModify = f.getDefiningBlock(x);
+            toModify->insertBefore(toModify->getTerminator(),
+                                   std::move(newAssignment));
+          }
         }
 
-        // Make all variables in the phi belong to the same phi congruence class
+        // Make all variables in the phi belong to the same phi congruence
+        // class
         Vec<const Variable *> variables = phi->getRHS();
         variables.push_back(phi->getLHS());
         for (auto *x : variables) {
@@ -1221,6 +1327,12 @@ void Compiler::convertOutOfSSAForm(Function &f) {
             phiCongruent[x].insert(y);
           }
         }
+
+        // TODO (later): Update the live ranges
+        dataflow = Make<LivenessDataflow>(f);
+        dataflow->runAnalysis();
+        liveness = dataflow->computeLiveness();
+        interferenceGraph = dataflow->computeInterfenceGraph();
       }
     }
   }

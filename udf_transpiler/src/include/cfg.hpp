@@ -259,6 +259,19 @@ public:
     return instructions.emplace(it, std::move(newInst));
   }
 
+  List<Own<Instruction>>::iterator insertAfter(const Instruction *targetInst,
+                                               Own<Instruction> newInst) {
+
+    auto it = std::find_if(
+        instructions.begin(), instructions.end(),
+        [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
+    ASSERT((it != instructions.end()),
+           "Instruction must exist when performing insertBefore()!");
+    newInst->setParent(this);
+    ++it; // import that we increment the iterator before to insert after
+    return instructions.insert(it, std::move(newInst));
+  }
+
   List<Own<Instruction>>::iterator removeInst(const Instruction *targetInst) {
     auto it = std::find_if(
         instructions.begin(), instructions.end(),
@@ -507,15 +520,17 @@ public:
   }
 
   void addArgument(const String &name, Own<Type> type) {
-    auto var = Make<Variable>(name, std::move(type));
+    auto cleanedName = getCleanedVariableName(name);
+    auto var = Make<Variable>(cleanedName, std::move(type));
     auto [it, _] = arguments.insert(std::move(var));
-    bindings.emplace(name, it->get());
+    bindings.emplace(cleanedName, it->get());
   }
 
   void addVariable(const String &name, Own<Type> &&type, bool isNULL) {
-    auto var = Make<Variable>(name, std::move(type), isNULL);
+    auto cleanedName = getCleanedVariableName(name);
+    auto var = Make<Variable>(cleanedName, std::move(type), isNULL);
     auto [it, _] = variables.insert(std::move(var));
-    bindings.emplace(name, it->get());
+    bindings.emplace(cleanedName, it->get());
   }
 
   void addVarInitialization(const Variable *var, Own<SelectExpression> expr) {
@@ -558,13 +573,25 @@ public:
 
   const Variable *getBinding(const String &name) const {
     auto cleanedName = getCleanedVariableName(name);
-    if (!hasBinding(cleanedName)) {
-      return nullptr;
-    }
+    ASSERT(hasBinding(cleanedName),
+           "ERROR: No binding for: " + name +
+               " after cleaning the name to: " + cleanedName);
     return bindings.at(cleanedName);
   }
 
   const Map<String, Variable *> &getAllBindings() const { return bindings; }
+
+  BasicBlock *getDefiningBlock(const Variable *var) {
+    for (auto &block : basicBlocks) {
+      for (auto &inst : block->getInstructions()) {
+        if (inst->getResultOperand() == var) {
+          return block.get();
+        }
+      }
+    }
+    ERROR("Should always have defining instruction for a variable!");
+    return nullptr;
+  }
 
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
   BasicBlock *getExitBlock() { return basicBlocks[1].get(); }

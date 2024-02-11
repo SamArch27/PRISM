@@ -59,6 +59,9 @@ BitVector LivenessDataflow::transfer(BitVector out, Instruction *inst) {
 
   // Compute gen set (RHS)
   for (auto *var : inst->getOperands()) {
+    if (var == nullptr) {
+      std::cout << "Found null variable in: " << *inst << std::endl;
+    }
     gen[instToIndex.at(def.at(var))] = true;
   }
 

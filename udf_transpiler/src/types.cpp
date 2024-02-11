@@ -30,7 +30,7 @@ std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
     os << "HUGEINT";
     break;
   case DuckdbTypeTag::INTEGER:
-    os << "INT";
+    os << "INTEGER";
     break;
   case DuckdbTypeTag::INTERVAL:
     os << "INTERVAL";
