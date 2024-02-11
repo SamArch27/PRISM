@@ -78,6 +78,7 @@ public:
   bool interferes(const Variable *left, const Variable *right) {
     auto &leftEdges = edge[left];
     auto &rightEdges = edge[right];
+    std::cout << std::endl;
     return leftEdges.find(right) != leftEdges.end() ||
            rightEdges.find(left) != rightEdges.end();
   }

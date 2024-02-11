@@ -1152,8 +1152,9 @@ void Compiler::convertOutOfSSAForm(Function &f) {
     auto &instructions = block->getInstructions();
     for (auto it = instructions.begin(); it != instructions.end(); ++it) {
       auto *inst = it->get();
-      std::cout << "Instruction: " << *inst << std::endl;
       if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+        marked.clear();
+        deferred.clear();
         auto &args = phi->getRHS();
         // for each pair of arguments
         for (std::size_t i = 0; i < args.size(); ++i) {
@@ -1289,13 +1290,13 @@ void Compiler::convertOutOfSSAForm(Function &f) {
 
           if (modifyingResult) {
             newResult = xPrime;
-          } else {
-            for (auto &newArg : newArgs) {
-              if (newArg == x) {
-                newArg = xPrime;
-              }
+          }
+          for (auto &newArg : newArgs) {
+            if (newArg == x) {
+              newArg = xPrime;
             }
           }
+
           auto newPhi = Make<PhiNode>(newResult, newArgs);
           it = block->replaceInst(phi, std::move(newPhi));
           phi = dynamic_cast<const PhiNode *>(it->get());
