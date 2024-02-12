@@ -984,21 +984,8 @@ void Compiler::convertToSSAForm(Function &f) {
   DominatorDataflow dataflow(f);
   dataflow.runAnalysis();
   auto dominators = dataflow.computeDominators();
-
-  // print dominator info
-  std::cout << "\nDominators:" << std::endl;
-  std::cout << *dominators << std::endl;
-
   auto dominanceFrontier = dataflow.computeDominanceFrontier(dominators);
-
-  // print dominance frontier
-  std::cout << "\nDominance Frontier:" << std::endl;
-  std::cout << *dominanceFrontier << std::endl;
-
   auto dominatorTree = dataflow.computeDominatorTree(dominators);
-
-  // print dominator tree
-  std::cout << *dominatorTree << std::endl;
 
   insertPhiFunctions(f, dominanceFrontier);
   renameVariablesToSSA(f, dominatorTree);
@@ -1148,6 +1135,8 @@ void Compiler::convertOutOfSSAForm(Function &f) {
   };
 
   // for every phi
+  std::cout << "Interference graph! " << std::endl;
+  std::cout << *interferenceGraph << std::endl;
   for (auto &block : f.getBasicBlocks()) {
     auto &instructions = block->getInstructions();
     for (auto it = instructions.begin(); it != instructions.end(); ++it) {
@@ -1162,6 +1151,7 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           for (std::size_t j = i + 1; j < args.size(); ++j) {
             auto *x_j = args[j];
             if (interferenceGraph->interferes(x_i, x_j)) {
+              std::cout << *x_i << " INTERFERES WITH " << *x_j << std::endl;
               // Resolve according to the four cases
               auto *n_i = f.getDefiningBlock(x_i);
               auto *n_j = f.getDefiningBlock(x_j);
@@ -1338,7 +1328,7 @@ void Compiler::convertOutOfSSAForm(Function &f) {
     }
   }
 
-  // remove every phi
+  // Remove every phi
   for (auto &block : f.getBasicBlocks()) {
     auto &instructions = block->getInstructions();
     for (auto it = instructions.begin(); it != instructions.end();) {

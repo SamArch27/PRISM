@@ -54,50 +54,99 @@ Own<InterferenceGraph> LivenessDataflow::computeInterfenceGraph() const {
 }
 
 BitVector LivenessDataflow::transfer(BitVector out, Instruction *inst) {
-  BitVector gen(instToIndex.size(), false);
-  BitVector kill(instToIndex.size(), false);
 
-  // Compute gen set (RHS)
-  for (auto *var : inst->getOperands()) {
-    if (var == nullptr) {
-      std::cout << "Found null variable in: " << *inst << std::endl;
-    }
-    gen[instToIndex.at(def.at(var))] = true;
+  auto *block = inst->getParent();
+
+  // Create bitvector for defs
+  BitVector def(instToIndex.size(), false);
+  for (auto *definition : allDefs[block]) {
+    def[instToIndex.at(definition)] = true;
   }
 
-  // The kill set is just the used variable on the LHS
-  auto *resultOperand = inst->getResultOperand();
-  if (resultOperand != nullptr) {
-    auto it = instToIndex.find(def.at(resultOperand));
-    if (it != instToIndex.end()) {
-      kill[instToIndex.at(def.at(resultOperand))] = true;
-    }
+  // Create bitvector for phiDefs
+  BitVector phiDef(instToIndex.size(), false);
+  for (auto *definition : phiDefs[block]) {
+    phiDef[instToIndex.at(definition)] = true;
   }
 
-  BitVector in(instToIndex.size(), false);
-  in |= out;
-  in &= kill.flip();
-  in |= gen;
-  return in;
+  // Create bitvector for upwardsExposed
+  BitVector ue(instToIndex.size(), false);
+  for (auto *use : upwardsExposed[block]) {
+    ue[instToIndex.at(use)] = true;
+  }
+
+  BitVector result(instToIndex.size(), false);
+  // LiveOut(B) \ Def(B)
+  result |= out;
+  result &= def.flip();
+  // Union with PhiDefs(B) and UpwardsExposed(B)
+  result |= phiDef;
+  result |= ue;
+  return result;
 }
 
-BitVector LivenessDataflow::meet(BitVector in1, BitVector in2) {
-  BitVector in(instToIndex.size(), false);
-  in |= in1;
-  in |= in2;
-  return in;
+BitVector LivenessDataflow::meet(BitVector result, BitVector in,
+                                 BasicBlock *block) {
+  // Create bitvector for phiDefs
+  BitVector phiDef(instToIndex.size(), false);
+  for (auto *definition : phiDefs[block]) {
+    phiDef[instToIndex.at(definition)] = true;
+  }
+
+  // Create bitvector for phiUses
+  BitVector phiUse(instToIndex.size(), false);
+  for (auto *definition : phiUses[block]) {
+    phiUse[instToIndex.at(definition)] = true;
+  }
+
+  // LiveIn(S) \ PhiDef(S)
+  BitVector newInfo(instToIndex.size(), false);
+  newInfo |= in;
+  newInfo &= phiDef.flip();
+  // Union with PhiUses(B)
+  newInfo |= phiUse;
+  // Union with result and return
+  result |= in;
+  return result;
 }
 
 void LivenessDataflow::preprocessInst(Instruction *inst) {
-  // map each variable to the instruction that defines it
-  // similarly map each defining instruction to the position in the vector
+  // Collect definitions for each block, mapping them to bitvector positions
   const auto *resultOperand = inst->getResultOperand();
+  auto *block = inst->getParent();
   if (resultOperand != nullptr) {
-    def.insert({resultOperand, inst});
-    if (instToIndex.find(def.at(resultOperand)) == instToIndex.end()) {
+    auto *def = f.getDefiningInstruction(resultOperand);
+    if (instToIndex.find(def) == instToIndex.end()) {
       std::size_t newSize = instToIndex.size();
-      instToIndex[def.at(resultOperand)] = newSize;
+      instToIndex[def] = newSize;
       definingInstructions.push_back(inst);
+      allDefs[block].insert(inst);
+    }
+  }
+
+  // If the current instruction is a phi node
+  if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+    // Add the def to the phiDefs for the block
+    auto *result = phi->getResultOperand();
+    phiDefs[block].insert(f.getDefiningInstruction(result));
+
+    // Add the uses to every predecessor block
+    for (auto *operand : phi->getOperands()) {
+      auto *definingInst = f.getDefiningInstruction(operand);
+      phiUses[block].insert(definingInst);
+    }
+  }
+  // Otherwise update the upwardsExposed
+  else {
+    // For each operatnd, check if it is "upwards exposed"
+    for (auto *operand : inst->getOperands()) {
+      // Get the block that it was defined in
+      auto *definingInst = f.getDefiningInstruction(operand);
+      auto *definingBlock = definingInst->getParent();
+      // If it was defined outside of this block then it is "upwards exposed"
+      if (definingBlock != inst->getParent()) {
+        upwardsExposed[block].insert(definingInst);
+      }
     }
   }
 }

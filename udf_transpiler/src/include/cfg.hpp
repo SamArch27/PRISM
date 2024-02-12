@@ -112,7 +112,7 @@ public:
   virtual Vec<const Variable *> getOperands() const = 0;
   virtual Vec<BasicBlock *> getSuccessors() const = 0;
   void setParent(BasicBlock *parentBlock) { parent = parentBlock; }
-  BasicBlock *getParent() { return parent; }
+  BasicBlock *getParent() const { return parent; }
 
 protected:
   virtual void print(std::ostream &os) const = 0;
@@ -581,16 +581,24 @@ public:
 
   const Map<String, Variable *> &getAllBindings() const { return bindings; }
 
-  BasicBlock *getDefiningBlock(const Variable *var) {
+  // TODO: Exploit SSA to make this faster
+  const Instruction *getDefiningInstruction(const Variable *var) {
     for (auto &block : basicBlocks) {
       for (auto &inst : block->getInstructions()) {
         if (inst->getResultOperand() == var) {
-          return block.get();
+          return inst.get();
         }
       }
     }
     ERROR("Should always have defining instruction for a variable!");
     return nullptr;
+  }
+
+  BasicBlock *getDefiningBlock(const Variable *var) {
+    auto *definingInstruction = getDefiningInstruction(var);
+    ASSERT(definingInstruction != nullptr,
+           "Should always have defining instruction for a variable!");
+    return definingInstruction->getParent();
   }
 
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }

@@ -138,7 +138,7 @@ public:
 
 protected:
   BitVector transfer(BitVector in, Instruction *inst) override;
-  BitVector meet(BitVector in1, BitVector in2) override;
+  BitVector meet(BitVector result, BitVector in, BasicBlock *block) override;
   void preprocessInst(Instruction *inst) override;
   void genBoundaryInner() override;
 

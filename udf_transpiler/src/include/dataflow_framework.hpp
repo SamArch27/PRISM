@@ -23,7 +23,7 @@ protected:
   Function &f;
 
   virtual T transfer(T in, Instruction *inst) = 0;
-  virtual T meet(T in1, T in2) = 0;
+  virtual T meet(T result, T in, BasicBlock *block) = 0;
   virtual void preprocessInst(Instruction *inst) = 0;
   virtual void genBoundaryInner() = 0;
 
@@ -54,7 +54,7 @@ void DataflowFramework<T, forward>::runForwards() {
         newIn = predResult.out;
         changed = true;
       } else {
-        newIn = meet(predResult.out, newIn);
+        newIn = meet(predResult.out, newIn, pred);
       }
     }
 
@@ -112,7 +112,7 @@ void DataflowFramework<T, forward>::runBackwards() {
         newOut = succResult.in;
         changed = true;
       } else {
-        newOut = meet(succResult.in, newOut);
+        newOut = meet(succResult.in, newOut, succ);
       }
     }
 

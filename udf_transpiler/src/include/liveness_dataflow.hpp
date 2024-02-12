@@ -118,11 +118,14 @@ public:
 
 protected:
   BitVector transfer(BitVector out, Instruction *inst) override;
-  BitVector meet(BitVector in1, BitVector in2) override;
+  BitVector meet(BitVector result, BitVector in, BasicBlock *block) override;
   void preprocessInst(Instruction *inst) override;
   void genBoundaryInner() override;
 
-  Map<const Variable *, const Instruction *> def;
+  Map<BasicBlock *, Set<const Instruction *>> allDefs;
+  Map<BasicBlock *, Set<const Instruction *>> phiDefs;
+  Map<BasicBlock *, Set<const Instruction *>> phiUses;
+  Map<BasicBlock *, Set<const Instruction *>> upwardsExposed;
   Vec<const Instruction *> definingInstructions;
   Map<const Instruction *, std::size_t> instToIndex;
 };
