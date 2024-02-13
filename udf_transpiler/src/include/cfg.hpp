@@ -226,13 +226,20 @@ public:
     return os;
   }
 
-  const Set<BasicBlock *> &getSuccessors() const { return successors; }
-  const Set<BasicBlock *> &getPredecessors() const { return predecessors; }
+  const Vec<BasicBlock *> &getSuccessors() const { return successors; }
+  const Vec<BasicBlock *> &getPredecessors() const { return predecessors; }
 
-  void addSuccessor(BasicBlock *succ) { successors.insert(succ); }
-  void addPredecessor(BasicBlock *pred) { predecessors.insert(pred); }
-  void removeSuccessor(BasicBlock *succ) { successors.erase(succ); }
-  void removePredecessor(BasicBlock *pred) { predecessors.erase(pred); }
+  void addSuccessor(BasicBlock *succ) { successors.push_back(succ); }
+  void addPredecessor(BasicBlock *pred) { predecessors.push_back(pred); }
+  void removeSuccessor(BasicBlock *succ) {
+    successors.erase(std::remove(successors.begin(), successors.end(), succ),
+                     successors.end());
+  }
+  void removePredecessor(BasicBlock *pred) {
+    predecessors.erase(
+        std::remove(predecessors.begin(), predecessors.end(), pred),
+        predecessors.end());
+  }
 
   void addInstruction(Own<Instruction> inst) {
     // if we are inserting a terminator instruction then we update the
@@ -320,8 +327,8 @@ protected:
 private:
   String label;
   ListOwn<Instruction> instructions;
-  Set<BasicBlock *> predecessors;
-  Set<BasicBlock *> successors;
+  Vec<BasicBlock *> predecessors;
+  Vec<BasicBlock *> successors;
 };
 
 class ExitInst : public Instruction {
@@ -599,7 +606,7 @@ public:
 
   std::size_t getPredNumber(BasicBlock *child, BasicBlock *parent) {
     const auto &preds = child->getPredecessors();
-    auto it = preds.find(parent);
+    auto it = std::find(preds.begin(), preds.end(), parent);
     ASSERT(it != preds.end(),
            "Error! No predecessor found with predNumber function!");
     return std::distance(preds.begin(), it);
@@ -626,13 +633,6 @@ public:
     }
     ERROR("Should always have defining instruction for a variable!");
     return nullptr;
-  }
-
-  BasicBlock *getDefiningBlock(const Variable *var) {
-    auto *definingInstruction = getDefiningInstruction(var);
-    ASSERT(definingInstruction != nullptr,
-           "Should always have defining instruction for a variable!");
-    return definingInstruction->getParent();
   }
 
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }

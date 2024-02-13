@@ -903,7 +903,6 @@ void Compiler::renameVariablesToSSA(Function &f,
     // for each successor
     for (auto *succ : block->getSuccessors()) {
       auto j = f.getPredNumber(succ, block);
-      // for each phi instruction in succ
       auto &instructions = succ->getInstructions();
       for (auto it = instructions.begin(); it != instructions.end(); ++it) {
         auto &inst = *it;
@@ -949,7 +948,7 @@ void Compiler::optimize(Function &f) {
   convertToSSAForm(f);
   // std::cout << f << std::endl;
   performCopyPropagation(f);
-  // std::cout << f << std::endl;
+  std::cout << f << std::endl;
   convertOutOfSSAForm(f);
   // std::cout << f << std::endl;
 }
@@ -1145,8 +1144,8 @@ void Compiler::convertOutOfSSAForm(Function &f) {
             auto *x_j = args[j];
             if (interferenceGraph->interferes(x_i, x_j)) {
               // Resolve according to the four cases
-              auto *n_i = f.getDefiningBlock(x_i);
-              auto *n_j = f.getDefiningBlock(x_j);
+              auto *n_i = block->getPredecessors()[i];
+              auto *n_j = block->getPredecessors()[j];
 
               bool lhsConflict =
                   !intersect(phiCongruent[x_i], liveness->getLiveOut(n_j))
@@ -1173,11 +1172,13 @@ void Compiler::convertOutOfSSAForm(Function &f) {
         }
         // for the result variable and each argument variable
         auto *x_i = phi->getLHS();
-        for (auto *x_j : phi->getRHS()) {
+        auto &rhs = phi->getRHS();
+        for (std::size_t j = 0; j < rhs.size(); ++j) {
+          auto *x_j = rhs[j];
           if (interferenceGraph->interferes(x_i, x_j)) {
             // Resolve according to the four cases
             auto *n = block.get(); // defining block for x_i is trivially n
-            auto *n_j = f.getDefiningBlock(x_j);
+            auto *n_j = block->getPredecessors()[j];
 
             bool selfConflict =
                 !intersect(phiCongruent[x_i], liveness->getLiveOut(n)).empty();
@@ -1272,8 +1273,10 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           }
 
           // 1. Update the phi instruction to use x' instead of x
-          auto newResult = phi->getLHS();
-          auto newArgs = phi->getRHS();
+          auto oldResult = phi->getLHS();
+          auto oldArgs = phi->getRHS();
+          auto newResult = oldResult;
+          auto newArgs = oldArgs;
           bool modifyingResult = (newResult == x);
 
           if (modifyingResult) {
@@ -1287,7 +1290,6 @@ void Compiler::convertOutOfSSAForm(Function &f) {
 
           auto newPhi = Make<PhiNode>(newResult, newArgs);
           it = block->replaceInst(phi, std::move(newPhi));
-          phi = dynamic_cast<const PhiNode *>(it->get());
 
           // 2. Insert the new assignment in the right place
           if (modifyingResult) {
@@ -1296,15 +1298,26 @@ void Compiler::convertOutOfSSAForm(Function &f) {
             auto newAssignment =
                 Make<Assignment>(x, bindExpression(f, newName));
             block->insertAfter(it->get(), std::move(newAssignment));
+            // LiveIn[block].erase(x)
+            // LiveIn[block].insert(xPrime)
+            // addInterferenceEdge(xPrime, LiveIn[block] \ xPrime)
           } else {
-            // Otherwise insert at the end of the defining block
+            // Otherwise insert at the end of the corresponding pred block
             // x' = x
             auto newAssignment =
                 Make<Assignment>(xPrime, bindExpression(f, x->getName()));
-            auto *toModify = f.getDefiningBlock(x);
+            auto it = std::find(oldArgs.begin(), oldArgs.end(), x);
+            ASSERT(it != oldArgs.end(),
+                   "Error finding the corresponding operand modified in phi "
+                   "during renaming!");
+            auto predIndex = std::distance(oldArgs.begin(), it);
+            auto *toModify = block->getPredecessors()[predIndex];
             toModify->insertBefore(toModify->getTerminator(),
                                    std::move(newAssignment));
           }
+
+          // finally update the phi
+          phi = dynamic_cast<const PhiNode *>(it->get());
         }
 
         // Make all variables in the phi belong to the same phi congruence
