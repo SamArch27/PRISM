@@ -494,7 +494,6 @@ public:
     return labels;
   }
 
-  // TODO: Handle deletion of argument variables
   void deleteVariables(const Set<const Variable *> &toDelete) {
     for (auto it = variables.begin(); it != variables.end();) {
       // remove the variable if its in the set to delete
@@ -505,6 +504,29 @@ public:
         ++it;
       }
     }
+  }
+
+  void deleteUnusedVariables() {
+    // collect all used variables
+    Set<const Variable *> usedVariables;
+    for (auto &block : basicBlocks) {
+      for (auto &inst : block->getInstructions()) {
+        if (inst->getResultOperand()) {
+          usedVariables.insert(inst->getResultOperand());
+        }
+      }
+    }
+
+    // delete variables not in the set
+    Set<const Variable *> toDelete;
+    for (auto &var : variables) {
+      if (usedVariables.find(var.get()) == usedVariables.end()) {
+        toDelete.insert(var.get());
+      }
+    }
+
+    // delete unused variables
+    deleteVariables(toDelete);
   }
 
   BasicBlock *makeBasicBlock(const String &label) {
@@ -522,8 +544,8 @@ public:
   void addArgument(const String &name, Own<Type> type) {
     auto cleanedName = getCleanedVariableName(name);
     auto var = Make<Variable>(cleanedName, std::move(type));
-    auto [it, _] = arguments.insert(std::move(var));
-    bindings.emplace(cleanedName, it->get());
+    arguments.push_back(std::move(var));
+    bindings.emplace(cleanedName, arguments.back().get());
   }
 
   void addVariable(const String &name, Own<Type> &&type, bool isNULL) {
@@ -538,12 +560,16 @@ public:
     declarations.emplace_back(std::move(assignment));
   }
 
+  String getOriginalName(const String &ssaName) {
+    return ssaName.substr(0, ssaName.find_first_of("_"));
+  };
+
   String getNextLabel() {
     auto label = String("L") + std::to_string(labelNumber);
     ++labelNumber;
     return label;
   }
-  const SetOwn<Variable> &getArguments() const { return arguments; }
+  const VecOwn<Variable> &getArguments() const { return arguments; }
   const SetOwn<Variable> &getVariables() const { return variables; }
   Set<Variable *> getAllVariables() const {
     Set<Variable *> allVariables;
@@ -571,11 +597,19 @@ public:
     return bindings.find(cleanedName) != bindings.end();
   }
 
+  std::size_t getPredNumber(BasicBlock *child, BasicBlock *parent) {
+    const auto &preds = child->getPredecessors();
+    auto it = preds.find(parent);
+    ASSERT(it != preds.end(),
+           "Error! No predecessor found with predNumber function!");
+    return std::distance(preds.begin(), it);
+  };
+
   const Variable *getBinding(const String &name) const {
     auto cleanedName = getCleanedVariableName(name);
-    ASSERT(hasBinding(cleanedName),
-           "ERROR: No binding for: " + name +
-               " after cleaning the name to: " + cleanedName);
+    ASSERT(hasBinding(cleanedName), "ERROR: No binding for: |" + name +
+                                        "| after cleaning the name to: |" +
+                                        cleanedName + "|");
     return bindings.at(cleanedName);
   }
 
@@ -663,6 +697,26 @@ public:
     os << "}" << std::endl;
   }
 
+  void addRenamedArguments(const Map<String, String> oldToNew) {
+    for (const auto &arg : arguments) {
+      // add the argument and add the new binding
+      auto newName = oldToNew.at(arg->getName());
+      arguments.emplace_back(
+          Make<Variable>(newName, arg->getType()->clone(), arg->isNull()));
+      bindings.insert({newName, arguments.back().get()});
+    }
+  }
+
+  void deleteOldArguments() {
+    // erase the arguments from the bindings map
+    auto numOldArguments = arguments.size() / 2;
+    for (std::size_t i = 0; i < numOldArguments; ++i) {
+      bindings.erase(arguments[i]->getName());
+    }
+    // now erase them from the vector
+    arguments.erase(arguments.begin(), arguments.begin() + numOldArguments);
+  }
+
   void newState() {
     states.emplace_back(labelNumber, basicBlocks);
     basicBlocks.clear();
@@ -708,7 +762,7 @@ private:
   std::size_t labelNumber;
   String functionName;
   Own<Type> returnType;
-  SetOwn<Variable> arguments;
+  VecOwn<Variable> arguments;
   SetOwn<Variable> variables;
   VecOwn<Assignment> declarations;
   Map<String, Variable *> bindings;

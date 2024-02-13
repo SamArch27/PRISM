@@ -803,30 +803,24 @@ void Compiler::renameVariablesToSSA(Function &f,
     stacks.insert({var, Stack<Counter>({0})});
   }
 
-  auto getOriginalName = [](const String &ssaName) {
-    return ssaName.substr(0, ssaName.find_first_of("_"));
-  };
-
   auto accessCounter = [&](const Variable *var) -> Counter & {
-    return counter.at(f.getBinding(getOriginalName(var->getName())));
+    return counter.at(f.getBinding(f.getOriginalName(var->getName())));
   };
 
   auto accessStack = [&](const Variable *var) -> Stack<Counter> & {
-    return stacks.at(f.getBinding(getOriginalName(var->getName())));
+    return stacks.at(f.getBinding(f.getOriginalName(var->getName())));
   };
 
-  auto predNumber = [&](BasicBlock *child, BasicBlock *parent) {
-    const auto &preds = child->getPredecessors();
-    auto it = preds.find(parent);
-    ASSERT(it != preds.end(),
-           "Error! No predecessor found with predNumber function!");
-    return std::distance(preds.begin(), it);
+  auto getNewArgumentName = [&](const Variable *var) {
+    auto i = accessStack(var).top();
+    auto oldName = f.getOriginalName(var->getName());
+    auto newName = oldName + "_" + std::to_string(i);
+    return newName;
   };
 
   auto renameVariable = [&](const Variable *var, bool updateVariable) {
-    // Map LHS variable to new SSA name
     auto i = updateVariable ? accessCounter(var) : accessStack(var).top();
-    auto oldName = getOriginalName(var->getName());
+    auto oldName = f.getOriginalName(var->getName());
     auto newName = oldName + "_" + std::to_string(i);
     auto *oldVar = f.getBinding(oldName);
     if (!f.hasBinding(newName)) {
@@ -847,7 +841,8 @@ void Compiler::renameVariablesToSSA(Function &f,
     // Map RHS variables to new SSA variable names
     for (auto *var : expr->getUsedVariables()) {
       auto i = accessStack(var).top();
-      auto newName = getOriginalName(var->getName()) + "_" + std::to_string(i);
+      auto newName =
+          f.getOriginalName(var->getName()) + "_" + std::to_string(i);
       oldToNew.insert({var->getName(), newName});
     }
 
@@ -907,7 +902,7 @@ void Compiler::renameVariablesToSSA(Function &f,
 
     // for each successor
     for (auto *succ : block->getSuccessors()) {
-      auto j = predNumber(succ, block);
+      auto j = f.getPredNumber(succ, block);
       // for each phi instruction in succ
       auto &instructions = succ->getInstructions();
       for (auto it = instructions.begin(); it != instructions.end(); ++it) {
@@ -933,19 +928,30 @@ void Compiler::renameVariablesToSSA(Function &f,
       }
     }
   };
+
+  // add the new the SSA-renamed function arguments
+  Map<String, String> oldToNew;
+  for (auto &arg : f.getArguments()) {
+    oldToNew[arg->getName()] = getNewArgumentName(arg.get());
+  }
+  f.addRenamedArguments(oldToNew);
+
+  // rename all of the variables
   rename(f.getEntryBlock());
+
+  // delete old arguments
+  f.deleteOldArguments();
 }
 
 void Compiler::optimize(Function &f) {
   mergeBasicBlocks(f);
-  std::cout << f << std::endl;
+  // std::cout << f << std::endl;
   convertToSSAForm(f);
-  std::cout << f << std::endl;
+  // std::cout << f << std::endl;
   performCopyPropagation(f);
-  std::cout << f << std::endl;
-  // pruneUnusedVariables(f);
+  // std::cout << f << std::endl;
   convertOutOfSSAForm(f);
-  std::cout << f << std::endl;
+  // std::cout << f << std::endl;
 }
 
 void Compiler::mergeBasicBlocks(Function &f) {
@@ -994,7 +1000,7 @@ void Compiler::convertToSSAForm(Function &f) {
 void Compiler::performCopyPropagation(Function &f) {
   for (auto &basicBlock : f.getBasicBlocks()) {
     auto &instructions = basicBlock->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+    for (auto it = instructions.begin(); it != instructions.end();) {
       auto *inst = it->get();
       // check for x = y assignment
       if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
@@ -1003,25 +1009,30 @@ void Compiler::performCopyPropagation(Function &f) {
 
         // skip SQL expressions
         if (rhs->isSQLExpression()) {
+          ++it;
           continue;
         }
 
         // Try converting the RHS to a variable
         if (!f.hasBinding(rhs->getRawSQL())) {
+          ++it;
           continue;
         }
         auto *var = f.getBinding(rhs->getRawSQL());
 
         replaceUsesWith(f, lhs, var);
-        it = std::prev(basicBlock->removeInst(inst));
+        it = basicBlock->removeInst(inst);
 
       } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
         if (!phi->hasIdenticalArguments()) {
+          ++it;
           continue;
         }
 
         replaceUsesWith(f, phi->getLHS(), phi->getRHS().front());
-        it = std::prev(basicBlock->removeInst(inst));
+        it = basicBlock->removeInst(inst);
+      } else {
+        ++it;
       }
     }
   }
@@ -1031,12 +1042,14 @@ void Compiler::replaceUsesWith(Function &f, const Variable *toReplace,
                                const Variable *newVar) {
   for (auto &block : f.getBasicBlocks()) {
     auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+    for (auto it = instructions.begin(); it != instructions.end();) {
       auto *inst = it->get();
 
-      // skip the instruction if it doesn't use the variable we are replacing
+      // skip the instruction if it doesn't use the variable we are
+      // replacing
       const auto &ops = inst->getOperands();
       if (std::find(ops.begin(), ops.end(), toReplace) == ops.end()) {
+        ++it;
         continue;
       }
 
@@ -1047,7 +1060,7 @@ void Compiler::replaceUsesWith(Function &f, const Variable *toReplace,
             assign->getLHS(),
             buildReplacedExpression(f, rhs, toReplace, newVar));
 
-        it = std::prev(block->replaceInst(it->get(), std::move(newAssign)));
+        it = block->replaceInst(it->get(), std::move(newAssign));
       } else if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
         auto newArguments = phi->getRHS();
         for (auto &arg : newArguments) {
@@ -1057,57 +1070,39 @@ void Compiler::replaceUsesWith(Function &f, const Variable *toReplace,
         }
 
         auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-        it = std::prev(block->replaceInst(it->get(), std::move(newPhi)));
+        it = block->replaceInst(it->get(), std::move(newPhi));
 
       } else if (auto *returnInst =
                      dynamic_cast<const ReturnInst *>(it->get())) {
         if (!returnInst->getExpr()->usesVariable(toReplace)) {
+          ++it;
           continue;
         }
         auto newReturn =
             Make<ReturnInst>(buildReplacedExpression(f, returnInst->getExpr(),
                                                      toReplace, newVar),
                              returnInst->getExitBlock());
-        it = std::prev(block->replaceInst(it->get(), std::move(newReturn)));
+        it = block->replaceInst(it->get(), std::move(newReturn));
       } else if (auto *branchInst =
                      dynamic_cast<const BranchInst *>(it->get())) {
         if (branchInst->isUnconditional()) {
+          ++it;
           continue;
         }
         if (!branchInst->getCond()->usesVariable(toReplace)) {
+          ++it;
           continue;
         }
         auto newBranch =
             Make<BranchInst>(branchInst->getIfTrue(), branchInst->getIfFalse(),
                              buildReplacedExpression(f, branchInst->getCond(),
                                                      toReplace, newVar));
-        it = std::prev(block->replaceInst(it->get(), std::move(newBranch)));
+        it = block->replaceInst(it->get(), std::move(newBranch));
+      } else {
+        ++it;
       }
     }
   }
-}
-
-void Compiler::pruneUnusedVariables(Function &f) {
-  // collect all used variables
-  Set<const Variable *> usedVariables;
-  for (auto &block : f.getBasicBlocks()) {
-    for (auto &inst : block->getInstructions()) {
-      if (inst->getResultOperand()) {
-        usedVariables.insert(inst->getResultOperand());
-      }
-    }
-  }
-
-  // delete variables not in the set
-  Set<const Variable *> toDelete;
-  for (const Variable *v : f.getAllVariables()) {
-    if (usedVariables.find(v) == usedVariables.end()) {
-      toDelete.insert(v);
-    }
-  }
-
-  // delete unused variables
-  f.deleteVariables(toDelete);
 }
 
 void Compiler::convertOutOfSSAForm(Function &f) {
@@ -1135,8 +1130,6 @@ void Compiler::convertOutOfSSAForm(Function &f) {
   };
 
   // for every phi
-  std::cout << "Interference graph! " << std::endl;
-  std::cout << *interferenceGraph << std::endl;
   for (auto &block : f.getBasicBlocks()) {
     auto &instructions = block->getInstructions();
     for (auto it = instructions.begin(); it != instructions.end(); ++it) {
@@ -1151,7 +1144,6 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           for (std::size_t j = i + 1; j < args.size(); ++j) {
             auto *x_j = args[j];
             if (interferenceGraph->interferes(x_i, x_j)) {
-              std::cout << *x_i << " INTERFERES WITH " << *x_j << std::endl;
               // Resolve according to the four cases
               auto *n_i = f.getDefiningBlock(x_i);
               auto *n_j = f.getDefiningBlock(x_j);
@@ -1266,12 +1258,18 @@ void Compiler::convertOutOfSSAForm(Function &f) {
         }
 
         for (auto *x : marked) {
-          // Make a new variable x'
-          auto newName = x->getName() + "_prime";
+          auto newName = String("p") + x->getName();
+          // Make a new variable
           if (!f.hasBinding(newName)) {
             f.addVariable(newName, x->getType()->clone(), x->isNull());
           }
           auto xPrime = f.getBinding(newName);
+
+          // Make a new variable for non-SSA name
+          auto original = f.getOriginalName(newName);
+          if (!f.hasBinding(original)) {
+            f.addVariable(original, x->getType()->clone(), x->isNull());
+          }
 
           // 1. Update the phi instruction to use x' instead of x
           auto newResult = phi->getLHS();
@@ -1293,8 +1291,8 @@ void Compiler::convertOutOfSSAForm(Function &f) {
 
           // 2. Insert the new assignment in the right place
           if (modifyingResult) {
-            // Insert after the phi instruction if we are modifying the result
-            // x = x'
+            // Insert after the phi instruction if we are modifying the
+            // result x = x'
             auto newAssignment =
                 Make<Assignment>(x, bindExpression(f, newName));
             block->insertAfter(it->get(), std::move(newAssignment));
@@ -1328,18 +1326,32 @@ void Compiler::convertOutOfSSAForm(Function &f) {
     }
   }
 
-  // Remove every phi
+  std::cout << f << std::endl;
+
+  // Remove all phis, inserting the appropriate assignments in predecessors
   for (auto &block : f.getBasicBlocks()) {
     auto &instructions = block->getInstructions();
     for (auto it = instructions.begin(); it != instructions.end();) {
       auto *inst = it->get();
-      if (dynamic_cast<const PhiNode *>(inst)) {
+      if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+
+        // Add assignment instructions for each arg to the appropriate block
+        for (auto *pred : block->getPredecessors()) {
+          auto predNumber = f.getPredNumber(block.get(), pred);
+          auto *arg = phi->getRHS()[predNumber];
+          auto newAssignment = Make<Assignment>(
+              phi->getLHS(), bindExpression(f, arg->getName()));
+          pred->insertBefore(pred->getTerminator(), std::move(newAssignment));
+        }
+        // Remove the phi
         it = block->removeInst(inst);
       } else {
         ++it;
       }
     }
   }
+
+  std::cout << f << std::endl;
 }
 
 /**
