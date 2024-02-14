@@ -1111,6 +1111,7 @@ void Compiler::convertOutOfSSAForm(Function &f) {
   auto interferenceGraph = dataflow->computeInterfenceGraph();
 
   Set<const Variable *> marked;
+  OrderedSet<Pair<const Variable *, const Variable *>> brokenEdges;
   OrderedSet<Pair<const Variable *, const Variable *>> deferred;
   Map<const Variable *, Set<const Variable *>> phiCongruent;
   for (auto *var : f.getAllVariables()) {
@@ -1134,6 +1135,7 @@ void Compiler::convertOutOfSSAForm(Function &f) {
     for (auto it = instructions.begin(); it != instructions.end(); ++it) {
       auto *inst = it->get();
       if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+        brokenEdges.clear();
         marked.clear();
         deferred.clear();
         auto &args = phi->getRHS();
@@ -1143,6 +1145,9 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           for (std::size_t j = i + 1; j < args.size(); ++j) {
             auto *x_j = args[j];
             if (interferenceGraph->interferes(x_i, x_j)) {
+              // The edge eventually gets broken
+              brokenEdges.insert({x_i, x_j});
+
               // Resolve according to the four cases
               auto *n_i = block->getPredecessors()[i];
               auto *n_j = block->getPredecessors()[j];
@@ -1176,6 +1181,9 @@ void Compiler::convertOutOfSSAForm(Function &f) {
         for (std::size_t j = 0; j < rhs.size(); ++j) {
           auto *x_j = rhs[j];
           if (interferenceGraph->interferes(x_i, x_j)) {
+            // The edge eventually gets broken
+            brokenEdges.insert({x_i, x_j});
+
             // Resolve according to the four cases
             auto *n = block.get(); // defining block for x_i is trivially n
             auto *n_j = block->getPredecessors()[j];
@@ -1298,9 +1306,13 @@ void Compiler::convertOutOfSSAForm(Function &f) {
             auto newAssignment =
                 Make<Assignment>(x, bindExpression(f, newName));
             block->insertAfter(it->get(), std::move(newAssignment));
-            // LiveIn[block].erase(x)
-            // LiveIn[block].insert(xPrime)
-            // addInterferenceEdge(xPrime, LiveIn[block] \ xPrime)
+
+            // Update the live in/out and interference graph
+            liveness->removeLiveIn(block.get(), x);
+            for (auto *var : liveness->getLiveIn(block.get())) {
+              interferenceGraph->addInterferenceEdge(xPrime, var);
+            }
+            liveness->addLiveIn(block.get(), xPrime);
           } else {
             // Otherwise insert at the end of the corresponding pred block
             // x' = x
@@ -1314,6 +1326,36 @@ void Compiler::convertOutOfSSAForm(Function &f) {
             auto *toModify = block->getPredecessors()[predIndex];
             toModify->insertBefore(toModify->getTerminator(),
                                    std::move(newAssignment));
+            // update the live in/out and interference graph
+            auto &successors = block->getSuccessors();
+            if (std::all_of(successors.begin(), successors.end(),
+                            [&](BasicBlock *succ) {
+                              // not in livein of succ
+                              auto &succLiveIn = liveness->getLiveIn(succ);
+                              if (succLiveIn.find(x) == succLiveIn.end()) {
+                                return false;
+                              }
+                              // not referenced in any phi
+                              for (auto *phi : f.getPhisFromBlock(succ)) {
+                                auto &uses = phi->getRHS();
+                                if (std::find(uses.begin(), uses.end(), x) !=
+                                    uses.end()) {
+                                  return false;
+                                }
+                              }
+                              return true;
+                            })) {
+              liveness->removeLiveOut(toModify, x);
+            }
+            for (auto *var : liveness->getLiveOut(toModify)) {
+              interferenceGraph->addInterferenceEdge(xPrime, var);
+            }
+            liveness->addLiveOut(toModify, xPrime);
+          }
+
+          // break all the edges
+          for (auto &[left, right] : brokenEdges) {
+            interferenceGraph->removeEdge(left, right);
           }
 
           // finally update the phi
@@ -1330,11 +1372,20 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           }
         }
 
-        // TODO (later): Update the live ranges
         dataflow = Make<LivenessDataflow>(f);
         dataflow->runAnalysis();
-        liveness = dataflow->computeLiveness();
-        interferenceGraph = dataflow->computeInterfenceGraph();
+        auto otherLiveness = dataflow->computeLiveness();
+        auto otherInterferenceGraph = dataflow->computeInterfenceGraph();
+
+        std::cout << "LIVENESS" << std::endl;
+        std::cout << *liveness << std::endl;
+        std::cout << *otherLiveness << std::endl << std::endl;
+
+        std::cout << "GRAPH" << std::endl;
+        std::cout << *interferenceGraph << std::endl;
+        std::cout << *otherInterferenceGraph << std::endl << std::endl;
+
+        break;
       }
     }
   }

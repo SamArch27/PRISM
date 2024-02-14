@@ -22,8 +22,16 @@ public:
     liveIn.at(block).insert(liveVariable);
   }
 
+  void removeLiveIn(BasicBlock *block, const Variable *liveVariable) {
+    liveIn.at(block).erase(liveVariable);
+  }
+
   void addLiveOut(BasicBlock *block, const Variable *liveVariable) {
     liveOut.at(block).insert(liveVariable);
+  }
+
+  void removeLiveOut(BasicBlock *block, const Variable *liveVariable) {
+    liveOut.at(block).erase(liveVariable);
   }
 
   const Set<const Variable *> &getLiveIn(BasicBlock *block) const {

@@ -635,6 +635,16 @@ public:
     return nullptr;
   }
 
+  Vec<const PhiNode *> getPhisFromBlock(BasicBlock *block) {
+    Vec<const PhiNode *> phis;
+    for (auto &inst : block->getInstructions()) {
+      if (auto *phiNode = dynamic_cast<const PhiNode *>(inst.get())) {
+        phis.push_back(phiNode);
+      }
+    }
+    return phis;
+  }
+
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
   BasicBlock *getExitBlock() { return basicBlocks[1].get(); }
 
