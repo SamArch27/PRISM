@@ -114,7 +114,7 @@ public:
   virtual Vec<const Variable *> getOperands() const = 0;
   virtual Vec<BasicBlock *> getSuccessors() const = 0;
   void setParent(BasicBlock *parentBlock) { parent = parentBlock; }
-  BasicBlock *getParent() { return parent; }
+  BasicBlock *getParent() const { return parent; }
 
 protected:
   virtual void print(std::ostream &os) const = 0;
@@ -166,7 +166,7 @@ protected:
       if (first) {
         first = false;
       } else {
-        os << ",";
+        os << ", ";
       }
       os << *arg;
     }
@@ -228,13 +228,20 @@ public:
     return os;
   }
 
-  const Set<BasicBlock *> &getSuccessors() const { return successors; }
-  const Set<BasicBlock *> &getPredecessors() const { return predecessors; }
+  const Vec<BasicBlock *> &getSuccessors() const { return successors; }
+  const Vec<BasicBlock *> &getPredecessors() const { return predecessors; }
 
-  void addSuccessor(BasicBlock *succ) { successors.insert(succ); }
-  void addPredecessor(BasicBlock *pred) { predecessors.insert(pred); }
-  void removeSuccessor(BasicBlock *succ) { successors.erase(succ); }
-  void removePredecessor(BasicBlock *pred) { predecessors.erase(pred); }
+  void addSuccessor(BasicBlock *succ) { successors.push_back(succ); }
+  void addPredecessor(BasicBlock *pred) { predecessors.push_back(pred); }
+  void removeSuccessor(BasicBlock *succ) {
+    successors.erase(std::remove(successors.begin(), successors.end(), succ),
+                     successors.end());
+  }
+  void removePredecessor(BasicBlock *pred) {
+    predecessors.erase(
+        std::remove(predecessors.begin(), predecessors.end(), pred),
+        predecessors.end());
+  }
 
   void addInstruction(Own<Instruction> inst) {
     // if we are inserting a terminator instruction then we update the
@@ -259,6 +266,19 @@ public:
            "Instruction must exist when performing insertBefore()!");
     newInst->setParent(this);
     return instructions.emplace(it, std::move(newInst));
+  }
+
+  List<Own<Instruction>>::iterator insertAfter(const Instruction *targetInst,
+                                               Own<Instruction> newInst) {
+
+    auto it = std::find_if(
+        instructions.begin(), instructions.end(),
+        [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
+    ASSERT((it != instructions.end()),
+           "Instruction must exist when performing insertBefore()!");
+    newInst->setParent(this);
+    ++it; // import that we increment the iterator before to insert after
+    return instructions.insert(it, std::move(newInst));
   }
 
   List<Own<Instruction>>::iterator removeInst(const Instruction *targetInst) {
@@ -309,8 +329,8 @@ protected:
 private:
   String label;
   ListOwn<Instruction> instructions;
-  Set<BasicBlock *> predecessors;
-  Set<BasicBlock *> successors;
+  Vec<BasicBlock *> predecessors;
+  Vec<BasicBlock *> successors;
 };
 
 class ExitInst : public Instruction {
@@ -508,6 +528,41 @@ public:
     return labels;
   }
 
+  void deleteVariables(const Set<const Variable *> &toDelete) {
+    for (auto it = variables.begin(); it != variables.end();) {
+      // remove the variable if its in the set to delete
+      auto *var = it->get();
+      if (toDelete.find(var) != toDelete.end()) {
+        it = variables.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  void deleteUnusedVariables() {
+    // collect all used variables
+    Set<const Variable *> usedVariables;
+    for (auto &block : basicBlocks) {
+      for (auto &inst : block->getInstructions()) {
+        if (inst->getResultOperand()) {
+          usedVariables.insert(inst->getResultOperand());
+        }
+      }
+    }
+
+    // delete variables not in the set
+    Set<const Variable *> toDelete;
+    for (auto &var : variables) {
+      if (usedVariables.find(var.get()) == usedVariables.end()) {
+        toDelete.insert(var.get());
+      }
+    }
+
+    // delete unused variables
+    deleteVariables(toDelete);
+  }
+
   BasicBlock *makeBasicBlock(const String &label) {
     basicBlocks.emplace_back(Make<BasicBlock>(label));
     auto *newBlock = basicBlocks.back().get();
@@ -521,15 +576,17 @@ public:
   }
 
   void addArgument(const String &name, Own<Type> type) {
-    auto var = Make<Variable>(name, std::move(type));
-    auto [it, _] = arguments.insert(std::move(var));
-    bindings.emplace(name, it->get());
+    auto cleanedName = getCleanedVariableName(name);
+    auto var = Make<Variable>(cleanedName, std::move(type));
+    arguments.push_back(std::move(var));
+    bindings.emplace(cleanedName, arguments.back().get());
   }
 
   void addVariable(const String &name, Own<Type> &&type, bool isNULL) {
-    auto var = Make<Variable>(name, std::move(type), isNULL);
+    auto cleanedName = getCleanedVariableName(name);
+    auto var = Make<Variable>(cleanedName, std::move(type), isNULL);
     auto [it, _] = variables.insert(std::move(var));
-    bindings.emplace(name, it->get());
+    bindings.emplace(cleanedName, it->get());
   }
 
   void addVarInitialization(const Variable *var, Own<SelectExpression> expr) {
@@ -537,12 +594,16 @@ public:
     declarations.emplace_back(std::move(assignment));
   }
 
+  String getOriginalName(const String &ssaName) {
+    return ssaName.substr(0, ssaName.find_first_of("_"));
+  };
+
   String getNextLabel() {
     auto label = String("L") + std::to_string(labelNumber);
     ++labelNumber;
     return label;
   }
-  const SetOwn<Variable> &getArguments() const { return arguments; }
+  const VecOwn<Variable> &getArguments() const { return arguments; }
   const SetOwn<Variable> &getVariables() const { return variables; }
   Set<Variable *> getAllVariables() const {
     Set<Variable *> allVariables;
@@ -570,15 +631,46 @@ public:
     return bindings.find(cleanedName) != bindings.end();
   }
 
+  std::size_t getPredNumber(BasicBlock *child, BasicBlock *parent) {
+    const auto &preds = child->getPredecessors();
+    auto it = std::find(preds.begin(), preds.end(), parent);
+    ASSERT(it != preds.end(),
+           "Error! No predecessor found with predNumber function!");
+    return std::distance(preds.begin(), it);
+  };
+
   const Variable *getBinding(const String &name) const {
     auto cleanedName = getCleanedVariableName(name);
-    if (!hasBinding(cleanedName)) {
-      return nullptr;
-    }
+    ASSERT(hasBinding(cleanedName), "ERROR: No binding for: |" + name +
+                                        "| after cleaning the name to: |" +
+                                        cleanedName + "|");
     return bindings.at(cleanedName);
   }
 
   const Map<String, Variable *> &getAllBindings() const { return bindings; }
+
+  // TODO: Exploit SSA to make this faster
+  const Instruction *getDefiningInstruction(const Variable *var) {
+    for (auto &block : basicBlocks) {
+      for (auto &inst : block->getInstructions()) {
+        if (inst->getResultOperand() == var) {
+          return inst.get();
+        }
+      }
+    }
+    ERROR("Should always have defining instruction for a variable!");
+    return nullptr;
+  }
+
+  Vec<const PhiNode *> getPhisFromBlock(BasicBlock *block) {
+    Vec<const PhiNode *> phis;
+    for (auto &inst : block->getInstructions()) {
+      if (auto *phiNode = dynamic_cast<const PhiNode *>(inst.get())) {
+        phis.push_back(phiNode);
+      }
+    }
+    return phis;
+  }
 
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
   BasicBlock *getExitBlock() { return basicBlocks[1].get(); }
@@ -642,11 +734,25 @@ public:
     os << "}" << std::endl;
   }
 
-  // void newState() {
-  //   states.emplace_back(labelNumber, basicBlocks);
-  //   basicBlocks.clear();
-  //   labelNumber = 0;
-  // }
+  void addRenamedArguments(const Map<String, String> oldToNew) {
+    for (const auto &arg : arguments) {
+      // add the argument and add the new binding
+      auto newName = oldToNew.at(arg->getName());
+      arguments.emplace_back(
+          Make<Variable>(newName, arg->getType()->clone(), arg->isNull()));
+      bindings.insert({newName, arguments.back().get()});
+    }
+  }
+
+  void deleteOldArguments() {
+    // erase the arguments from the bindings map
+    auto numOldArguments = arguments.size() / 2;
+    for (std::size_t i = 0; i < numOldArguments; ++i) {
+      bindings.erase(arguments[i]->getName());
+    }
+    // now erase them from the vector
+    arguments.erase(arguments.begin(), arguments.begin() + numOldArguments);
+  }
 
   // /**
   //  * Clear the current state and restore the previous state in the stack
@@ -687,7 +793,7 @@ private:
   std::size_t labelNumber;
   String functionName;
   Own<Type> returnType;
-  SetOwn<Variable> arguments;
+  VecOwn<Variable> arguments;
   SetOwn<Variable> variables;
   VecOwn<Assignment> declarations;
   Map<String, Variable *> bindings;

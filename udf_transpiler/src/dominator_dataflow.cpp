@@ -14,10 +14,11 @@ BitVector DominatorDataflow::transfer(BitVector in, Instruction *inst) {
   return out;
 }
 
-BitVector DominatorDataflow::meet(BitVector in1, BitVector in2) {
+BitVector DominatorDataflow::meet(BitVector result, BitVector in,
+                                  BasicBlock *) {
   BitVector out(blockToIndex.size(), false);
-  out |= in1;
-  out &= in2;
+  out |= result;
+  out &= in;
   return out;
 }
 

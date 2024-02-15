@@ -22,8 +22,16 @@ public:
     liveIn.at(block).insert(liveVariable);
   }
 
+  void removeLiveIn(BasicBlock *block, const Variable *liveVariable) {
+    liveIn.at(block).erase(liveVariable);
+  }
+
   void addLiveOut(BasicBlock *block, const Variable *liveVariable) {
     liveOut.at(block).insert(liveVariable);
+  }
+
+  void removeLiveOut(BasicBlock *block, const Variable *liveVariable) {
+    liveOut.at(block).erase(liveVariable);
   }
 
   const Set<const Variable *> &getLiveIn(BasicBlock *block) const {
@@ -69,18 +77,63 @@ private:
   Map<BasicBlock *, Set<const Variable *>> liveOut;
 };
 
+class InterferenceGraph {
+public:
+  void addInterferenceEdge(const Variable *left, const Variable *right) {
+    edge[left].insert(right);
+  }
+
+  bool interferes(const Variable *left, const Variable *right) {
+    auto &leftEdges = edge[left];
+    auto &rightEdges = edge[right];
+    std::cout << std::endl;
+    return leftEdges.find(right) != leftEdges.end() ||
+           rightEdges.find(left) != rightEdges.end();
+  }
+
+  void removeEdge(const Variable *left, const Variable *right) {
+    edge[left].erase(right);
+    edge[right].erase(left);
+  }
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const InterferenceGraph &interferenceGraph) {
+    interferenceGraph.print(os);
+    return os;
+  }
+
+private:
+  void print(std::ostream &os) const {
+    os << "digraph cfg {" << std::endl;
+    for (const auto &[var, others] : edge) {
+      os << "\t" << var->getName() << " [label=\"" << var->getName() << "\"];";
+      for (const auto *other : others) {
+        os << "\t" << var->getName() << " -> " << other->getName()
+           << " [dir=none];" << std::endl;
+      }
+    }
+    os << "}" << std::endl;
+  }
+
+  Map<const Variable *, Set<const Variable *>> edge;
+};
+
 class LivenessDataflow : public DataflowFramework<BitVector, false> {
 public:
   LivenessDataflow(Function &f) : DataflowFramework(f) {}
   Own<Liveness> computeLiveness() const;
+  Own<InterferenceGraph> computeInterfenceGraph() const;
 
 protected:
   BitVector transfer(BitVector out, Instruction *inst) override;
-  BitVector meet(BitVector in1, BitVector in2) override;
+  BitVector meet(BitVector result, BitVector in, BasicBlock *block) override;
   void preprocessInst(Instruction *inst) override;
   void genBoundaryInner() override;
 
-  Map<const Variable *, const Instruction *> def;
-  Vec<const Variable *> variables;
-  Map<const Variable *, std::size_t> varToIndex;
+  Map<BasicBlock *, Set<const Instruction *>> allDefs;
+  Map<BasicBlock *, Set<const Instruction *>> phiDefs;
+  Map<BasicBlock *, Set<const Instruction *>> phiUses;
+  Map<BasicBlock *, Set<const Instruction *>> upwardsExposed;
+  Vec<const Instruction *> definingInstructions;
+  Map<const Instruction *, std::size_t> instToIndex;
 };

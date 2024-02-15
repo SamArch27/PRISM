@@ -11,6 +11,7 @@
 #include "pg_query.h"
 #include "used_variable_finder.hpp"
 #include "utils.hpp"
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -803,34 +804,29 @@ void Compiler::renameVariablesToSSA(Function &f,
     stacks.insert({var, Stack<Counter>({0})});
   }
 
-  auto getOriginalName = [](const String &ssaName) {
-    return ssaName.substr(0, ssaName.find_first_of("_"));
-  };
-
   auto accessCounter = [&](const Variable *var) -> Counter & {
-    return counter.at(f.getBinding(getOriginalName(var->getName())));
+    return counter.at(f.getBinding(f.getOriginalName(var->getName())));
   };
 
   auto accessStack = [&](const Variable *var) -> Stack<Counter> & {
-    return stacks.at(f.getBinding(getOriginalName(var->getName())));
+    return stacks.at(f.getBinding(f.getOriginalName(var->getName())));
   };
 
-  auto predNumber = [&](BasicBlock *child, BasicBlock *parent) {
-    const auto &preds = child->getPredecessors();
-    auto it = preds.find(parent);
-    ASSERT(it != preds.end(),
-           "Error! No predecessor found with predNumber function!");
-    return std::distance(preds.begin(), it);
+  auto getNewArgumentName = [&](const Variable *var) {
+    auto i = accessStack(var).top();
+    auto oldName = f.getOriginalName(var->getName());
+    auto newName = oldName + "_" + std::to_string(i);
+    return newName;
   };
 
   auto renameVariable = [&](const Variable *var, bool updateVariable) {
-    // Map LHS variable to new SSA name
     auto i = updateVariable ? accessCounter(var) : accessStack(var).top();
-    auto oldName = getOriginalName(var->getName());
+    auto oldName = f.getOriginalName(var->getName());
     auto newName = oldName + "_" + std::to_string(i);
     auto *oldVar = f.getBinding(oldName);
-    f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
-
+    if (!f.hasBinding(newName)) {
+      f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+    }
     // Update stack and counters
     if (updateVariable) {
       accessStack(var).push(i);
@@ -846,7 +842,8 @@ void Compiler::renameVariablesToSSA(Function &f,
     // Map RHS variables to new SSA variable names
     for (auto *var : expr->getUsedVariables()) {
       auto i = accessStack(var).top();
-      auto newName = getOriginalName(var->getName()) + "_" + std::to_string(i);
+      auto newName =
+          f.getOriginalName(var->getName()) + "_" + std::to_string(i);
       oldToNew.insert({var->getName(), newName});
     }
 
@@ -854,7 +851,9 @@ void Compiler::renameVariablesToSSA(Function &f,
     Map<const Variable *, const Variable *> varMapping;
     for (auto &[oldName, newName] : oldToNew) {
       auto *oldVar = f.getBinding(oldName);
-      f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+      if (!f.hasBinding(newName)) {
+        f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+      }
       varMapping.insert({oldVar, f.getBinding(newName)});
     }
 
@@ -904,8 +903,7 @@ void Compiler::renameVariablesToSSA(Function &f,
 
     // for each successor
     for (auto *succ : block->getSuccessors()) {
-      auto j = predNumber(succ, block);
-      // for each phi instruction in succ
+      auto j = f.getPredNumber(succ, block);
       auto &instructions = succ->getInstructions();
       for (auto it = instructions.begin(); it != instructions.end(); ++it) {
         auto &inst = *it;
@@ -930,7 +928,19 @@ void Compiler::renameVariablesToSSA(Function &f,
       }
     }
   };
+
+  // add the new the SSA-renamed function arguments
+  Map<String, String> oldToNew;
+  for (auto &arg : f.getArguments()) {
+    oldToNew[arg->getName()] = getNewArgumentName(arg.get());
+  }
+  f.addRenamedArguments(oldToNew);
+
+  // rename all of the variables
   rename(f.getEntryBlock());
+
+  // delete old arguments
+  f.deleteOldArguments();
 }
 
 void Compiler::optimize(Function &f) {
@@ -940,11 +950,8 @@ void Compiler::optimize(Function &f) {
   // std::cout << f << std::endl;
   performCopyPropagation(f);
   std::cout << f << std::endl;
-  LivenessDataflow dataflow(f);
-  dataflow.runAnalysis();
-  auto liveness = dataflow.computeLiveness();
-  std::cout << "Computing liveness!" << std::endl;
-  std::cout << *liveness << std::endl;
+  convertOutOfSSAForm(f);
+  // std::cout << f << std::endl;
 }
 
 void Compiler::mergeBasicBlocks(Function &f) {
@@ -983,21 +990,8 @@ void Compiler::convertToSSAForm(Function &f) {
   DominatorDataflow dataflow(f);
   dataflow.runAnalysis();
   auto dominators = dataflow.computeDominators();
-
-  // print dominator info
-  std::cout << "\nDominators:" << std::endl;
-  std::cout << *dominators << std::endl;
-
   auto dominanceFrontier = dataflow.computeDominanceFrontier(dominators);
-
-  // print dominance frontier
-  std::cout << "\nDominance Frontier:" << std::endl;
-  std::cout << *dominanceFrontier << std::endl;
-
   auto dominatorTree = dataflow.computeDominatorTree(dominators);
-
-  // print dominator tree
-  std::cout << *dominatorTree << std::endl;
 
   insertPhiFunctions(f, dominanceFrontier);
   renameVariablesToSSA(f, dominatorTree);
@@ -1006,7 +1000,7 @@ void Compiler::convertToSSAForm(Function &f) {
 void Compiler::performCopyPropagation(Function &f) {
   for (auto &basicBlock : f.getBasicBlocks()) {
     auto &instructions = basicBlock->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+    for (auto it = instructions.begin(); it != instructions.end();) {
       auto *inst = it->get();
       // check for x = y assignment
       if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
@@ -1015,40 +1009,47 @@ void Compiler::performCopyPropagation(Function &f) {
 
         // skip SQL expressions
         if (rhs->isSQLExpression()) {
+          ++it;
           continue;
         }
 
         // Try converting the RHS to a variable
-        auto *var = f.getBinding(rhs->getRawSQL());
-        if (var == nullptr) {
+        if (!f.hasBinding(rhs->getRawSQL())) {
+          ++it;
           continue;
         }
+        auto *var = f.getBinding(rhs->getRawSQL());
 
-        renameVariableGlobally(f, lhs, var);
-        it = std::prev(basicBlock->removeInst(inst));
+        replaceUsesWith(f, lhs, var);
+        it = basicBlock->removeInst(inst);
 
       } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
         if (!phi->hasIdenticalArguments()) {
+          ++it;
           continue;
         }
 
-        renameVariableGlobally(f, phi->getLHS(), phi->getRHS().front());
-        it = std::prev(basicBlock->removeInst(inst));
+        replaceUsesWith(f, phi->getLHS(), phi->getRHS().front());
+        it = basicBlock->removeInst(inst);
+      } else {
+        ++it;
       }
     }
   }
 }
 
-void Compiler::renameVariableGlobally(Function &f, const Variable *toReplace,
-                                      const Variable *newVar) {
+void Compiler::replaceUsesWith(Function &f, const Variable *toReplace,
+                               const Variable *newVar) {
   for (auto &block : f.getBasicBlocks()) {
     auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+    for (auto it = instructions.begin(); it != instructions.end();) {
       auto *inst = it->get();
 
-      // skip the instruction if it doesn't use the variable we are replacing
+      // skip the instruction if it doesn't use the variable we are
+      // replacing
       const auto &ops = inst->getOperands();
       if (std::find(ops.begin(), ops.end(), toReplace) == ops.end()) {
+        ++it;
         continue;
       }
 
@@ -1059,7 +1060,7 @@ void Compiler::renameVariableGlobally(Function &f, const Variable *toReplace,
             assign->getLHS(),
             buildReplacedExpression(f, rhs, toReplace, newVar));
 
-        it = std::prev(block->replaceInst(it->get(), std::move(newAssign)));
+        it = block->replaceInst(it->get(), std::move(newAssign));
       } else if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
         auto newArguments = phi->getRHS();
         for (auto &arg : newArguments) {
@@ -1069,34 +1070,353 @@ void Compiler::renameVariableGlobally(Function &f, const Variable *toReplace,
         }
 
         auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-        it = std::prev(block->replaceInst(it->get(), std::move(newPhi)));
+        it = block->replaceInst(it->get(), std::move(newPhi));
 
       } else if (auto *returnInst =
                      dynamic_cast<const ReturnInst *>(it->get())) {
         if (!returnInst->getExpr()->usesVariable(toReplace)) {
+          ++it;
           continue;
         }
         auto newReturn =
             Make<ReturnInst>(buildReplacedExpression(f, returnInst->getExpr(),
                                                      toReplace, newVar),
                              returnInst->getExitBlock());
-        it = std::prev(block->replaceInst(it->get(), std::move(newReturn)));
+        it = block->replaceInst(it->get(), std::move(newReturn));
       } else if (auto *branchInst =
                      dynamic_cast<const BranchInst *>(it->get())) {
         if (branchInst->isUnconditional()) {
+          ++it;
           continue;
         }
         if (!branchInst->getCond()->usesVariable(toReplace)) {
+          ++it;
           continue;
         }
         auto newBranch =
             Make<BranchInst>(branchInst->getIfTrue(), branchInst->getIfFalse(),
                              buildReplacedExpression(f, branchInst->getCond(),
                                                      toReplace, newVar));
-        it = std::prev(block->replaceInst(it->get(), std::move(newBranch)));
+        it = block->replaceInst(it->get(), std::move(newBranch));
+      } else {
+        ++it;
       }
     }
   }
+}
+
+void Compiler::convertOutOfSSAForm(Function &f) {
+  auto dataflow = Make<LivenessDataflow>(f);
+  dataflow->runAnalysis();
+  auto liveness = dataflow->computeLiveness();
+  auto interferenceGraph = dataflow->computeInterfenceGraph();
+
+  Set<const Variable *> marked;
+  OrderedSet<Pair<const Variable *, const Variable *>> brokenEdges;
+  OrderedSet<Pair<const Variable *, const Variable *>> deferred;
+  Map<const Variable *, Set<const Variable *>> phiCongruent;
+  for (auto *var : f.getAllVariables()) {
+    phiCongruent[var].insert(var);
+  }
+
+  auto intersect = [](const Set<const Variable *> &lhs,
+                      const Set<const Variable *> &rhs) {
+    Set<const Variable *> result;
+    for (auto *var : lhs) {
+      if (rhs.find(var) != rhs.end()) {
+        result.insert(var);
+      }
+    }
+    return result;
+  };
+
+  // for every phi
+  for (auto &block : f.getBasicBlocks()) {
+    auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+      auto *inst = it->get();
+      if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+        brokenEdges.clear();
+        marked.clear();
+        deferred.clear();
+        auto &args = phi->getRHS();
+        // for each pair of arguments
+        for (std::size_t i = 0; i < args.size(); ++i) {
+          auto *x_i = args[i];
+          for (std::size_t j = i + 1; j < args.size(); ++j) {
+            auto *x_j = args[j];
+            if (interferenceGraph->interferes(x_i, x_j)) {
+              // The edge eventually gets broken
+              brokenEdges.insert({x_i, x_j});
+
+              // Resolve according to the four cases
+              auto *n_i = block->getPredecessors()[i];
+              auto *n_j = block->getPredecessors()[j];
+
+              bool lhsConflict =
+                  !intersect(phiCongruent[x_i], liveness->getLiveOut(n_j))
+                       .empty();
+              bool rhsConflict =
+                  !intersect(phiCongruent[x_j], liveness->getLiveOut(n_i))
+                       .empty();
+              if (lhsConflict && !rhsConflict) {
+                // mark x_i
+                marked.insert(x_i);
+              } else if (!lhsConflict && rhsConflict) {
+                // mark x_j
+                marked.insert(x_j);
+              } else if (!lhsConflict && !rhsConflict) {
+                // unsure so we defer (x_i,x_j)
+                deferred.insert({x_i, x_j});
+              } else {
+                // mark both
+                marked.insert(x_i);
+                marked.insert(x_j);
+              }
+            }
+          }
+        }
+        // for the result variable and each argument variable
+        auto *x_i = phi->getLHS();
+        auto &rhs = phi->getRHS();
+        for (std::size_t j = 0; j < rhs.size(); ++j) {
+          auto *x_j = rhs[j];
+          if (interferenceGraph->interferes(x_i, x_j)) {
+            // The edge eventually gets broken
+            brokenEdges.insert({x_i, x_j});
+
+            // Resolve according to the four cases
+            auto *n = block.get(); // defining block for x_i is trivially n
+            auto *n_j = block->getPredecessors()[j];
+
+            bool selfConflict =
+                !intersect(phiCongruent[x_i], liveness->getLiveOut(n)).empty();
+            bool lhsConflict =
+                !intersect(phiCongruent[x_i], liveness->getLiveOut(n_j))
+                     .empty();
+            bool rhsInConflict =
+                !intersect(phiCongruent[x_j], liveness->getLiveIn(n)).empty();
+            bool rhsOutConflict =
+                !intersect(phiCongruent[x_j], liveness->getLiveOut(n)).empty();
+
+            if (selfConflict && !rhsInConflict) {
+              // mark x_i
+              marked.insert(x_i);
+            } else if (!selfConflict && rhsInConflict) {
+              // mark x_j
+              marked.insert(x_j);
+            } else if (!lhsConflict && !rhsOutConflict) {
+              // unsure so we defer (x_i, x_j)
+              deferred.insert({x_i, x_j});
+            } else if (lhsConflict && rhsOutConflict) {
+              // mark both
+              marked.insert(x_i);
+              marked.insert(x_j);
+            }
+          }
+        }
+
+        // for each marked variable, remove all pairs
+        //  which have the marked variable as a component from deferred
+        for (auto *var : marked) {
+          for (auto it = deferred.begin(); it != deferred.end();) {
+            if (it->first == var || it->second == var) {
+              it = deferred.erase(it);
+            } else {
+              ++it;
+            }
+          }
+        }
+
+        // while there are still deferred elements
+        while (!deferred.empty()) {
+          // find the most frequently occurring variable
+          Counter maxCount = 0;
+          Map<const Variable *, Counter> freqCount;
+          for (auto *var : f.getAllVariables()) {
+            freqCount.insert({var, 0});
+          }
+
+          for (auto &[first, second] : deferred) {
+            freqCount[first]++;
+            freqCount[second]++;
+            maxCount = std::max(maxCount, freqCount[first]);
+            maxCount = std::max(maxCount, freqCount[second]);
+          }
+
+          const Variable *mostFreqVar = nullptr;
+          for (auto &[var, count] : freqCount) {
+            if (count == maxCount) {
+              mostFreqVar = var;
+              break;
+            }
+          }
+          ASSERT(mostFreqVar != nullptr,
+                 "Error, incorrectly retrieved most frequent element!");
+
+          // add it to the marked set
+          marked.insert(mostFreqVar);
+
+          // remove all pairs containing it from the deferred set
+          for (auto it = deferred.begin(); it != deferred.end();) {
+            if (it->first == mostFreqVar || it->second == mostFreqVar) {
+              it = deferred.erase(it);
+            } else {
+              ++it;
+            }
+          }
+        }
+
+        for (auto *x : marked) {
+          auto newName = String("p") + x->getName();
+          // Make a new variable
+          if (!f.hasBinding(newName)) {
+            f.addVariable(newName, x->getType()->clone(), x->isNull());
+          }
+          auto xPrime = f.getBinding(newName);
+
+          // Make a new variable for non-SSA name
+          auto original = f.getOriginalName(newName);
+          if (!f.hasBinding(original)) {
+            f.addVariable(original, x->getType()->clone(), x->isNull());
+          }
+
+          // 1. Update the phi instruction to use x' instead of x
+          auto oldResult = phi->getLHS();
+          auto oldArgs = phi->getRHS();
+          auto newResult = oldResult;
+          auto newArgs = oldArgs;
+          bool modifyingResult = (newResult == x);
+
+          if (modifyingResult) {
+            newResult = xPrime;
+          }
+          for (auto &newArg : newArgs) {
+            if (newArg == x) {
+              newArg = xPrime;
+            }
+          }
+
+          auto newPhi = Make<PhiNode>(newResult, newArgs);
+          it = block->replaceInst(phi, std::move(newPhi));
+
+          // 2. Insert the new assignment in the right place
+          if (modifyingResult) {
+            // Insert after the phi instruction if we are modifying the
+            // result x = x'
+            auto newAssignment =
+                Make<Assignment>(x, bindExpression(f, newName));
+            block->insertAfter(it->get(), std::move(newAssignment));
+
+            // Update the live in/out and interference graph
+            liveness->removeLiveIn(block.get(), x);
+            for (auto *var : liveness->getLiveIn(block.get())) {
+              interferenceGraph->addInterferenceEdge(xPrime, var);
+            }
+            liveness->addLiveIn(block.get(), xPrime);
+          } else {
+            // Otherwise insert at the end of the corresponding pred block
+            // x' = x
+            auto newAssignment =
+                Make<Assignment>(xPrime, bindExpression(f, x->getName()));
+            auto it = std::find(oldArgs.begin(), oldArgs.end(), x);
+            ASSERT(it != oldArgs.end(),
+                   "Error finding the corresponding operand modified in phi "
+                   "during renaming!");
+            auto predIndex = std::distance(oldArgs.begin(), it);
+            auto *toModify = block->getPredecessors()[predIndex];
+            toModify->insertBefore(toModify->getTerminator(),
+                                   std::move(newAssignment));
+            // update the live in/out and interference graph
+            auto &successors = block->getSuccessors();
+            if (std::all_of(successors.begin(), successors.end(),
+                            [&](BasicBlock *succ) {
+                              // not in livein of succ
+                              auto &succLiveIn = liveness->getLiveIn(succ);
+                              if (succLiveIn.find(x) == succLiveIn.end()) {
+                                return false;
+                              }
+                              // not referenced in any phi
+                              for (auto *phi : f.getPhisFromBlock(succ)) {
+                                auto &uses = phi->getRHS();
+                                if (std::find(uses.begin(), uses.end(), x) !=
+                                    uses.end()) {
+                                  return false;
+                                }
+                              }
+                              return true;
+                            })) {
+              liveness->removeLiveOut(toModify, x);
+            }
+            for (auto *var : liveness->getLiveOut(toModify)) {
+              interferenceGraph->addInterferenceEdge(xPrime, var);
+            }
+            liveness->addLiveOut(toModify, xPrime);
+          }
+
+          // break all the edges
+          for (auto &[left, right] : brokenEdges) {
+            interferenceGraph->removeEdge(left, right);
+          }
+
+          // finally update the phi
+          phi = dynamic_cast<const PhiNode *>(it->get());
+        }
+
+        // Make all variables in the phi belong to the same phi congruence
+        // class
+        Vec<const Variable *> variables = phi->getRHS();
+        variables.push_back(phi->getLHS());
+        for (auto *x : variables) {
+          for (auto *y : variables) {
+            phiCongruent[x].insert(y);
+          }
+        }
+
+        dataflow = Make<LivenessDataflow>(f);
+        dataflow->runAnalysis();
+        auto otherLiveness = dataflow->computeLiveness();
+        auto otherInterferenceGraph = dataflow->computeInterfenceGraph();
+
+        std::cout << "LIVENESS" << std::endl;
+        std::cout << *liveness << std::endl;
+        std::cout << *otherLiveness << std::endl << std::endl;
+
+        std::cout << "GRAPH" << std::endl;
+        std::cout << *interferenceGraph << std::endl;
+        std::cout << *otherInterferenceGraph << std::endl << std::endl;
+
+        break;
+      }
+    }
+  }
+
+  std::cout << f << std::endl;
+
+  // Remove all phis, inserting the appropriate assignments in predecessors
+  for (auto &block : f.getBasicBlocks()) {
+    auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end();) {
+      auto *inst = it->get();
+      if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+
+        // Add assignment instructions for each arg to the appropriate block
+        for (auto *pred : block->getPredecessors()) {
+          auto predNumber = f.getPredNumber(block.get(), pred);
+          auto *arg = phi->getRHS()[predNumber];
+          auto newAssignment = Make<Assignment>(
+              phi->getLHS(), bindExpression(f, arg->getName()));
+          pred->insertBefore(pred->getTerminator(), std::move(newAssignment));
+        }
+        // Remove the phi
+        it = block->removeInst(inst);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  std::cout << f << std::endl;
 }
 
 /**
