@@ -27,23 +27,23 @@ namespace duckdb {
 duckdb::DuckDB *db_instance;
 size_t udfCount = 0;
 
-inline String Udf_transpilerPragmaFun(ClientContext &context,
-                                      const FunctionParameters &parameters) {
-  auto file_name = parameters.values[0].GetValue<String>();
-  std::ifstream t(file_name);
-  std::ostringstream buffer;
-  buffer << t.rdbuf();
-  if (buffer.str().empty()) {
-    String err = "Input file is empty or does not exist: " + file_name;
-    return "select '" + err + "' as 'Transpilation Failed.';";
+// replace every single quote with two single quotes
+static String doubleQuote(const String &str) {
+  String result;
+  for (auto &c : str) {
+	if (c == '\'') {
+	  result += '\'';
+	}
+	result += c;
   }
+  return result;
+}
+
+static String UdfTranspilerMain(String udfString){
   YAMLConfig config;
   Connection con(*db_instance);
 
-  // Transpiler transpiler(buffer.str(), &config, con);
-  // Vec<String> ret = transpiler.run();
-  // String code, registration;
-  auto compiler = Compiler(&con, buffer.str(), udfCount);
+  auto compiler = Compiler(&con, udfString, udfCount);
   auto res = compiler.run();
   udfCount++;
   COUT << "Transpiling the UDF..." << ENDL;
@@ -57,17 +57,38 @@ inline String Udf_transpilerPragmaFun(ClientContext &context,
   return "select '' as 'Transpilation Done.';";
 }
 
+inline String UdfTranspilerPragmaFun(ClientContext &context,
+                                      const FunctionParameters &parameters) {
+  auto udfString = parameters.values[0].GetValue<String>();
+
+  return UdfTranspilerMain(udfString);
+}
+
+inline String UdfFileTranspilerPragmaFun(ClientContext &context,
+                                      const FunctionParameters &parameters) {
+  auto file_name = parameters.values[0].GetValue<String>();
+  std::ifstream t(file_name);
+  std::ostringstream buffer;
+  buffer << t.rdbuf();
+  if (buffer.str().empty()) {
+    String err = "Input file is empty or does not exist: " + doubleQuote(file_name);
+    return "select '" + err + "' as 'Transpilation Failed.';";
+  }
+
+  return UdfTranspilerMain(buffer.str());
+}
+
 /**
  * transpile udfs from a file but not link it
  */
-inline String Udf_CodeGeneratorPragmaFun(ClientContext &context,
+inline String UdfCodeGeneratorPragmaFun(ClientContext &context,
                                          const FunctionParameters &parameters) {
   auto file_name = parameters.values[0].GetValue<String>();
   std::ifstream t(file_name);
   std::ostringstream buffer;
   buffer << t.rdbuf();
   if (buffer.str().empty()) {
-    String err = "Input file is empty or does not exist: " + file_name;
+    String err = "Input file is empty or does not exist: " + doubleQuote(file_name);
     return "select '" + err + "' as 'Transpilation Failed.';";
   }
   YAMLConfig config;
@@ -84,7 +105,7 @@ inline String Udf_CodeGeneratorPragmaFun(ClientContext &context,
 /**
  * rebuild and load the last udf set
  */
-inline String Udf_BuilderPragmaFun(ClientContext &context,
+inline String UdfBuilderPragmaFun(ClientContext &context,
                                    const FunctionParameters &parameters) {
   COUT << "Compiling the UDF..." << ENDL;
   compileUDF();
@@ -95,7 +116,7 @@ inline String Udf_BuilderPragmaFun(ClientContext &context,
   return "select '' as 'Building and linking Done.';";
 }
 
-inline String Udaf_BuilderPragmaFun(ClientContext &context,
+inline String UdafBuilderPragmaFun(ClientContext &context,
                                     const FunctionParameters &parameters) {
   COUT << "Compiling the UDAF..." << ENDL;
   compileUDAF();
@@ -157,16 +178,19 @@ static void LoadInternal(DatabaseInstance &instance) {
   // ExtensionUtil::RegisterFunction(instance, udf_transpiler_scalar_function);
 
   auto udf_transpiler_pragma_function = PragmaFunction::PragmaCall(
-      "transpile", Udf_transpilerPragmaFun, {LogicalType::VARCHAR});
+      "transpile", UdfTranspilerPragmaFun, {LogicalType::VARCHAR});
   ExtensionUtil::RegisterFunction(instance, udf_transpiler_pragma_function);
+  auto udf_file_transpiler_pragma_function = PragmaFunction::PragmaCall(
+      "transpile_file", UdfFileTranspilerPragmaFun, {LogicalType::VARCHAR});
+  ExtensionUtil::RegisterFunction(instance, udf_file_transpiler_pragma_function);
   auto udf_codegen_pragma_function = PragmaFunction::PragmaCall(
-      "codegen", Udf_CodeGeneratorPragmaFun, {LogicalType::VARCHAR});
+      "codegen", UdfCodeGeneratorPragmaFun, {LogicalType::VARCHAR});
   ExtensionUtil::RegisterFunction(instance, udf_codegen_pragma_function);
   auto udf_builder_pragma_function =
-      PragmaFunction::PragmaCall("build", Udf_BuilderPragmaFun, {});
+      PragmaFunction::PragmaCall("build", UdfBuilderPragmaFun, {});
   ExtensionUtil::RegisterFunction(instance, udf_builder_pragma_function);
   auto udaf_builder_pragma_function =
-      PragmaFunction::PragmaCall("build_agg", Udaf_BuilderPragmaFun, {});
+      PragmaFunction::PragmaCall("build_agg", UdafBuilderPragmaFun, {});
   ExtensionUtil::RegisterFunction(instance, udaf_builder_pragma_function);
   auto lo_codegen_pragma_function =
       PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun,
