@@ -41,7 +41,9 @@ public:
     return os;
   }
 
-  Own<Variable> clone() const { return Make<Variable>(name, type->clone(), null); }
+  Own<Variable> clone() const {
+    return Make<Variable>(name, type->clone(), null);
+  }
 
 protected:
   void print(std::ostream &os) const { os << *type << " " << name; }
@@ -489,17 +491,18 @@ public:
 
   /**
    * copy constructor
-   * copies: labelNumber, functionName, returnType, arguments, variables, bindings
-   * 
-  */
-  Function(const Function &other){
+   * copies: labelNumber, functionName, returnType, arguments, variables,
+   * bindings
+   *
+   */
+  Function(const Function &other) {
     labelNumber = other.labelNumber;
     functionName = other.functionName;
     returnType = other.returnType->clone();
     Map<Variable *, Variable *> otherVarToNewVar;
     for (const auto &arg : other.arguments) {
       auto argClone = arg->clone();
-      arguments.insert(std::move(argClone));
+      arguments.push_back(std::move(argClone));
       otherVarToNewVar[arg.get()] = argClone.get();
     }
     for (const auto &var : other.variables) {
@@ -769,9 +772,11 @@ public:
   //   states.pop_back();
   // }
 
-  // void addCustomAgg(const AggifyCodeGeneratorResult &agg) { custom_aggs.push_back(agg); }
+  // void addCustomAgg(const AggifyCodeGeneratorResult &agg) {
+  // custom_aggs.push_back(agg); }
 
-  // const Vec<AggifyCodeGeneratorResult> &getCustomAggs() const { return custom_aggs; }
+  // const Vec<AggifyCodeGeneratorResult> &getCustomAggs() const { return
+  // custom_aggs; }
 
   void removeBasicBlock(BasicBlock *toRemove);
 

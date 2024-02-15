@@ -33,8 +33,10 @@ Vec<String> AggifyCodeGenerator::getOrginalCursorLoopCol(const json &ast) {
   return res;
 }
 
-AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const json &ast,
-                                     const AggifyDFA &dfaResult, size_t id) {
+AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func,
+                                                   const json &ast,
+                                                   const AggifyDFA &dfaResult,
+                                                   size_t id) {
   std::set<String> cursorVars;
   for (const json &vars : ast["var"]["PLpgSQL_row"]["fields"]) {
     cursorVars.insert(vars["name"]);
@@ -59,9 +61,10 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const j
 
   for (const auto &p : allBindings) {
     // all the c(s) in the template file
-    for(int i=0;i<inputDependentComps.size();i++){
-      inputDependentComps[i] += fmt::format(fmt::runtime(config.aggify["c"+std::to_string(i+1)].Scalar()),
-                       fmt::arg("i", count));
+    for (int i = 0; i < inputDependentComps.size(); i++) {
+      inputDependentComps[i] += fmt::format(
+          fmt::runtime(config.aggify["c" + std::to_string(i + 1)].Scalar()),
+          fmt::arg("i", count));
     }
 
     operationArgs +=
@@ -101,10 +104,11 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const j
 
     count++;
   }
-  for(int i=0;i<inputDependentComps.size();i++){
-    inputDependentComps[i] = inputDependentComps[i].substr(0, inputDependentComps[i].size() - 2);
+  for (int i = 0; i < inputDependentComps.size(); i++) {
+    inputDependentComps[i] =
+        inputDependentComps[i].substr(0, inputDependentComps[i].size() - 2);
   }
-  
+
   operationArgs = operationArgs.substr(0, operationArgs.size() - 2);
   operationNullArgs = operationNullArgs.substr(0, operationNullArgs.size() - 2);
 
@@ -123,13 +127,12 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const j
 
   fmt::dynamic_format_arg_store<fmt::format_context> store;
   store.push_back(fmt::arg("id", id));
-  for(int i=0;i<inputDependentComps.size();i++){
-    String c = "c"+std::to_string(i+1);
+  for (int i = 0; i < inputDependentComps.size(); i++) {
+    String c = "c" + std::to_string(i + 1);
     store.push_back(fmt::arg(c.c_str(), inputDependentComps[i]));
   }
-    
-  code = fmt::vformat(fmt::runtime(varyingFuncTemplate).str, store);
 
+  code = fmt::vformat(fmt::runtime(varyingFuncTemplate).str, store);
 
   code += fmt::format(
       fmt::runtime(config.aggify["customAggregateTemplate"].Scalar()),
@@ -154,5 +157,6 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func, const j
       fmt::arg("cursorQuery",
                ast["query"]["PLpgSQL_expr"]["query"].get<String>()));
   // COUT << code << ENDL;
-  return {{code, registration}, "custom_agg"+std::to_string(id), customAggCaller};
+  return {
+      {code, registration}, "custom_agg" + std::to_string(id), customAggCaller};
 }
