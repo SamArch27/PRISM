@@ -5,6 +5,12 @@
 # Require statement will ensure this test is run with this extension loaded
 require udf_transpiler
 
+statement ok
+create table orders(O_ORDERKEY bigint, O_CUSTKEY int);
+
+statement ok
+insert into orders values (1::bigint,1), (2::bigint,2);
+
 query I
 pragma transpile('samples/sudf_10_isListDistinct.sql');
 ----
@@ -19,3 +25,19 @@ query I
 select islistdistinct('asdf,asdf', ',');
 ----
 false
+
+# query I
+# pragma transpile('samples/aggify_test.sql');
+# ----
+# (empty)
+# should not work for now
+
+# query I
+# select custom_agg2(1,1,1,1,1);
+# ----
+# 0
+
+# query I
+# select OrdersByCustomer(1);
+# ----
+# 0

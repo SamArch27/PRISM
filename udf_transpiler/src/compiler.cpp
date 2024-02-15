@@ -223,32 +223,33 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
                                  List<json> &statements,
                                  const Continuations &continuations) {
   auto newBlock = function.makeBasicBlock();
-  function.newState();
-  buildCursorLoopCFG(function, cursorLoopJson);
-  optimize(function);
+  
+  // create a new function out of the orginal with empty basic blocks
+  Function cursorLoopFunction(function);
+  buildCursorLoopCFG(cursorLoopFunction, cursorLoopJson);
+  optimize(cursorLoopFunction);
 
-  AggifyDFA aggifyDFA(function);
+  AggifyDFA aggifyDFA(cursorLoopFunction);
 
-  AggifyCodeGenerator aggifyCodeGenerator(config);
-  auto res = aggifyCodeGenerator.run(function, cursorLoopJson, aggifyDFA,
-                                     function.getCustomAggs().size());
   udfCount++;
-  insert_def_and_reg(res[0], res[1], udfCount);
+  AggifyCodeGenerator aggifyCodeGenerator(config);
+  auto res = aggifyCodeGenerator.run(cursorLoopFunction, cursorLoopJson, aggifyDFA,
+                                     udfCount);
+  insertDefAndReg(res.code, res.registration, udfCount);
   // compile the template
-  std::cout << "Compiling the UDAF..." << std::endl;
-  compile_udf();
+  COUT << "Compiling the UDAF..." << ENDL;
+  compileUDF();
   // load the compiled library
-  std::cout << "Installing and loading the UDAF..." << std::endl;
-  load_udf(*connection);
-
-  // restore the function back to original
-  function.popState();
+  COUT << "Installing and loading the UDAF..." << ENDL;
+  loadUDF(*connection);
 
   // udf_todo: replace the cursor loop with custom aggregate
-  String customAggCaller = res[2];
-  std::cout << "customAggCaller: " << customAggCaller << std::endl;
+  String customAggCaller = res.caller;
+  // COUT << "returnvar" << aggifyDFA.getReturnVar() << ENDL;
+  // COUT << "customAggCaller: " << customAggCaller << ENDL;
+  // function.addCustomAgg(std::move(res));
   newBlock->addInstruction(Make<Assignment>(
-      aggifyDFA.getReturnVar(), bindExpression(function, customAggCaller)));
+      function.getBinding(aggifyDFA.getReturnVarName()), bindExpression(function, customAggCaller)));
   newBlock->addInstruction(
       Make<BranchInst>(constructCFG(function, statements, continuations)));
   return newBlock;
@@ -449,8 +450,8 @@ CompilationResult Compiler::run() {
 
     std::cout << function << std::endl;
     auto res = generateCode(function);
-    codeRes.code += res[0];
-    codeRes.registration += res[1];
+    codeRes.code += res.code;
+    codeRes.registration += res.registration;
   }
   codeRes.success = true;
   return codeRes;
@@ -1422,7 +1423,8 @@ void Compiler::convertOutOfSSAForm(Function &f) {
  * Generate code for a function
  * Initialize a CFGCodeGenerator and run it through the function
  */
-Vec<String> Compiler::generateCode(const Function &func) {
+CFGCodeGeneratorResult Compiler::generateCode(const Function &func) {
+  
   CFGCodeGenerator codeGenerator(config);
   auto res = codeGenerator.run(func);
   return res;

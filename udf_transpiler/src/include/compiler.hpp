@@ -19,6 +19,8 @@
 #include <utility>
 #include <vector>
 
+#include "cfg_code_generator.hpp"
+
 /* Compiler */
 
 using json = nlohmann::json;
@@ -38,10 +40,8 @@ struct Continuations {
   BasicBlock *functionExit;
 };
 
-struct CompilationResult {
+struct CompilationResult : CFGCodeGeneratorResult {
   bool success;
-  String code;
-  String registration;
 };
 
 class Compiler {
@@ -56,7 +56,7 @@ public:
   void buildCursorLoopCFG(Function &function, const json &ast);
   void buildCFG(Function &function, const json &ast);
 
-  Vec<String> generateCode(const Function &function);
+  CFGCodeGeneratorResult generateCode(const Function &function);
 
   BasicBlock *constructAssignmentCFG(const json &assignment, Function &function,
                                      List<json> &statements,

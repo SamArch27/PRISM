@@ -5,6 +5,7 @@
 #include <numeric>
 #include <optional>
 #include <queue>
+#include <stack>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -58,6 +59,9 @@ template <typename A, typename B> using Map = std::unordered_map<A, B>;
 
 using String = std::string;
 
+#define COUT std::cout
+#define ENDL std::endl
+
 #define ASSERT(condition, message)                                             \
   do {                                                                         \
     if (!(condition)) {                                                        \
@@ -81,7 +85,8 @@ using String = std::string;
     throw duckdb::ParserException("See the above message.");                   \
   } while (false)
 
-template <typename It> class Range {
+template <typename It> 
+class Range {
   It b, e;
 
 public:

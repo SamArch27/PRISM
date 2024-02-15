@@ -52,3 +52,7 @@ int --> long is compatible but decimal --> long is not
 have an isnull indicator for each variable
 make sure to maintain it when necessary
 
+TODOs (2024.1.30)
+1. rename the custom agg to all unique
+
+

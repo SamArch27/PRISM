@@ -36,7 +36,8 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
                                String &function_name,
                                Vec<String> &template_args,
                                const Vec<Expression *> &children,
-                               CodeGenInfo &insert, std::list<String> &args) {
+                               CodeGenInfo &insert,
+                               List<String> &args) {
   ASSERT(function_info.width_scale != std::make_pair((uint8_t)0, (uint8_t)0) &&
              function_info.width_scale2 !=
                  std::make_pair((uint8_t)0, (uint8_t)0),
@@ -121,8 +122,9 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
  */
 void BoundExpressionCodeGenerator::SpecialCaseHandler(
     const ScalarFunctionInfo &function_info, String &function_name,
-    Vec<String> &template_args, const Vec<Expression *> &children,
-    CodeGenInfo &insert, std::list<String> &args) {
+    Vec<String> &template_args,
+    const Vec<Expression *> &children, CodeGenInfo &insert,
+    List<String> &args) {
   for (auto special_case : function_info.special_handling) {
     switch (special_case) {
     case ScalarFunctionInfo::BinaryNumericDivideWrapper:
@@ -181,9 +183,9 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
 }
 
 String BoundExpressionCodeGenerator::CodeGenScalarFunction(
-    const ScalarFunctionInfo &function_info, const Vec<Expression *> &children,
-    CodeGenInfo &insert) {
-  std::list<String> args;
+    const ScalarFunctionInfo &function_info,
+    const Vec<Expression *> &children, CodeGenInfo &insert) {
+  List<String> args;
   for (auto &child : children) {
     args.push_back(Transpile(*child, insert));
   }
@@ -220,7 +222,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp,
     }
     return CodeGenScalarFunction(function_info, children, insert);
   } else {
-    std::list<String> args;
+    List<String> args;
     for (auto &child : exp.children) {
       args.push_back(Transpile(*child, insert));
     }

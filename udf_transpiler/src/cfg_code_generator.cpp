@@ -123,10 +123,9 @@ String CFGCodeGenerator::extractVarFromChunk(const Function &func) {
   return code;
 }
 
-Vec<String> CFGCodeGenerator::run(const Function &func) {
-  std::cout << fmt::format("Generating code for function {}",
-                           func.getFunctionName())
-            << std::endl;
+CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
+  COUT << fmt::format("Generating code for function {}", func.getFunctionName())
+       << ENDL;
   CodeGenInfo function_info(func);
 
   for (auto &bbUniq : func.getBasicBlocks()) {

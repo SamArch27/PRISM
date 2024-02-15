@@ -11,13 +11,13 @@ c4: |-
   ValidityMask &validity{i}, 
 
 c5: |-
-  !validity{i}.AllValid() || 
+  !validity{i}.AllValid()||
 
 c6: |
-  idx_t idx{i} = sel{i}.get_index(i);
+  idx_t idx{i} = sel{i}.get_index(i);  
 
 c7: |-
-  validity{i}.RowIsValid(idx{i}) && 
+  validity{i}.RowIsValid(idx{i})&&
 
 c8: |-
   data{i}[idx{i}], 
@@ -35,7 +35,7 @@ c12: |-
   data{i}, 
 
 c13: |
-  vec{i}.ToUnifiedFormat(count, data{i});
+  vec{i}.ToUnifiedFormat(count, data{i});  
 
 c14: |-
   UnifiedVectorFormat::GetDataNoConst<TYPE{i}>(data{i}), 

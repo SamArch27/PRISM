@@ -14,19 +14,23 @@
 
 using json = nlohmann::json;
 
+struct AggifyCodeGeneratorResult : CFGCodeGeneratorResult{
+    // name of the custom aggregate
+    String name;
+    // the caller to the custom aggregate
+    String caller;
+};
+
 /**
  * It should be able to register the custom aggregate to DuckDB
 */
 class AggifyCodeGenerator : public CFGCodeGenerator{
 private:
-    // const YAMLConfig &config;
-    // const json &ast;
-    // const Function &func;
     Vec<String> getOrginalCursorLoopCol(const json &ast);
 public:
     AggifyCodeGenerator(const YAMLConfig &_config)
         : CFGCodeGenerator(_config){
     }
 
-    Vec<String> run(const Function &func, const json &ast, const AggifyDFA &dfaResult, size_t id);
+    AggifyCodeGeneratorResult run(const Function &func, const json &ast, const AggifyDFA &dfaResult, size_t id);
 };
