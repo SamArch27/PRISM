@@ -106,6 +106,9 @@ private:
   void print(std::ostream &os) const {
     os << "digraph cfg {" << std::endl;
     for (const auto &[var, others] : edge) {
+      if (others.empty()) {
+        continue;
+      }
       os << "\t" << var->getName() << " [label=\"" << var->getName() << "\"];";
       for (const auto *other : others) {
         os << "\t" << var->getName() << " -> " << other->getName()

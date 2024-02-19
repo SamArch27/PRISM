@@ -737,12 +737,19 @@ public:
     os << "}" << std::endl;
   }
 
-  void addRenamedArguments(const Map<String, String> oldToNew) {
+  void addRenamedArguments(const Map<String, String> &oldToNew) {
+    // collect new arguments
+    Vec<Own<Variable>> newArguments;
     for (const auto &arg : arguments) {
-      // add the argument and add the new binding
       auto newName = oldToNew.at(arg->getName());
-      arguments.emplace_back(
+      newArguments.emplace_back(
           Make<Variable>(newName, arg->getType()->clone(), arg->isNull()));
+    }
+
+    // add them in with new binding
+    for (auto &newArg : newArguments) {
+      auto newName = newArg->getName();
+      arguments.emplace_back(std::move(newArg));
       bindings.insert({newName, arguments.back().get()});
     }
   }

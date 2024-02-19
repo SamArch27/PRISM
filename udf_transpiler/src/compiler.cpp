@@ -223,7 +223,7 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
                                  List<json> &statements,
                                  const Continuations &continuations) {
   auto newBlock = function.makeBasicBlock();
-  
+
   // create a new function out of the orginal with empty basic blocks
   Function cursorLoopFunction(function);
   buildCursorLoopCFG(cursorLoopFunction, cursorLoopJson);
@@ -233,8 +233,8 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
 
   udfCount++;
   AggifyCodeGenerator aggifyCodeGenerator(config);
-  auto res = aggifyCodeGenerator.run(cursorLoopFunction, cursorLoopJson, aggifyDFA,
-                                     udfCount);
+  auto res = aggifyCodeGenerator.run(cursorLoopFunction, cursorLoopJson,
+                                     aggifyDFA, udfCount);
   insertDefAndReg(res.code, res.registration, udfCount);
   // compile the template
   COUT << "Compiling the UDAF..." << ENDL;
@@ -248,8 +248,9 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
   // COUT << "returnvar" << aggifyDFA.getReturnVar() << ENDL;
   // COUT << "customAggCaller: " << customAggCaller << ENDL;
   // function.addCustomAgg(std::move(res));
-  newBlock->addInstruction(Make<Assignment>(
-      function.getBinding(aggifyDFA.getReturnVarName()), bindExpression(function, customAggCaller)));
+  newBlock->addInstruction(
+      Make<Assignment>(function.getBinding(aggifyDFA.getReturnVarName()),
+                       bindExpression(function, customAggCaller)));
   newBlock->addInstruction(
       Make<BranchInst>(constructCFG(function, statements, continuations)));
   return newBlock;
@@ -945,13 +946,13 @@ void Compiler::renameVariablesToSSA(Function &f,
 
 void Compiler::optimize(Function &f) {
   mergeBasicBlocks(f);
-  // std::cout << f << std::endl;
+  std::cout << f << std::endl;
   convertToSSAForm(f);
-  // std::cout << f << std::endl;
+  std::cout << f << std::endl;
   performCopyPropagation(f);
   std::cout << f << std::endl;
   convertOutOfSSAForm(f);
-  // std::cout << f << std::endl;
+  std::cout << f << std::endl;
 }
 
 void Compiler::mergeBasicBlocks(Function &f) {
@@ -1290,10 +1291,11 @@ void Compiler::convertOutOfSSAForm(Function &f) {
 
           if (modifyingResult) {
             newResult = xPrime;
-          }
-          for (auto &newArg : newArgs) {
-            if (newArg == x) {
-              newArg = xPrime;
+          } else {
+            for (auto &newArg : newArgs) {
+              if (newArg == x) {
+                newArg = xPrime;
+              }
             }
           }
 
@@ -1317,46 +1319,44 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           } else {
             // Otherwise insert at the end of the corresponding pred block
             // x' = x
-            auto newAssignment =
-                Make<Assignment>(xPrime, bindExpression(f, x->getName()));
-            auto it = std::find(oldArgs.begin(), oldArgs.end(), x);
-            ASSERT(it != oldArgs.end(),
-                   "Error finding the corresponding operand modified in phi "
-                   "during renaming!");
-            auto predIndex = std::distance(oldArgs.begin(), it);
-            auto *toModify = block->getPredecessors()[predIndex];
-            toModify->insertBefore(toModify->getTerminator(),
-                                   std::move(newAssignment));
-            // update the live in/out and interference graph
-            auto &successors = block->getSuccessors();
-            if (std::all_of(successors.begin(), successors.end(),
-                            [&](BasicBlock *succ) {
-                              // not in livein of succ
-                              auto &succLiveIn = liveness->getLiveIn(succ);
-                              if (succLiveIn.find(x) == succLiveIn.end()) {
-                                return false;
-                              }
-                              // not referenced in any phi
-                              for (auto *phi : f.getPhisFromBlock(succ)) {
-                                auto &uses = phi->getRHS();
-                                if (std::find(uses.begin(), uses.end(), x) !=
-                                    uses.end()) {
+            auto argIt = oldArgs.begin();
+            // for each argument to the phi that uses x_i
+            while ((argIt = std::find(argIt, oldArgs.end(), x)) !=
+                   oldArgs.end()) {
+              auto newAssignment =
+                  Make<Assignment>(xPrime, bindExpression(f, x->getName()));
+
+              auto predIndex = std::distance(oldArgs.begin(), argIt);
+              auto *toModify = block->getPredecessors()[predIndex];
+              toModify->insertBefore(toModify->getTerminator(),
+                                     std::move(newAssignment));
+              // update the live in/out and interference graph
+              auto &successors = block->getSuccessors();
+              if (std::all_of(successors.begin(), successors.end(),
+                              [&](BasicBlock *succ) {
+                                // not in livein of succ
+                                auto &succLiveIn = liveness->getLiveIn(succ);
+                                if (succLiveIn.find(x) != succLiveIn.end()) {
                                   return false;
                                 }
-                              }
-                              return true;
-                            })) {
-              liveness->removeLiveOut(toModify, x);
+                                // not referenced in any phi
+                                for (auto *phi : f.getPhisFromBlock(succ)) {
+                                  auto &uses = phi->getRHS();
+                                  if (std::find(uses.begin(), uses.end(), x) !=
+                                      uses.end()) {
+                                    return false;
+                                  }
+                                }
+                                return true;
+                              })) {
+                liveness->removeLiveOut(toModify, x);
+              }
+              for (auto *var : liveness->getLiveOut(toModify)) {
+                interferenceGraph->addInterferenceEdge(xPrime, var);
+              }
+              liveness->addLiveOut(toModify, xPrime);
+              ++argIt;
             }
-            for (auto *var : liveness->getLiveOut(toModify)) {
-              interferenceGraph->addInterferenceEdge(xPrime, var);
-            }
-            liveness->addLiveOut(toModify, xPrime);
-          }
-
-          // break all the edges
-          for (auto &[left, right] : brokenEdges) {
-            interferenceGraph->removeEdge(left, right);
           }
 
           // finally update the phi
@@ -1372,26 +1372,9 @@ void Compiler::convertOutOfSSAForm(Function &f) {
             phiCongruent[x].insert(y);
           }
         }
-
-        dataflow = Make<LivenessDataflow>(f);
-        dataflow->runAnalysis();
-        auto otherLiveness = dataflow->computeLiveness();
-        auto otherInterferenceGraph = dataflow->computeInterfenceGraph();
-
-        std::cout << "LIVENESS" << std::endl;
-        std::cout << *liveness << std::endl;
-        std::cout << *otherLiveness << std::endl << std::endl;
-
-        std::cout << "GRAPH" << std::endl;
-        std::cout << *interferenceGraph << std::endl;
-        std::cout << *otherInterferenceGraph << std::endl << std::endl;
-
-        break;
       }
     }
   }
-
-  std::cout << f << std::endl;
 
   // Remove all phis, inserting the appropriate assignments in predecessors
   for (auto &block : f.getBasicBlocks()) {
@@ -1415,8 +1398,6 @@ void Compiler::convertOutOfSSAForm(Function &f) {
       }
     }
   }
-
-  std::cout << f << std::endl;
 }
 
 /**
@@ -1424,7 +1405,7 @@ void Compiler::convertOutOfSSAForm(Function &f) {
  * Initialize a CFGCodeGenerator and run it through the function
  */
 CFGCodeGeneratorResult Compiler::generateCode(const Function &func) {
-  
+
   CFGCodeGenerator codeGenerator(config);
   auto res = codeGenerator.run(func);
   return res;
