@@ -121,11 +121,11 @@ private:
   List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
 
-  void replaceUsesWith(Function &f, const Variable *toReplace,
-                       const Variable *newVar);
-  Own<SelectExpression>
-  buildReplacedExpression(Function &f, const SelectExpression *original,
-                          const Variable *oldVar, const Variable *newVar);
+  void replaceUsesWith(Function &f,
+                       const Map<const Variable *, const Variable *> &oldToNew);
+  Own<SelectExpression> buildReplacedExpression(
+      Function &f, const SelectExpression *original,
+      const Map<const Variable *, const Variable *> &oldToNew);
   Own<SelectExpression> bindExpression(const Function &function,
                                        const String &expression);
   static StringPair unpackAssignment(const String &assignment);

@@ -764,27 +764,6 @@ public:
     arguments.erase(arguments.begin(), arguments.begin() + numOldArguments);
   }
 
-  // /**
-  //  * Clear the current state and restore the previous state in the stack
-  //  */
-  // void popState() {
-  //   basicBlocks.clear();
-  //   auto &state = states.back();
-  //   labelNumber = state.labelNumber;
-  //   for (auto &bb : state.basicBlocks) {
-  //     COUT << "Pushing: " << *bb << ENDL;
-  //     basicBlocks.push_back(std::move(bb));
-  //   }
-  //   // basicBlocks = state.basicBlocks;
-  //   states.pop_back();
-  // }
-
-  // void addCustomAgg(const AggifyCodeGeneratorResult &agg) {
-  // custom_aggs.push_back(agg); }
-
-  // const Vec<AggifyCodeGeneratorResult> &getCustomAggs() const { return
-  // custom_aggs; }
-
   void removeBasicBlock(BasicBlock *toRemove);
 
 private:
