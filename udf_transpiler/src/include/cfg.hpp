@@ -702,13 +702,6 @@ public:
     os << "}" << std::endl;
   }
 
-  void removeArgument(const Variable *arg) {
-    bindings.erase(arg->getName());
-    arguments.erase(std::remove_if(
-        arguments.begin(), arguments.end(),
-        [&](const Own<Variable> &argument) { return argument.get() == arg; }));
-  }
-
   void removeVariable(const Variable *var) {
     bindings.erase(var->getName());
     auto it = std::find_if(

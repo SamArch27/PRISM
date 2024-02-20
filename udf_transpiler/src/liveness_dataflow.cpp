@@ -114,6 +114,9 @@ void LivenessDataflow::preprocessInst(Instruction *inst) {
   // Collect definitions for each block, mapping them to bitvector positions
   const auto *resultOperand = inst->getResultOperand();
   auto *block = inst->getParent();
+  if (block == f.getEntryBlock()) {
+    return;
+  }
   if (resultOperand != nullptr) {
     auto *def = f.getDefiningInstruction(resultOperand);
     if (instToIndex.find(def) == instToIndex.end()) {
