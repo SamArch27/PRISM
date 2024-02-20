@@ -527,6 +527,7 @@ Own<SelectExpression> Compiler::buildReplacedExpression(
 
 Own<SelectExpression> Compiler::bindExpression(const Function &function,
                                                const String &expr) {
+  std::cout << expr << std::endl;
   destroyDuckDBContext();
   makeDuckDBContext(function);
 
@@ -818,14 +819,14 @@ void Compiler::renameVariablesToSSA(Function &f,
   auto getNewArgumentName = [&](const Variable *var) {
     auto i = accessStack(var).top();
     auto oldName = f.getOriginalName(var->getName());
-    auto newName = oldName + "_" + std::to_string(i);
+    auto newName = oldName + "_" + std::to_string(i) + "_";
     return newName;
   };
 
   auto renameVariable = [&](const Variable *var, bool updateVariable) {
     auto i = updateVariable ? accessCounter(var) : accessStack(var).top();
     auto oldName = f.getOriginalName(var->getName());
-    auto newName = oldName + "_" + std::to_string(i);
+    auto newName = oldName + "_" + std::to_string(i) + "_";
     auto *oldVar = f.getBinding(oldName);
     if (!f.hasBinding(newName)) {
       f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
@@ -846,7 +847,7 @@ void Compiler::renameVariablesToSSA(Function &f,
     for (auto *var : expr->getUsedVariables()) {
       auto i = accessStack(var).top();
       auto newName =
-          f.getOriginalName(var->getName()) + "_" + std::to_string(i);
+          f.getOriginalName(var->getName()) + "_" + std::to_string(i) + "_";
       oldToNew.insert({var->getName(), newName});
     }
 
@@ -1408,6 +1409,18 @@ void Compiler::convertOutOfSSAForm(Function &f) {
         }
       }
     }
+  }
+
+  for (auto &[var, congruent] : phiCongruent) {
+    if (congruent.size() == 1) {
+      congruent.clear();
+    }
+    std::cout << "Var: " << var->getName()
+              << " is congruent with: " << std::endl;
+    for (auto &other : congruent) {
+      std::cout << other->getName() << " ";
+    }
+    std::cout << std::endl;
   }
 
   // Remove all phis, inserting the appropriate assignments in predecessors
