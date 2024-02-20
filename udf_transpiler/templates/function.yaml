@@ -1,34 +1,27 @@
-fshell: |-
-  void {function_name}(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result) {{
-    std::vector<bool> {return_mask_var}(args.size());
-    std::vector<duckdb::Value> return_values(args.size());
-    for(size_t i = 0; i < args.size() ; i++) {{
-      {return_mask_var}[i] = false;
-    }}
-    std::vector<bool> {active_lanes_var}(args.size());
-    for(size_t i = 0; i < args.size() ; i++) {{
-      {active_lanes_var}[i] = true;
-    }}
-    /** FUNCTION ARGS **/
-    {function_args}
-    /** INITIALIZE VARIABLES **/
-    {initializations}
-    /** FUNCTION BODY **/
-    {body}
-    /** SET RETURN VALUE **/
-    for (idx_t i = 0; i < args.size(); i++) {{
-      result.SetValue(i, return_values[i]);
-    }}
-  }}
-
 fshell2: |-
   void {function_name}(DataChunk &args, ExpressionState &state, Vector &result) {{
     const int count = args.size();
-    result.SetVectorType(VectorType::FLAT_VECTOR);
 
     // the extraction of function arguments
     {function_args}
     {vector_create}
+
+    if(args.AllConstant()){{
+      result.SetVectorType(VectorType::CONSTANT_VECTOR);
+      Value temp_result;
+      bool temp_result_null = false;
+      {function_name}_body({subfunc_args_all_0}temp_result, temp_result_null);
+      if (temp_result_null)
+      {{
+        ConstantVector::SetNull(result, true);
+      }}
+      else
+      {{
+        result.SetValue(0, std::move(temp_result));
+      }}
+      return;
+    }}
+    result.SetVectorType(VectorType::FLAT_VECTOR);
 
     for (int base_idx = 0; base_idx < count; base_idx++) {{
       {arg_indexes}
@@ -63,6 +56,8 @@ argindex: |-
 subfunc_arg: |-
   {var_name}.GetValue({var_name}_index), !{var_name}_data.validity.RowIsValid({var_name}_index)
 
+subfunc_arg_0: |-
+  {var_name}.GetValue(0), !{var_name}_data.validity.RowIsValid(0)
 
 fbodyshell: |-
   inline void {function_name}_body({fbody_args}Value& result, bool& result_null) {{

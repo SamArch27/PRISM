@@ -131,10 +131,7 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
   for (auto &bbUniq : func.getBasicBlocks()) {
     basicBlockCodeGenerator(bbUniq.get(), func, function_info);
   }
-  String function_args = "";
-  String arg_indexes = "";
-  String subfunc_args = "";
-  String fbody_args = "";
+  String function_args, arg_indexes, subfunc_args, subfunc_args_all_0, fbody_args;
   Vec<String> check_null;
 
   int count = 0;
@@ -155,6 +152,11 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
                     fmt::arg("var_name", name));
     subfunc_args += ", ";
 
+    subfunc_args_all_0 += 
+        fmt::format(fmt::runtime(config.function["subfunc_arg_0"].Scalar()),
+                    fmt::arg("var_name", name));
+    subfunc_args_all_0 += ", ";
+
     fbody_args +=
         fmt::format(fmt::runtime(config.function["fbody_arg"].Scalar()),
                     fmt::arg("i", count), fmt::arg("var_name", name));
@@ -173,6 +175,7 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
                     fmt::arg("vector_count", function_info.vectorCount));
     for (int i = 0; i < function_info.vectorCount; i++) {
       subfunc_args += fmt::format("tmp_chunk.data[{}], ", i);
+      subfunc_args_all_0 += fmt::format("tmp_chunk.data[{}], ", i);
       fbody_args += fmt::format("Vector &tmp_vec{}, ", i);
     }
   }
@@ -193,7 +196,8 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
                   fmt::arg("function_args", function_args),
                   fmt::arg("arg_indexes", arg_indexes),
                   fmt::arg("vector_create", vector_create),
-                  fmt::arg("subfunc_args", subfunc_args));
+                  fmt::arg("subfunc_args", subfunc_args),
+                  fmt::arg("subfunc_args_all_0", subfunc_args_all_0));
 
   Vec<String> args_logical_types;
   for (auto &arg : func.getArguments()) {
