@@ -57,21 +57,28 @@ BitVector LivenessDataflow::transfer(BitVector out, Instruction *inst) {
 
   auto *block = inst->getParent();
 
+  if (block == f.getEntryBlock()) {
+    return out;
+  }
+
   // Create bitvector for defs
   BitVector def(instToIndex.size(), false);
   for (auto *definition : allDefs[block]) {
+
     def[instToIndex.at(definition)] = true;
   }
 
   // Create bitvector for phiDefs
   BitVector phiDef(instToIndex.size(), false);
   for (auto *definition : phiDefs[block]) {
+
     phiDef[instToIndex.at(definition)] = true;
   }
 
   // Create bitvector for upwardsExposed
   BitVector ue(instToIndex.size(), false);
   for (auto *use : upwardsExposed[block]) {
+
     ue[instToIndex.at(use)] = true;
   }
 
@@ -82,11 +89,13 @@ BitVector LivenessDataflow::transfer(BitVector out, Instruction *inst) {
   // Union with PhiDefs(B) and UpwardsExposed(B)
   result |= phiDef;
   result |= ue;
+
   return result;
 }
 
 BitVector LivenessDataflow::meet(BitVector result, BitVector in,
                                  BasicBlock *block) {
+
   // Create bitvector for phiDefs
   BitVector phiDef(instToIndex.size(), false);
   for (auto *definition : phiDefs[block]) {
@@ -107,6 +116,7 @@ BitVector LivenessDataflow::meet(BitVector result, BitVector in,
   newInfo |= phiUse;
   // Union with result and return
   result |= in;
+
   return result;
 }
 
@@ -114,9 +124,7 @@ void LivenessDataflow::preprocessInst(Instruction *inst) {
   // Collect definitions for each block, mapping them to bitvector positions
   const auto *resultOperand = inst->getResultOperand();
   auto *block = inst->getParent();
-  if (block == f.getEntryBlock()) {
-    return;
-  }
+
   if (resultOperand != nullptr) {
     auto *def = f.getDefiningInstruction(resultOperand);
     if (instToIndex.find(def) == instToIndex.end()) {
@@ -125,6 +133,10 @@ void LivenessDataflow::preprocessInst(Instruction *inst) {
       definingInstructions.push_back(inst);
       allDefs[block].insert(inst);
     }
+  }
+
+  if (block == f.getEntryBlock()) {
+    return;
   }
 
   // If the current instruction is a phi node

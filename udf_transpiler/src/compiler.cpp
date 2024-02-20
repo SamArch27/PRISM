@@ -32,10 +32,19 @@ Compiler::constructAssignmentCFG(const json &assignmentJson, Function &function,
   const auto &[left, right] = unpackAssignment(assignmentText);
   auto *var = function.getBinding(left);
   auto expr = bindExpression(function, right);
+
+  bool isSQLExpression = expr->isSQLExpression();
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
   newBlock->addInstruction(
       Make<BranchInst>(constructCFG(function, statements, continuations)));
-  return newBlock;
+  if (isSQLExpression) {
+    // add a pre-header
+    auto preHeader = function.makeBasicBlock();
+    preHeader->addInstruction(Make<BranchInst>(newBlock));
+    return preHeader;
+  } else {
+    return newBlock;
+  }
 }
 
 BasicBlock *Compiler::constructReturnCFG(const json &returnJson,
@@ -984,10 +993,13 @@ void Compiler::optimize(Function &f) {
   std::cout << f << std::endl;
   mergeBasicBlocks(f);
   std::cout << f << std::endl;
+
   convertToSSAForm(f);
   std::cout << f << std::endl;
+
   performCopyPropagation(f);
   std::cout << f << std::endl;
+
   convertOutOfSSAForm(f);
   std::cout << f << std::endl;
 }
@@ -1546,6 +1558,11 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           }
           auto newAssignment = Make<Assignment>(
               phi->getLHS(), bindExpression(f, arg->getName()));
+          if (pred->isConditional()) {
+            ASSERT(pred->getPredecessors().size() == 1,
+                   "Must have unique predecessor for conditional block!!");
+            pred = pred->getPredecessors().front();
+          }
           pred->insertBefore(pred->getTerminator(), std::move(newAssignment));
         }
         // Remove the phi
