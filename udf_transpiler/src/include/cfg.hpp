@@ -531,41 +531,6 @@ public:
     return labels;
   }
 
-  void deleteVariables(const Set<const Variable *> &toDelete) {
-    for (auto it = variables.begin(); it != variables.end();) {
-      // remove the variable if its in the set to delete
-      auto *var = it->get();
-      if (toDelete.find(var) != toDelete.end()) {
-        it = variables.erase(it);
-      } else {
-        ++it;
-      }
-    }
-  }
-
-  void deleteUnusedVariables() {
-    // collect all used variables
-    Set<const Variable *> usedVariables;
-    for (auto &block : basicBlocks) {
-      for (auto &inst : block->getInstructions()) {
-        if (inst->getResultOperand()) {
-          usedVariables.insert(inst->getResultOperand());
-        }
-      }
-    }
-
-    // delete variables not in the set
-    Set<const Variable *> toDelete;
-    for (auto &var : variables) {
-      if (usedVariables.find(var.get()) == usedVariables.end()) {
-        toDelete.insert(var.get());
-      }
-    }
-
-    // delete unused variables
-    deleteVariables(toDelete);
-  }
-
   BasicBlock *makeBasicBlock(const String &label) {
     basicBlocks.emplace_back(Make<BasicBlock>(label));
     auto *newBlock = basicBlocks.back().get();
@@ -737,31 +702,19 @@ public:
     os << "}" << std::endl;
   }
 
-  void addRenamedArguments(const Map<String, String> &oldToNew) {
-    // collect new arguments
-    Vec<Own<Variable>> newArguments;
-    for (const auto &arg : arguments) {
-      auto newName = oldToNew.at(arg->getName());
-      newArguments.emplace_back(
-          Make<Variable>(newName, arg->getType()->clone(), arg->isNull()));
-    }
-
-    // add them in with new binding
-    for (auto &newArg : newArguments) {
-      auto newName = newArg->getName();
-      arguments.emplace_back(std::move(newArg));
-      bindings.insert({newName, arguments.back().get()});
-    }
+  void removeArgument(const Variable *arg) {
+    bindings.erase(arg->getName());
+    arguments.erase(std::remove_if(
+        arguments.begin(), arguments.end(),
+        [&](const Own<Variable> &argument) { return argument.get() == arg; }));
   }
 
-  void deleteOldArguments() {
-    // erase the arguments from the bindings map
-    auto numOldArguments = arguments.size() / 2;
-    for (std::size_t i = 0; i < numOldArguments; ++i) {
-      bindings.erase(arguments[i]->getName());
-    }
-    // now erase them from the vector
-    arguments.erase(arguments.begin(), arguments.begin() + numOldArguments);
+  void removeVariable(const Variable *var) {
+    bindings.erase(var->getName());
+    auto it = std::find_if(
+        variables.begin(), variables.end(),
+        [&](const Own<Variable> &variable) { return variable.get() == var; });
+    variables.erase(it);
   }
 
   void removeBasicBlock(BasicBlock *toRemove);

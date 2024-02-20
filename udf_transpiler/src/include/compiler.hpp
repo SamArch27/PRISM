@@ -120,7 +120,8 @@ private:
   String getJsonExpr(const json &json);
   List<json> getJsonList(const json &body);
   Vec<Function> getFunctions() const;
-
+  void replaceDefsWith(Function &f,
+                       const Map<const Variable *, const Variable *> &oldToNew);
   void replaceUsesWith(Function &f,
                        const Map<const Variable *, const Variable *> &oldToNew);
   Own<SelectExpression> buildReplacedExpression(
@@ -133,7 +134,6 @@ private:
   static PostgresTypeTag getPostgresTag(const String &name);
   Own<Type> getTypeFromPostgresName(const String &name) const;
   String resolveTypeName(const String &type) const;
-
   void performCopyPropagation(Function &f);
   void mergeBasicBlocks(Function &f);
   void convertToSSAForm(Function &f);
@@ -141,7 +141,6 @@ private:
                           const Own<DominanceFrontier> &dominanceFrontier);
   void renameVariablesToSSA(Function &f,
                             const Own<DominatorTree> &dominatorTree);
-  void pruneUnusedVariables(Function &f);
   void convertOutOfSSAForm(Function &f);
 
   duckdb::Connection *connection;

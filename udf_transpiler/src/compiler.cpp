@@ -930,18 +930,34 @@ void Compiler::renameVariablesToSSA(Function &f,
     }
   };
 
-  // add the new the SSA-renamed function arguments
-  Map<String, String> oldToNew;
-  for (auto &arg : f.getArguments()) {
-    oldToNew[arg->getName()] = getNewArgumentName(arg.get());
+  // add new SSA-renamed arguments (saving the old ones)
+  Vec<const Variable *> oldArguments;
+  for (const auto &arg : f.getArguments()) {
+    oldArguments.push_back(arg.get());
+    auto newName = getNewArgumentName(arg.get());
+    f.addArgument(newName, arg->getType()->clone());
   }
-  f.addRenamedArguments(oldToNew);
 
   // rename all of the variables
   rename(f.getEntryBlock());
 
-  // delete old arguments
-  f.deleteOldArguments();
+  // delete the old arguments
+  for (auto *oldArg : oldArguments) {
+    f.removeArgument(oldArg);
+  }
+
+  // collect the old variable
+  Vec<const Variable *> oldVariables;
+  for (auto &var : f.getVariables()) {
+    if (var->getName() == f.getOriginalName(var->getName())) {
+      oldVariables.push_back(var.get());
+    }
+  }
+
+  // delete the old variables
+  for (auto *oldVar : oldVariables) {
+    f.removeVariable(oldVar);
+  }
 }
 
 void Compiler::optimize(Function &f) {
@@ -1036,6 +1052,36 @@ void Compiler::performCopyPropagation(Function &f) {
         it = basicBlock->removeInst(inst);
       } else {
         ++it;
+      }
+    }
+  }
+}
+
+void Compiler::replaceDefsWith(
+    Function &f, const Map<const Variable *, const Variable *> &oldToNew) {
+  for (auto &block : f.getBasicBlocks()) {
+    auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end();) {
+      auto *inst = it->get();
+      auto *var = inst->getResultOperand();
+      if (var == nullptr) {
+        ++it;
+        continue;
+      }
+      if (oldToNew.find(var) == oldToNew.end()) {
+        ++it;
+        continue;
+      }
+      // replace the defs
+      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+        it = block->replaceInst(
+            inst,
+            Make<Assignment>(oldToNew.at(var), assign->getRHS()->clone()));
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+        it = block->replaceInst(inst,
+                                Make<PhiNode>(oldToNew.at(var), phi->getRHS()));
+      } else {
+        ERROR("Unhandled instruction type during SSA destruction!");
       }
     }
   }
@@ -1270,12 +1316,6 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           }
           auto xPrime = f.getBinding(newName);
 
-          // Make a new variable for non-SSA name
-          auto original = f.getOriginalName(newName);
-          if (!f.hasBinding(original)) {
-            f.addVariable(original, x->getType()->clone(), x->isNull());
-          }
-
           // 1. Update the phi instruction to use x' instead of x
           auto oldResult = phi->getLHS();
           auto oldArgs = phi->getRHS();
@@ -1380,6 +1420,11 @@ void Compiler::convertOutOfSSAForm(Function &f) {
         for (auto *pred : block->getPredecessors()) {
           auto predNumber = f.getPredNumber(block.get(), pred);
           auto *arg = phi->getRHS()[predNumber];
+          // Elide the assignment if the source and destination are the same
+          if (f.getOriginalName(arg->getName()) ==
+              f.getOriginalName(phi->getLHS()->getName())) {
+            continue;
+          }
           auto newAssignment = Make<Assignment>(
               phi->getLHS(), bindExpression(f, arg->getName()));
           pred->insertBefore(pred->getTerminator(), std::move(newAssignment));
@@ -1392,7 +1437,59 @@ void Compiler::convertOutOfSSAForm(Function &f) {
     }
   }
 
-  // Rename every variable back to its original name
+  // add old non-SSA arguments (saving the old ones)
+  Vec<const Variable *> oldArguments;
+  for (const auto &arg : f.getArguments()) {
+    oldArguments.push_back(arg.get());
+    auto newName = f.getOriginalName(arg->getName());
+    f.addArgument(newName, arg->getType()->clone());
+  }
+
+  // collect the old variable
+  Vec<const Variable *> oldVariables;
+  for (auto &var : f.getVariables()) {
+    oldVariables.push_back(var.get());
+  }
+
+  // create the new (non-SSA) arguments
+  Map<const Variable *, const Variable *> oldToNew;
+  for (auto &arg : f.getArguments()) {
+    auto oldName = f.getOriginalName(arg->getName());
+    if (!f.hasBinding(oldName)) {
+      f.addArgument(oldName, arg->getType()->clone());
+    }
+    auto *originalArg = f.getBinding(oldName);
+    if (originalArg != arg.get()) {
+      oldToNew.insert({arg.get(), originalArg});
+    }
+  }
+
+  // map each old (SSA) variable to its new (non-SSA) variable
+  for (auto &var : f.getVariables()) {
+    auto oldName = f.getOriginalName(var->getName());
+    if (!f.hasBinding(oldName)) {
+      f.addVariable(oldName, var->getType()->clone(), var->isNull());
+    }
+    auto *originalVar = f.getBinding(oldName);
+    if (originalVar != var.get()) {
+      oldToNew.insert({var.get(), originalVar});
+    }
+  }
+
+  replaceUsesWith(f, oldToNew);
+  replaceDefsWith(f, oldToNew);
+
+  // delete the old arguments
+  for (auto *oldArg : oldArguments) {
+    f.removeArgument(oldArg);
+  }
+
+  // delete the old variables
+  for (auto *oldVar : oldVariables) {
+    f.removeVariable(oldVar);
+  }
+
+  std::cout << f << std::endl;
 }
 
 /**
