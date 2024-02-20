@@ -77,18 +77,18 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func,
 
     inputTypes += fmt::format(
         fmt::runtime(config.aggify["inputType"].Scalar()), fmt::arg("i", count),
-        fmt::arg("type", p.second->getType()->getCppType()));
+        fmt::arg("type", p.second->getType().getCppType()));
 
     inputLogicalTypes += fmt::format(
         fmt::runtime(config.aggify["inputLogicalType"].Scalar()),
         fmt::arg("i", count),
-        fmt::arg("type", p.second->getType()->getDuckDBLogicalType()));
+        fmt::arg("type", p.second->getType().getDuckDBLogicalType()));
 
     if (cursorVars.count(p.first) == 0) {
       // is state variable
       stateDefition +=
           fmt::format(fmt::runtime(config.aggify["stateDefition"].Scalar()),
-                      fmt::arg("type", p.second->getType()->getCppType()),
+                      fmt::arg("type", p.second->getType().getCppType()),
                       fmt::arg("name", p.first));
 
       varInit += fmt::format(fmt::runtime(config.aggify["varInit"].Scalar()),
@@ -145,10 +145,10 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func,
   String registration = fmt::format(
       fmt::runtime(config.aggify["registration"].Scalar()), fmt::arg("id", id),
       fmt::arg("inputTypes", inputTypes),
-      fmt::arg("outputType", dfaResult.getReturnVar()->getType()->getCppType()),
+      fmt::arg("outputType", dfaResult.getReturnVar()->getType().getCppType()),
       fmt::arg("inputLogicalTypes", inputLogicalTypes),
       fmt::arg("outputLogicalType",
-               dfaResult.getReturnVar()->getType()->getDuckDBLogicalType()));
+               dfaResult.getReturnVar()->getType().getDuckDBLogicalType()));
 
   String customAggCaller = fmt::format(
       fmt::runtime(config.aggify["caller"].Scalar()), fmt::arg("id", id),

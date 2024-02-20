@@ -84,7 +84,9 @@ BasicBlock *Compiler::constructIfCFG(const json &ifJson, Function &function,
       thenBlock, constructCFG(function, elseIfStatements, newContinuations),
       std::move(cond)));
 
-  return newBlock;
+  auto preHeader = function.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
+  return preHeader;
 }
 
 BasicBlock *Compiler::constructIfElseCFG(const json &ifElseJson,
@@ -95,7 +97,9 @@ BasicBlock *Compiler::constructIfElseCFG(const json &ifElseJson,
   auto thenStatements = getJsonList(ifElseJson);
   auto *thenBlock = constructCFG(function, thenStatements, continuations);
   newBlock->addInstruction(Make<BranchInst>(thenBlock));
-  return newBlock;
+  auto preHeader = function.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
+  return preHeader;
 }
 
 BasicBlock *Compiler::constructIfElseIfCFG(const json &ifElseIfJson,
@@ -110,7 +114,9 @@ BasicBlock *Compiler::constructIfElseIfCFG(const json &ifElseIfJson,
   newBlock->addInstruction(Make<BranchInst>(
       thenBlock, constructCFG(function, statements, continuations),
       std::move(cond)));
-  return newBlock;
+  auto preHeader = function.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
+  return preHeader;
 }
 
 BasicBlock *Compiler::constructWhileCFG(const json &whileJson,
@@ -127,9 +133,17 @@ BasicBlock *Compiler::constructWhileCFG(const json &whileJson,
   auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock,
                                         continuations.functionExit);
   auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
-  newBlock->addInstruction(
+
+  // create a block for the condition
+  auto condBlock = function.makeBasicBlock();
+  condBlock->addInstruction(
       Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
-  return newBlock;
+  // the block jumps immediately to the cond block
+  newBlock->addInstruction(Make<BranchInst>(condBlock));
+
+  auto preHeader = function.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
+  return preHeader;
 }
 
 BasicBlock *Compiler::constructLoopCFG(const json &loopJson, Function &function,
@@ -142,7 +156,9 @@ BasicBlock *Compiler::constructLoopCFG(const json &loopJson, Function &function,
                                         continuations.functionExit);
   auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
   newBlock->addInstruction(Make<BranchInst>(bodyBlock));
-  return newBlock;
+  auto preHeader = function.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
+  return preHeader;
 }
 
 BasicBlock *Compiler::constructForLoopCFG(const json &forJson,
@@ -193,13 +209,17 @@ BasicBlock *Compiler::constructForLoopCFG(const json &forJson,
                                         continuations.functionExit);
   auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
 
-  headerBlock->addInstruction(
+  // create a block for the condition
+  auto condBlock = function.makeBasicBlock();
+  condBlock->addInstruction(
       Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
+  // the block jumps immediately to the cond block
+  headerBlock->addInstruction(Make<BranchInst>(condBlock));
 
   // Unconditional jump from latch block to header block
   latchBlock->addInstruction(Make<BranchInst>(headerBlock));
 
-  // Unconditional from newBlock to headerBlock
+  // Unconditional from newBlock to header block
   newBlock->addInstruction(Make<BranchInst>(headerBlock));
   return newBlock;
 }
@@ -222,37 +242,35 @@ BasicBlock *
 Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
                                  List<json> &statements,
                                  const Continuations &continuations) {
+  ERROR("Cursor loops are not currently supported.");
   auto newBlock = function.makeBasicBlock();
 
-  // create a new function out of the orginal with empty basic blocks
-  Function cursorLoopFunction(function);
-  buildCursorLoopCFG(cursorLoopFunction, cursorLoopJson);
-  optimize(cursorLoopFunction);
+  // // create a new function out of the orginal with empty basic blocks
+  // Function cursorLoopFunction(function);
+  // buildCursorLoopCFG(cursorLoopFunction, cursorLoopJson);
+  // optimize(cursorLoopFunction);
 
-  AggifyDFA aggifyDFA(cursorLoopFunction);
+  // AggifyDFA aggifyDFA(cursorLoopFunction);
 
-  udfCount++;
-  AggifyCodeGenerator aggifyCodeGenerator(config);
-  auto res = aggifyCodeGenerator.run(cursorLoopFunction, cursorLoopJson,
-                                     aggifyDFA, udfCount);
-  insertDefAndReg(res.code, res.registration, udfCount);
-  // compile the template
-  COUT << "Compiling the UDAF..." << ENDL;
-  compileUDF();
-  // load the compiled library
-  COUT << "Installing and loading the UDAF..." << ENDL;
-  loadUDF(*connection);
+  // udfCount++;
+  // AggifyCodeGenerator aggifyCodeGenerator(config);
+  // auto res = aggifyCodeGenerator.run(cursorLoopFunction, cursorLoopJson,
+  //                                    aggifyDFA, udfCount);
+  // insertDefAndReg(res.code, res.registration, udfCount);
+  // // compile the template
+  // COUT << "Compiling the UDAF..." << ENDL;
+  // compileUDF();
+  // // load the compiled library
+  // COUT << "Installing and loading the UDAF..." << ENDL;
+  // loadUDF(*connection);
 
-  // udf_todo: replace the cursor loop with custom aggregate
-  String customAggCaller = res.caller;
-  // COUT << "returnvar" << aggifyDFA.getReturnVar() << ENDL;
-  // COUT << "customAggCaller: " << customAggCaller << ENDL;
-  // function.addCustomAgg(std::move(res));
-  newBlock->addInstruction(
-      Make<Assignment>(function.getBinding(aggifyDFA.getReturnVarName()),
-                       bindExpression(function, customAggCaller)));
-  newBlock->addInstruction(
-      Make<BranchInst>(constructCFG(function, statements, continuations)));
+  // // udf_todo: replace the cursor loop with custom aggregate
+  // String customAggCaller = res.caller;
+  // newBlock->addInstruction(
+  //     Make<Assignment>(function.getBinding(aggifyDFA.getReturnVarName()),
+  //                      bindExpression(function, customAggCaller)));
+  // newBlock->addInstruction(
+  //     Make<BranchInst>(constructCFG(function, statements, continuations)));
   return newBlock;
 }
 
@@ -390,7 +408,7 @@ CompilationResult Compiler::run() {
     auto ast = asts[i];
     auto datums = ast["PLpgSQL_function"]["datums"];
     ASSERT(datums.is_array(), "Datums is not an array.");
-    auto &function = functions[i];
+    auto &function = *functions[i];
 
     bool readingArguments = true;
 
@@ -428,7 +446,7 @@ CompilationResult Compiler::run() {
         String defaultVal =
             variable.contains("default_val")
                 ? variable["default_val"]["PLpgSQL_expr"]["query"].get<String>()
-                : varType->getDefaultValue(true);
+                : varType.getDefaultValue(true);
         function.addVariable(variableName, std::move(varType),
                              !variable.contains("default_val"));
         pendingInitialization.emplace_back(variableName, defaultVal);
@@ -486,9 +504,9 @@ void Compiler::makeDuckDBContext(const Function &function) {
     if (first) {
       first = false;
     }
-    createTableString << name << " " << *type;
+    createTableString << name << " " << type;
     insertTableString << "(NULL) ";
-    insertTableSecondRow << type->getDefaultValue(true);
+    insertTableSecondRow << type.getDefaultValue(true);
   }
   createTableString << ");";
   insertTableString << "),";
@@ -595,8 +613,8 @@ json Compiler::parseJson() const {
   return json;
 }
 
-Vec<Function> Compiler::getFunctions() const {
-  Vec<Function> functions;
+VecOwn<Function> Compiler::getFunctions() const {
+  VecOwn<Function> functions;
 
   // Collect function names from program text
   auto functionNames = extractMatches(programText, FUNCTION_NAME_PATTERN, 1);
@@ -613,8 +631,8 @@ Vec<Function> Compiler::getFunctions() const {
 
   // Construct the function and return
   for (std::size_t i = 0; i < functionNames.size(); ++i) {
-    functions.emplace_back(functionNames[i],
-                           getTypeFromPostgresName(returnTypes[i]));
+    functions.emplace_back(Make<Function>(
+        functionNames[i], getTypeFromPostgresName(returnTypes[i])));
   }
   return functions;
 }
@@ -706,7 +724,7 @@ Opt<Compiler::WidthScale> Compiler::getDecimalWidthScale(const String &type) {
   return {};
 }
 
-Own<Type> Compiler::getTypeFromPostgresName(const String &name) const {
+Type Compiler::getTypeFromPostgresName(const String &name) const {
   auto resolvedName = resolveTypeName(name);
   auto tag = getPostgresTag(resolvedName);
   if (tag == PostgresTypeTag::DECIMAL) {
@@ -714,12 +732,12 @@ Own<Type> Compiler::getTypeFromPostgresName(const String &name) const {
     auto widthScale = getDecimalWidthScale(resolvedName);
     if (widthScale) {
       auto [width, scale] = *widthScale;
-      return Make<Type>(true, width, scale, tag);
+      return Type(true, width, scale, tag);
     } else {
-      return Make<Type>(true, std::nullopt, std::nullopt, tag);
+      return Type(true, std::nullopt, std::nullopt, tag);
     }
   } else {
-    return Make<Type>(false, std::nullopt, std::nullopt, tag);
+    return Type(false, std::nullopt, std::nullopt, tag);
   }
 }
 
@@ -828,7 +846,7 @@ void Compiler::renameVariablesToSSA(Function &f,
     auto newName = oldName + "_" + std::to_string(i) + "_";
     auto *oldVar = f.getBinding(oldName);
     if (!f.hasBinding(newName)) {
-      f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+      f.addVariable(newName, oldVar->getType(), oldVar->isNull());
     }
     // Update stack and counters
     if (updateVariable) {
@@ -855,7 +873,7 @@ void Compiler::renameVariablesToSSA(Function &f,
     for (auto &[oldName, newName] : oldToNew) {
       auto *oldVar = f.getBinding(oldName);
       if (!f.hasBinding(newName)) {
-        f.addVariable(newName, oldVar->getType()->clone(), oldVar->isNull());
+        f.addVariable(newName, oldVar->getType(), oldVar->isNull());
       }
       varMapping.insert({oldVar, f.getBinding(newName)});
     }
@@ -938,7 +956,7 @@ void Compiler::renameVariablesToSSA(Function &f,
   for (const auto &arg : f.getArguments()) {
     auto oldName = arg->getName();
     auto newName = getNewArgumentName(arg.get());
-    f.addVariable(newName, arg->getType()->clone(), false);
+    f.addVariable(newName, arg->getType(), false);
     auto assign =
         Make<Assignment>(f.getBinding(newName), bindExpression(f, oldName));
     auto *entryBlock = f.getEntryBlock();
@@ -963,6 +981,7 @@ void Compiler::renameVariablesToSSA(Function &f,
 }
 
 void Compiler::optimize(Function &f) {
+  std::cout << f << std::endl;
   mergeBasicBlocks(f);
   std::cout << f << std::endl;
   convertToSSAForm(f);
@@ -1337,7 +1356,7 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           auto newName = String("p") + x->getName();
           // Make a new variable
           if (!f.hasBinding(newName)) {
-            f.addVariable(newName, x->getType()->clone(), x->isNull());
+            f.addVariable(newName, x->getType(), x->isNull());
           }
           auto xPrime = f.getBinding(newName);
           phiCongruent[xPrime].insert(xPrime);
@@ -1388,6 +1407,11 @@ void Compiler::convertOutOfSSAForm(Function &f) {
 
               auto predIndex = std::distance(oldArgs.begin(), argIt);
               auto *toModify = block->getPredecessors()[predIndex];
+              if (toModify->isConditional()) {
+                ASSERT(toModify->getPredecessors().size() == 1,
+                       "Must have unique predecessor for conditional block!!");
+                toModify = toModify->getPredecessors().front();
+              }
               toModify->insertBefore(toModify->getTerminator(),
                                      std::move(newAssignment));
               // update the live in/out and interference graph
@@ -1540,14 +1564,14 @@ void Compiler::convertOutOfSSAForm(Function &f) {
 
   // map each old (SSA) variable to its new (non-SSA) variable
   Map<const Variable *, const Variable *> oldToNew;
-  for (auto &var : f.getVariables()) {
+  for (auto *var : oldVariables) {
     auto oldName = f.getOriginalName(var->getName());
     if (!f.hasBinding(oldName)) {
-      f.addVariable(oldName, var->getType()->clone(), var->isNull());
+      f.addVariable(oldName, var->getType(), var->isNull());
     }
     auto *originalVar = f.getBinding(oldName);
-    if (originalVar != var.get()) {
-      oldToNew.insert({var.get(), originalVar});
+    if (originalVar != var) {
+      oldToNew.insert({var, originalVar});
     }
   }
 
@@ -1558,8 +1582,6 @@ void Compiler::convertOutOfSSAForm(Function &f) {
   for (auto *oldVar : oldVariables) {
     f.removeVariable(oldVar);
   }
-
-  std::cout << f << std::endl;
 }
 
 /**

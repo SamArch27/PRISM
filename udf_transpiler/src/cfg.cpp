@@ -23,6 +23,6 @@ void Function::removeBasicBlock(BasicBlock *toRemove) {
 }
 
 Function newFunction(const String &functionName) {
-  return Function(functionName, Make<Type>(false, std::nullopt, std::nullopt,
-                                           PostgresTypeTag::INTEGER));
+  return Function(functionName, Type(false, std::nullopt, std::nullopt,
+                                     PostgresTypeTag::INTEGER));
 }

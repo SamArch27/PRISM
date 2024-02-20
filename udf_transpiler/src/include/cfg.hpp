@@ -29,11 +29,11 @@ std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr);
 
 class Variable {
 public:
-  Variable(const String &name, Own<Type> type, bool null = true)
-      : name(name), type(std::move(type)), null(null) {}
+  Variable(const String &name, Type type, bool null = true)
+      : name(name), type(type), null(null) {}
 
   String getName() const { return name; }
-  const Type *getType() const { return type.get(); }
+  Type getType() const { return type; }
   bool isNull() const { return null; }
 
   friend std::ostream &operator<<(std::ostream &os, const Variable &var) {
@@ -41,16 +41,14 @@ public:
     return os;
   }
 
-  Own<Variable> clone() const {
-    return Make<Variable>(name, type->clone(), null);
-  }
+  Own<Variable> clone() const { return Make<Variable>(name, type, null); }
 
 protected:
-  void print(std::ostream &os) const { os << *type << " " << name; }
+  void print(std::ostream &os) const { os << type << " " << name; }
 
 private:
   String name;
-  Own<Type> type;
+  Type type;
   bool null;
 };
 
@@ -319,6 +317,8 @@ public:
 
   String getLabel() const { return label; }
 
+  bool isConditional() const { return successors.size() == 2; }
+
 protected:
   void print(std::ostream &os) const {
     os << label << ":" << std::endl;
@@ -472,48 +472,14 @@ private:
   bool conditional;
 };
 
-class CursorLoop {
-public:
-  // the nth cursor loop
-  int id;
-  // cfg created by the compiler
-  VecOwn<BasicBlock> basicBlocks;
-  // more info
-};
-
 class DominatorTree;
 
 class Function {
 public:
-  Function(const String &functionName, Own<Type> returnType)
-      : labelNumber(0), functionName(functionName),
-        returnType(std::move(returnType)) {}
+  Function(const String &functionName, Type returnType)
+      : labelNumber(0), functionName(functionName), returnType(returnType) {}
 
-  /**
-   * copy constructor
-   * copies: labelNumber, functionName, returnType, arguments, variables,
-   * bindings
-   *
-   */
-  Function(const Function &other) {
-    labelNumber = other.labelNumber;
-    functionName = other.functionName;
-    returnType = other.returnType->clone();
-    Map<Variable *, Variable *> otherVarToNewVar;
-    for (const auto &arg : other.arguments) {
-      auto argClone = arg->clone();
-      arguments.push_back(std::move(argClone));
-      otherVarToNewVar[arg.get()] = argClone.get();
-    }
-    for (const auto &var : other.variables) {
-      auto varClone = var->clone();
-      variables.insert(std::move(varClone));
-      otherVarToNewVar[var.get()] = varClone.get();
-    }
-    for (const auto &bind : other.bindings) {
-      bindings.emplace(bind.first, otherVarToNewVar.at(bind.second));
-    }
-  }
+  Function(const Function &other) = delete;
 
   friend std::ostream &operator<<(std::ostream &os, const Function &function) {
     function.print(os);
@@ -543,16 +509,16 @@ public:
     return makeBasicBlock(label);
   }
 
-  void addArgument(const String &name, Own<Type> type) {
+  void addArgument(const String &name, Type type) {
     auto cleanedName = getCleanedVariableName(name);
-    auto var = Make<Variable>(cleanedName, std::move(type));
+    auto var = Make<Variable>(cleanedName, type);
     arguments.push_back(std::move(var));
     bindings.emplace(cleanedName, arguments.back().get());
   }
 
-  void addVariable(const String &name, Own<Type> &&type, bool isNULL) {
+  void addVariable(const String &name, Type type, bool isNULL) {
     auto cleanedName = getCleanedVariableName(name);
-    auto var = Make<Variable>(cleanedName, std::move(type), isNULL);
+    auto var = Make<Variable>(cleanedName, type, isNULL);
     auto [it, _] = variables.insert(std::move(var));
     bindings.emplace(cleanedName, it->get());
   }
@@ -586,7 +552,7 @@ public:
   VecOwn<Assignment> takeDeclarations() { return std::move(declarations); }
 
   String getFunctionName() const { return functionName; }
-  const Type *getReturnType() const { return returnType.get(); }
+  Type getReturnType() const { return returnType; }
 
   String getCleanedVariableName(const String &name) const {
     auto cleanedName = removeSpaces(name);
@@ -670,12 +636,21 @@ public:
   }
 
   const VecOwn<BasicBlock> &getBasicBlocks() const { return basicBlocks; }
-  VecOwn<CursorLoop> cursorLoops;
 
-  // protected:
+  void removeVariable(const Variable *var) {
+    bindings.erase(var->getName());
+    auto it = std::find_if(
+        variables.begin(), variables.end(),
+        [&](const Own<Variable> &variable) { return variable.get() == var; });
+    variables.erase(it);
+  }
+
+  void removeBasicBlock(BasicBlock *toRemove);
+
+protected:
   void print(std::ostream &os) const {
     os << "Function Name: " << functionName << std::endl;
-    os << "Return Type: " << *returnType << std::endl;
+    os << "Return Type: " << returnType << std::endl;
     os << "Arguments: " << std::endl;
     for (const auto &argument : arguments) {
       os << "\t" << *argument << std::endl;
@@ -702,16 +677,6 @@ public:
     os << "}" << std::endl;
   }
 
-  void removeVariable(const Variable *var) {
-    bindings.erase(var->getName());
-    auto it = std::find_if(
-        variables.begin(), variables.end(),
-        [&](const Own<Variable> &variable) { return variable.get() == var; });
-    variables.erase(it);
-  }
-
-  void removeBasicBlock(BasicBlock *toRemove);
-
 private:
   class CompilationState {
   public:
@@ -726,16 +691,14 @@ private:
       }
     }
   };
-  // List<CompilationState> states;
   std::size_t labelNumber;
   String functionName;
-  Own<Type> returnType;
+  Type returnType;
   VecOwn<Variable> arguments;
   SetOwn<Variable> variables;
   VecOwn<Assignment> declarations;
   Map<String, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
-  // Vec<AggifyCodeGeneratorResult> custom_aggs;
   Map<String, BasicBlock *> labelToBasicBlock;
 };
 

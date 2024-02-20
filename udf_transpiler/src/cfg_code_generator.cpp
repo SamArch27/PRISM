@@ -8,24 +8,24 @@
 #include "types.hpp"
 
 String CFGCodeGenerator::createReturnValue(const String &retName,
-                                           const Type *retType,
+                                           const Type &retType,
                                            const String &retValue) {
 
-  if (retType->isDecimal()) {
-    auto width = retType->getWidth();
-    auto scale = retType->getScale();
+  if (retType.isDecimal()) {
+    auto width = retType.getWidth();
+    auto scale = retType.getScale();
     return fmt::format("{} = Value::DECIMAL({}, {}, {})", retName, retValue,
                        *width, *scale);
-  } else if (retType->isNumeric()) {
-    return fmt::format("{} = Value::{}({})", retName, retType->getDuckDBType(),
+  } else if (retType.isNumeric()) {
+    return fmt::format("{} = Value::{}({})", retName, retType.getDuckDBType(),
                        retValue);
-  } else if (retType->isBlob()) {
+  } else if (retType.isBlob()) {
     return fmt::format(
         "{0} = Value({1});\n{0}.GetTypeMutable() = LogicalType::{2}", retName,
-        retValue, retType->getDuckDBType());
+        retValue, retType.getDuckDBType());
   } else {
     ERROR(fmt::format("Cannot create duckdb value from type {}",
-                      retType->getDuckDBType()));
+                      retType.getDuckDBType()));
   }
 }
 
@@ -101,9 +101,9 @@ String CFGCodeGenerator::extractVarFromChunk(const Function &func) {
 
   std::size_t i = 0;
   for (const auto &arg : func.getArguments()) {
-    String extract_data_from_value = fmt::format("v{}.GetValueUnsafe<{}>()", i,
-                                                 arg->getType()->getCppType());
-    code += fmt::format("{} {} = {};\n", arg->getType()->getCppType(),
+    String extract_data_from_value =
+        fmt::format("v{}.GetValueUnsafe<{}>()", i, arg->getType().getCppType());
+    code += fmt::format("{} {} = {};\n", arg->getType().getCppType(),
                         arg->getName(), extract_data_from_value);
 
     ++i;
@@ -114,7 +114,7 @@ String CFGCodeGenerator::extractVarFromChunk(const Function &func) {
   i = 0;
   for (const auto &var : func.getVariables()) {
     code +=
-        fmt::format("{} {};\n", var->getType()->getCppType(), var->getName());
+        fmt::format("{} {};\n", var->getType().getCppType(), var->getName());
     code += fmt::format("bool {}_null = {};\n", var->getName(),
                         var->isNull() ? "true" : "false");
     ++i;
@@ -131,7 +131,8 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
   for (auto &bbUniq : func.getBasicBlocks()) {
     basicBlockCodeGenerator(bbUniq.get(), func, function_info);
   }
-  String function_args, arg_indexes, subfunc_args, subfunc_args_all_0, fbody_args;
+  String function_args, arg_indexes, subfunc_args, subfunc_args_all_0,
+      fbody_args;
   Vec<String> check_null;
 
   int count = 0;
@@ -152,7 +153,7 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
                     fmt::arg("var_name", name));
     subfunc_args += ", ";
 
-    subfunc_args_all_0 += 
+    subfunc_args_all_0 +=
         fmt::format(fmt::runtime(config.function["subfunc_arg_0"].Scalar()),
                     fmt::arg("var_name", name));
     subfunc_args_all_0 += ", ";
@@ -201,13 +202,13 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
 
   Vec<String> args_logical_types;
   for (auto &arg : func.getArguments()) {
-    args_logical_types.push_back(arg->getType()->getDuckDBLogicalType());
+    args_logical_types.push_back(arg->getType().getDuckDBLogicalType());
   }
   container.registration = fmt::format(
       fmt::runtime(config.function["fcreate"].Scalar()),
       fmt::arg("function_name", func.getFunctionName()),
       fmt::arg("return_logical_type",
-               func.getReturnType()->getDuckDBLogicalType()),
+               func.getReturnType().getDuckDBLogicalType()),
       fmt::arg("args_logical_types", joinVector(args_logical_types, ", ")));
 
   std::cout << container.body << std::endl;

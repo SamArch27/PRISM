@@ -119,7 +119,7 @@ private:
   json parseJson() const;
   String getJsonExpr(const json &json);
   List<json> getJsonList(const json &body);
-  Vec<Function> getFunctions() const;
+  VecOwn<Function> getFunctions() const;
   void replaceDefsWith(Function &f,
                        const Map<const Variable *, const Variable *> &oldToNew);
   void replaceUsesWith(Function &f,
@@ -132,7 +132,7 @@ private:
   static StringPair unpackAssignment(const String &assignment);
   static Opt<WidthScale> getDecimalWidthScale(const String &type);
   static PostgresTypeTag getPostgresTag(const String &name);
-  Own<Type> getTypeFromPostgresName(const String &name) const;
+  Type getTypeFromPostgresName(const String &name) const;
   String resolveTypeName(const String &type) const;
   void performCopyPropagation(Function &f);
   void mergeBasicBlocks(Function &f);

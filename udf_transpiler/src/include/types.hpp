@@ -124,10 +124,6 @@ public:
     return scale;
   }
 
-  Own<Type> clone() const {
-    return Make<Type>(decimal, width, scale, postgresTag);
-  };
-
   const static inline Set<DuckdbTypeTag> NumericTypes = {
       DuckdbTypeTag::BOOLEAN,  DuckdbTypeTag::TINYINT,
       DuckdbTypeTag::SMALLINT, DuckdbTypeTag::INTEGER,
