@@ -527,7 +527,6 @@ Own<SelectExpression> Compiler::buildReplacedExpression(
 
 Own<SelectExpression> Compiler::bindExpression(const Function &function,
                                                const String &expr) {
-  std::cout << expr << std::endl;
   destroyDuckDBContext();
   makeDuckDBContext(function);
 
@@ -935,7 +934,9 @@ void Compiler::renameVariablesToSSA(Function &f,
   Vec<const Variable *> oldArguments;
   for (const auto &arg : f.getArguments()) {
     oldArguments.push_back(arg.get());
-    auto newName = getNewArgumentName(arg.get());
+  }
+  for (const auto *arg : oldArguments) {
+    auto newName = getNewArgumentName(arg);
     f.addArgument(newName, arg->getType()->clone());
   }
 
@@ -1316,6 +1317,7 @@ void Compiler::convertOutOfSSAForm(Function &f) {
             f.addVariable(newName, x->getType()->clone(), x->isNull());
           }
           auto xPrime = f.getBinding(newName);
+          phiCongruent[xPrime].insert(xPrime);
 
           // 1. Update the phi instruction to use x' instead of x
           auto oldResult = phi->getLHS();
@@ -1398,14 +1400,17 @@ void Compiler::convertOutOfSSAForm(Function &f) {
           phi = dynamic_cast<const PhiNode *>(it->get());
         }
 
-        // Make all variables in the phi belong to the same phi congruence
-        // class
+        // merge phi congruence classes
         Vec<const Variable *> variables = phi->getRHS();
         variables.push_back(phi->getLHS());
+        Set<const Variable *> currentClass;
         for (auto *x : variables) {
-          for (auto *y : variables) {
-            phiCongruent[x].insert(y);
+          for (auto *congruent : phiCongruent[x]) {
+            currentClass.insert(congruent);
           }
+        }
+        for (auto *x : currentClass) {
+          phiCongruent[x] = currentClass;
         }
       }
     }
@@ -1415,12 +1420,66 @@ void Compiler::convertOutOfSSAForm(Function &f) {
     if (congruent.size() == 1) {
       congruent.clear();
     }
-    std::cout << "Var: " << var->getName()
-              << " is congruent with: " << std::endl;
-    for (auto &other : congruent) {
-      std::cout << other->getName() << " ";
+  }
+
+  // Remove superfluous copies using phiCongruence
+  for (auto &block : f.getBasicBlocks()) {
+    auto &instructions = block->getInstructions();
+    for (auto it = instructions.begin(); it != instructions.end();) {
+      auto *inst = it->get();
+      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+        // Try converting the RHS to a variable
+        auto rhsText = assign->getRHS()->getRawSQL();
+        if (!f.hasBinding(rhsText)) {
+          ++it;
+          continue;
+        }
+        auto *lhs = assign->getLHS();
+        auto *rhs = f.getBinding(rhsText);
+
+        bool lhsEmpty = phiCongruent[lhs].empty();
+        bool rhsEmpty = phiCongruent[rhs].empty();
+
+        bool lhsConflict = false;
+        bool rhsConflict = false;
+
+        auto rhsConflicts = phiCongruent[rhs];
+        rhsConflicts.erase(rhs);
+        for (auto *x : rhsConflicts) {
+          rhsConflict |= interferenceGraph->interferes(lhs, x);
+        }
+
+        auto lhsConflicts = phiCongruent[lhs];
+        lhsConflicts.erase(lhs);
+        for (auto *x : lhsConflicts) {
+          lhsConflict |= interferenceGraph->interferes(rhs, x);
+        }
+
+        if (lhsEmpty && rhsEmpty) {
+          it = block->removeInst(inst);
+        } else if (lhsEmpty && !rhsEmpty) {
+          if (rhsConflict) {
+            ++it;
+            continue;
+          }
+          it = block->removeInst(inst);
+        } else if (!lhsEmpty && rhsEmpty) {
+          if (lhsConflict) {
+            ++it;
+            continue;
+          }
+          it = block->removeInst(inst);
+        } else {
+          if (lhsConflict || rhsConflict) {
+            ++it;
+            continue;
+          }
+          it = block->removeInst(inst);
+        }
+      } else {
+        ++it;
+      }
     }
-    std::cout << std::endl;
   }
 
   // Remove all phis, inserting the appropriate assignments in predecessors
@@ -1466,14 +1525,14 @@ void Compiler::convertOutOfSSAForm(Function &f) {
 
   // create the new (non-SSA) arguments
   Map<const Variable *, const Variable *> oldToNew;
-  for (auto &arg : f.getArguments()) {
+  for (auto *arg : oldArguments) {
     auto oldName = f.getOriginalName(arg->getName());
     if (!f.hasBinding(oldName)) {
       f.addArgument(oldName, arg->getType()->clone());
     }
     auto *originalArg = f.getBinding(oldName);
-    if (originalArg != arg.get()) {
-      oldToNew.insert({arg.get(), originalArg});
+    if (originalArg != arg) {
+      oldToNew.insert({arg, originalArg});
     }
   }
 
