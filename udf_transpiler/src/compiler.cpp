@@ -518,7 +518,7 @@ Own<SelectExpression> Compiler::buildReplacedExpression(
     const Map<const Variable *, const Variable *> &oldToNew) {
   auto replacedText = original->getRawSQL();
   for (auto &[oldVar, newVar] : oldToNew) {
-    std::regex wordRegex(oldVar->getName());
+    std::regex wordRegex("\\b" + oldVar->getName() + "\\b");
     replacedText =
         std::regex_replace(replacedText, wordRegex, newVar->getName());
   }
@@ -994,6 +994,25 @@ void Compiler::mergeBasicBlocks(Function &f) {
       // and we are the unique predecessor
       if (uniqueSucc->getPredecessors().size() != 1) {
         return;
+      }
+
+      // special: don't merge conditionals
+      if (uniqueSucc->getSuccessors().size() != 1) {
+        return;
+      }
+
+      // special: don't merge blocks containing SELECT
+      if (auto *assign =
+              dynamic_cast<const Assignment *>(block->getInitiator())) {
+        if (assign->getRHS()->isSQLExpression()) {
+          return;
+        }
+      }
+      if (auto *assign =
+              dynamic_cast<const Assignment *>(uniqueSucc->getInitiator())) {
+        if (assign->getRHS()->isSQLExpression()) {
+          return;
+        }
       }
 
       // merge the two blocks
