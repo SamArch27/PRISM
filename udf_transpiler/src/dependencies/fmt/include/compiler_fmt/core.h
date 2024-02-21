@@ -1446,7 +1446,7 @@ template <typename Context> struct arg_mapper {
     return val;
   }
   template <typename T, FMT_ENABLE_IF(!formattable<T>::value)>
-  FMT_CONSTEXPR FMT_INLINE auto do_map(T&&) -> unformattable {
+  FMT_CONSTEXPR FMT_INLINE auto do_map(T &&) -> unformattable {
     return {};
   }
 

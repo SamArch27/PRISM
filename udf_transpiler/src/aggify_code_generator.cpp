@@ -4,6 +4,8 @@
 
 #include "aggify_code_generator.hpp"
 #include "compiler_fmt/args.h"
+#include "compiler_fmt/core.h"
+#include "compiler_fmt/format.h"
 #include <set>
 
 /**
@@ -33,7 +35,7 @@ Vec<String> AggifyCodeGenerator::getOrginalCursorLoopCol(const json &ast) {
   return res;
 }
 
-AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func,
+AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &f,
                                                    const json &ast,
                                                    const AggifyDFA &dfaResult,
                                                    size_t id) {
@@ -53,7 +55,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func,
   String funcArgs;
   size_t count = 0;
   size_t stateVarCount = 0;
-  const auto &allBindings = func.getAllBindings();
+  const auto &allBindings = f.getAllBindings();
 
   auto originalCursorLoopCols = getOrginalCursorLoopCol(ast);
   ASSERT(originalCursorLoopCols.size() == cursorVars.size(),
@@ -118,9 +120,9 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &func,
   funcArgs = funcArgs.substr(0, funcArgs.size() - 2);
 
   // code gen the body
-  CodeGenInfo function_info(func);
-  for (auto &bbUniq : func.getBasicBlocks()) {
-    basicBlockCodeGenerator(bbUniq.get(), func, function_info);
+  CodeGenInfo function_info;
+  for (auto &bbUniq : f.getBasicBlocks()) {
+    basicBlockCodeGenerator(bbUniq.get(), f, function_info);
   }
 
   String body = joinVector(container.basicBlockCodes, "\n");

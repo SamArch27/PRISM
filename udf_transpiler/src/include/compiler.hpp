@@ -1,11 +1,10 @@
 
 #pragma once
 
-#include "cfg.hpp"
 #include "compiler_fmt/core.h"
 #include "dominator_dataflow.hpp"
-#include "duckdb/main/connection.hpp"
 #include "duckdb/planner/logical_operator.hpp"
+#include "instructions.hpp"
 #include "types.hpp"
 #include "utils.hpp"
 #include <functional>
@@ -114,34 +113,15 @@ public:
   static constexpr char ASSIGNMENT_PATTERN[] = "\\:?\\=";
 
 private:
-  void makeDuckDBContext(const Function &function);
-  void destroyDuckDBContext();
   json parseJson() const;
   String getJsonExpr(const json &json);
   List<json> getJsonList(const json &body);
   VecOwn<Function> getFunctions() const;
-  void replaceDefsWith(Function &f,
-                       const Map<const Variable *, const Variable *> &oldToNew);
-  void replaceUsesWith(Function &f,
-                       const Map<const Variable *, const Variable *> &oldToNew);
-  Own<SelectExpression> buildReplacedExpression(
-      Function &f, const SelectExpression *original,
-      const Map<const Variable *, const Variable *> &oldToNew);
-  Own<SelectExpression> bindExpression(const Function &function,
-                                       const String &expression);
   static StringPair unpackAssignment(const String &assignment);
   static Opt<WidthScale> getDecimalWidthScale(const String &type);
   static PostgresTypeTag getPostgresTag(const String &name);
   Type getTypeFromPostgresName(const String &name) const;
   String resolveTypeName(const String &type) const;
-  void performCopyPropagation(Function &f);
-  void mergeBasicBlocks(Function &f);
-  void convertToSSAForm(Function &f);
-  void insertPhiFunctions(Function &f,
-                          const Own<DominanceFrontier> &dominanceFrontier);
-  void renameVariablesToSSA(Function &f,
-                            const Own<DominatorTree> &dominatorTree);
-  void convertOutOfSSAForm(Function &f);
 
   duckdb::Connection *connection;
   String programText;

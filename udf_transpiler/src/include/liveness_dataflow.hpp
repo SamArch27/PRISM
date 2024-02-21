@@ -3,6 +3,7 @@
 #include "compiler_fmt/core.h"
 #include "compiler_fmt/ostream.h"
 #include "dataflow_framework.hpp"
+#include "function.hpp"
 
 class Liveness {
 public:
@@ -81,12 +82,18 @@ class InterferenceGraph {
 public:
   void addInterferenceEdge(const Variable *left, const Variable *right) {
     edge[left].insert(right);
+    edge[right].insert(left);
   }
 
-  bool interferes(const Variable *left, const Variable *right) {
-    auto &leftEdges = edge[left];
-    auto &rightEdges = edge[right];
-    std::cout << std::endl;
+  bool interferes(const Variable *left, const Variable *right) const {
+    if (edge.find(left) == edge.end()) {
+      return false;
+    }
+    if (edge.find(right) == edge.end()) {
+      return false;
+    }
+    auto &leftEdges = edge.at(left);
+    auto &rightEdges = edge.at(right);
     return leftEdges.find(right) != leftEdges.end() ||
            rightEdges.find(left) != rightEdges.end();
   }

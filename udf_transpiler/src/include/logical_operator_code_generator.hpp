@@ -1,14 +1,13 @@
 #pragma once
-#include "cfg.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/connection.hpp"
 #include "duckdb/planner/logical_operator.hpp"
+#include "function.hpp"
+#include "instructions.hpp"
 #include "utils.hpp"
 
 struct CodeGenInfo {
 public:
-  CodeGenInfo(const Function &_func) : function(_func) {}
-  const Function &function;
   Vec<String> lines;
   /**
    * reference the string_function_count in FunctionInfo
@@ -19,10 +18,7 @@ public:
 
   String newVector() {
     // make sure it is does not already exist
-    String name = "tmp_vec" + std::to_string(vectorCount++);
-    if (function.hasBinding(name))
-      return newVector();
-    return name;
+    return "tmp_vec" + std::to_string(vectorCount++);
   }
 
   String toString() {
@@ -31,12 +27,7 @@ public:
     return joinVector(lines, "\n") + "\n";
   }
 
-  String newTmpVar() {
-    String name = "tmp_var" + std::to_string(tmpVarCount++);
-    if (function.hasBinding(name))
-      return newTmpVar();
-    return name;
-  }
+  String newTmpVar() { return "tmp_var" + std::to_string(tmpVarCount++); }
 };
 
 namespace duckdb {
@@ -60,15 +51,17 @@ private:
 };
 
 class LogicalOperatorCodeGenerator : public LogicalOperatorVisitor {
+public:
+  LogicalOperatorCodeGenerator() : LogicalOperatorVisitor() {}
+
+  void VisitOperator(duckdb::LogicalOperator &op) override;
+  void VisitOperator(const duckdb::LogicalOperator &op, CodeGenInfo &insert);
+  std::pair<String, String> getResult() { return {header, res}; }
+
 private:
   // header is the code that should be inserted before the query
   String header;
   String res;
-
-public:
-  void VisitOperator(duckdb::LogicalOperator &op) override;
-  void VisitOperator(const duckdb::LogicalOperator &op, CodeGenInfo &insert);
-  std::pair<String, String> getResult() { return {header, res}; }
 };
 
 template <>

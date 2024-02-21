@@ -33,7 +33,7 @@ String CFGCodeGenerator::createReturnValue(const String &retName,
  * for each instruction in the basic block, generate the corresponding C++ code
  */
 void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
-                                               const Function &func,
+                                               const Function &f,
                                                CodeGenInfo &function_info) {
   String code;
   code += fmt::format("/* ==== Basic block {} start ==== */\n", bb->getLabel());
@@ -60,7 +60,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
         code += fmt::format(
             "{};\ngoto exit;\n",
             createReturnValue(config.function["return_name"].Scalar(),
-                              func.getReturnType(), res));
+                              f.getReturnType(), res));
       } else if (auto *br = dynamic_cast<const BranchInst *>(inst.get())) {
         if (br->isConditional()) {
           duckdb::LogicalOperatorCodeGenerator locg;
@@ -123,20 +123,20 @@ String CFGCodeGenerator::extractVarFromChunk(const Function &func) {
   return code;
 }
 
-CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
-  COUT << fmt::format("Generating code for function {}", func.getFunctionName())
+CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &f) {
+  COUT << fmt::format("Generating code for function {}", f.getFunctionName())
        << ENDL;
-  CodeGenInfo function_info(func);
+  CodeGenInfo function_info;
 
-  for (auto &bbUniq : func.getBasicBlocks()) {
-    basicBlockCodeGenerator(bbUniq.get(), func, function_info);
+  for (auto &bbUniq : f.getBasicBlocks()) {
+    basicBlockCodeGenerator(bbUniq.get(), f, function_info);
   }
   String function_args, arg_indexes, subfunc_args, subfunc_args_all_0,
       fbody_args;
   Vec<String> check_null;
 
   int count = 0;
-  for (const auto &arg : func.getArguments()) {
+  for (const auto &arg : f.getArguments()) {
     String name = arg->getName();
     function_args +=
         fmt::format(fmt::runtime(config.function["fargs2"].Scalar()),
@@ -181,11 +181,11 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
     }
   }
 
-  String vars_init = extractVarFromChunk(func);
+  String vars_init = extractVarFromChunk(f);
 
   container.body = fmt::format(
       fmt::runtime(config.function["fbodyshell"].Scalar()),
-      fmt::arg("function_name", func.getFunctionName()),
+      fmt::arg("function_name", f.getFunctionName()),
       fmt::arg("fbody_args", fbody_args),
       fmt::arg("check_null", joinVector(check_null, " or ")),
       fmt::arg("vars_init", vars_init),
@@ -193,7 +193,7 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
 
   container.main =
       fmt::format(fmt::runtime(config.function["fshell2"].Scalar()),
-                  fmt::arg("function_name", func.getFunctionName()),
+                  fmt::arg("function_name", f.getFunctionName()),
                   fmt::arg("function_args", function_args),
                   fmt::arg("arg_indexes", arg_indexes),
                   fmt::arg("vector_create", vector_create),
@@ -201,14 +201,13 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &func) {
                   fmt::arg("subfunc_args_all_0", subfunc_args_all_0));
 
   Vec<String> args_logical_types;
-  for (auto &arg : func.getArguments()) {
+  for (auto &arg : f.getArguments()) {
     args_logical_types.push_back(arg->getType().getDuckDBLogicalType());
   }
   container.registration = fmt::format(
       fmt::runtime(config.function["fcreate"].Scalar()),
-      fmt::arg("function_name", func.getFunctionName()),
-      fmt::arg("return_logical_type",
-               func.getReturnType().getDuckDBLogicalType()),
+      fmt::arg("function_name", f.getFunctionName()),
+      fmt::arg("return_logical_type", f.getReturnType().getDuckDBLogicalType()),
       fmt::arg("args_logical_types", joinVector(args_logical_types, ", ")));
 
   std::cout << container.body << std::endl;

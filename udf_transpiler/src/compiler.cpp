@@ -2,14 +2,17 @@
 #include "aggify_code_generator.hpp"
 #include "aggify_dfa.hpp"
 #include "cfg_code_generator.hpp"
+#include "copy_propagation.hpp"
 #include "dominator_dataflow.hpp"
-#include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
 #include "file.hpp"
+#include "function.hpp"
 #include "liveness_dataflow.hpp"
+#include "merge_basic_blocks.hpp"
 #include "pg_query.h"
-#include "used_variable_finder.hpp"
+#include "ssa_construction.hpp"
+#include "ssa_destruction.hpp"
 #include "utils.hpp"
 #include <algorithm>
 #include <iostream>
@@ -24,22 +27,22 @@ std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr) {
 }
 
 BasicBlock *
-Compiler::constructAssignmentCFG(const json &assignmentJson, Function &function,
+Compiler::constructAssignmentCFG(const json &assignmentJson, Function &f,
                                  List<json> &statements,
                                  const Continuations &continuations) {
-  auto newBlock = function.makeBasicBlock();
+  auto newBlock = f.makeBasicBlock();
   String assignmentText = getJsonExpr(assignmentJson["expr"]);
   const auto &[left, right] = unpackAssignment(assignmentText);
-  auto *var = function.getBinding(left);
-  auto expr = bindExpression(function, right);
+  auto *var = f.getBinding(left);
+  auto expr = f.bindExpression(right);
 
   bool isSQLExpression = expr->isSQLExpression();
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
   newBlock->addInstruction(
-      Make<BranchInst>(constructCFG(function, statements, continuations)));
+      Make<BranchInst>(constructCFG(f, statements, continuations)));
   if (isSQLExpression) {
     // add a pre-header
-    auto preHeader = function.makeBasicBlock();
+    auto preHeader = f.makeBasicBlock();
     preHeader->addInstruction(Make<BranchInst>(newBlock));
     return preHeader;
   } else {
@@ -47,35 +50,34 @@ Compiler::constructAssignmentCFG(const json &assignmentJson, Function &function,
   }
 }
 
-BasicBlock *Compiler::constructReturnCFG(const json &returnJson,
-                                         Function &function,
+BasicBlock *Compiler::constructReturnCFG(const json &returnJson, Function &f,
                                          List<json> &statements,
                                          const Continuations &continuations) {
   if (!returnJson.contains("expr")) {
-    destroyDuckDBContext();
+    f.destroyDuckDBContext();
     EXCEPTION("There is a path without return value.");
     return nullptr;
   }
-  auto newBlock = function.makeBasicBlock();
+  auto newBlock = f.makeBasicBlock();
   String ret = getJsonExpr(returnJson["expr"]);
-  newBlock->addInstruction(Make<ReturnInst>(bindExpression(function, ret),
-                                            continuations.functionExit));
+  newBlock->addInstruction(
+      Make<ReturnInst>(f.bindExpression(ret), continuations.functionExit));
   return newBlock;
 }
 
-BasicBlock *Compiler::constructIfCFG(const json &ifJson, Function &function,
+BasicBlock *Compiler::constructIfCFG(const json &ifJson, Function &f,
                                      List<json> &statements,
                                      const Continuations &continuations) {
-  auto newBlock = function.makeBasicBlock();
+  auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(ifJson["cond"]);
-  auto cond = bindExpression(function, condString);
-  auto *afterIfBlock = constructCFG(function, statements, continuations);
+  auto cond = f.bindExpression(condString);
+  auto *afterIfBlock = constructCFG(f, statements, continuations);
   auto thenStatements = getJsonList(ifJson["then_body"]);
 
   auto newContinuations =
       Continuations(afterIfBlock, continuations.fallthrough,
                     continuations.loopExit, continuations.functionExit);
-  auto *thenBlock = constructCFG(function, thenStatements, newContinuations);
+  auto *thenBlock = constructCFG(f, thenStatements, newContinuations);
 
   List<json> elseIfStatements;
   if (ifJson.contains("elsif_list")) {
@@ -90,91 +92,86 @@ BasicBlock *Compiler::constructIfCFG(const json &ifJson, Function &function,
   }
 
   newBlock->addInstruction(Make<BranchInst>(
-      thenBlock, constructCFG(function, elseIfStatements, newContinuations),
+      thenBlock, constructCFG(f, elseIfStatements, newContinuations),
       std::move(cond)));
 
-  auto preHeader = function.makeBasicBlock();
+  auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
   return preHeader;
 }
 
-BasicBlock *Compiler::constructIfElseCFG(const json &ifElseJson,
-                                         Function &function,
+BasicBlock *Compiler::constructIfElseCFG(const json &ifElseJson, Function &f,
                                          List<json> &statements,
                                          const Continuations &continuations) {
-  auto newBlock = function.makeBasicBlock();
+  auto newBlock = f.makeBasicBlock();
   auto thenStatements = getJsonList(ifElseJson);
-  auto *thenBlock = constructCFG(function, thenStatements, continuations);
+  auto *thenBlock = constructCFG(f, thenStatements, continuations);
   newBlock->addInstruction(Make<BranchInst>(thenBlock));
-  auto preHeader = function.makeBasicBlock();
+  auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
   return preHeader;
 }
 
 BasicBlock *Compiler::constructIfElseIfCFG(const json &ifElseIfJson,
-                                           Function &function,
-                                           List<json> &statements,
+                                           Function &f, List<json> &statements,
                                            const Continuations &continuations) {
-  auto newBlock = function.makeBasicBlock();
+  auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(ifElseIfJson["cond"]);
-  auto cond = bindExpression(function, condString);
+  auto cond = f.bindExpression(condString);
   auto thenStatements = getJsonList(ifElseIfJson["stmts"]);
-  auto *thenBlock = constructCFG(function, thenStatements, continuations);
+  auto *thenBlock = constructCFG(f, thenStatements, continuations);
   newBlock->addInstruction(Make<BranchInst>(
-      thenBlock, constructCFG(function, statements, continuations),
-      std::move(cond)));
-  auto preHeader = function.makeBasicBlock();
+      thenBlock, constructCFG(f, statements, continuations), std::move(cond)));
+  auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
   return preHeader;
 }
 
-BasicBlock *Compiler::constructWhileCFG(const json &whileJson,
-                                        Function &function,
+BasicBlock *Compiler::constructWhileCFG(const json &whileJson, Function &f,
                                         List<json> &statements,
                                         const Continuations &continuations) {
-  auto newBlock = function.makeBasicBlock();
+  auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(whileJson["cond"]);
-  auto cond = bindExpression(function, condString);
+  auto cond = f.bindExpression(condString);
 
-  auto *afterLoopBlock = constructCFG(function, statements, continuations);
+  auto *afterLoopBlock = constructCFG(f, statements, continuations);
   auto bodyStatements = getJsonList(whileJson["body"]);
 
   auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock,
                                         continuations.functionExit);
-  auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
+  auto *bodyBlock = constructCFG(f, bodyStatements, newContinuations);
 
   // create a block for the condition
-  auto condBlock = function.makeBasicBlock();
+  auto condBlock = f.makeBasicBlock();
   condBlock->addInstruction(
       Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
   // the block jumps immediately to the cond block
   newBlock->addInstruction(Make<BranchInst>(condBlock));
 
-  auto preHeader = function.makeBasicBlock();
+  auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
   return preHeader;
 }
 
-BasicBlock *Compiler::constructLoopCFG(const json &loopJson, Function &function,
+BasicBlock *Compiler::constructLoopCFG(const json &loopJson, Function &f,
                                        List<json> &statements,
                                        const Continuations &continuations) {
-  auto newBlock = function.makeBasicBlock();
-  auto *afterLoopBlock = constructCFG(function, statements, continuations);
+  auto newBlock = f.makeBasicBlock();
+  auto *afterLoopBlock = constructCFG(f, statements, continuations);
   auto bodyStatements = getJsonList(loopJson["body"]);
   auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock,
                                         continuations.functionExit);
-  auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
+  auto *bodyBlock = constructCFG(f, bodyStatements, newContinuations);
   newBlock->addInstruction(Make<BranchInst>(bodyBlock));
-  auto preHeader = function.makeBasicBlock();
+  auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
   return preHeader;
 }
 
-BasicBlock *Compiler::constructForLoopCFG(const json &forJson,
-                                          Function &function,
+BasicBlock *Compiler::constructForLoopCFG(const json &forJson, Function &f,
                                           List<json> &statements,
                                           const Continuations &continuations) {
-  auto newBlock = function.makeBasicBlock();
+  auto newBlock = f.makeBasicBlock();
   auto &bodyJson = forJson["body"];
 
   bool reverse = forJson.contains("reverse");
@@ -195,31 +192,31 @@ BasicBlock *Compiler::constructForLoopCFG(const json &forJson,
 
   // Create assignment <var> =  <lower>
   const auto &[left, right] = std::make_pair(varString, lowerString);
-  auto *var = function.getBinding(left);
-  auto expr = bindExpression(function, right);
+  auto *var = f.getBinding(left);
+  auto expr = f.bindExpression(right);
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
 
   // Create step (assignment) <var> = <var> (reverse ? - : +) <step>
-  auto latchBlock = function.makeBasicBlock();
+  auto latchBlock = f.makeBasicBlock();
   String rhs =
       fmt::format("{} {} {}", varString, (reverse ? " - " : " + "), stepString);
-  auto stepExpr = bindExpression(function, rhs);
+  auto stepExpr = f.bindExpression(rhs);
   latchBlock->addInstruction(Make<Assignment>(var, std::move(stepExpr)));
 
   // Create condition as terminator into while loop
-  auto headerBlock = function.makeBasicBlock();
+  auto headerBlock = f.makeBasicBlock();
   String condString =
       fmt::format("{} {} {}", left, (reverse ? " > " : " < "), upperString);
-  auto cond = bindExpression(function, condString);
-  auto *afterLoopBlock = constructCFG(function, statements, continuations);
+  auto cond = f.bindExpression(condString);
+  auto *afterLoopBlock = constructCFG(f, statements, continuations);
   auto bodyStatements = getJsonList(bodyJson);
 
   auto newContinuations = Continuations(latchBlock, latchBlock, afterLoopBlock,
                                         continuations.functionExit);
-  auto *bodyBlock = constructCFG(function, bodyStatements, newContinuations);
+  auto *bodyBlock = constructCFG(f, bodyStatements, newContinuations);
 
   // create a block for the condition
-  auto condBlock = function.makeBasicBlock();
+  auto condBlock = f.makeBasicBlock();
   condBlock->addInstruction(
       Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
   // the block jumps immediately to the cond block
@@ -233,10 +230,10 @@ BasicBlock *Compiler::constructForLoopCFG(const json &forJson,
   return newBlock;
 }
 
-BasicBlock *Compiler::constructExitCFG(const json &exitJson, Function &function,
+BasicBlock *Compiler::constructExitCFG(const json &exitJson, Function &f,
                                        List<json> &statements,
                                        const Continuations &continuations) {
-  auto newBlock = function.makeBasicBlock();
+  auto newBlock = f.makeBasicBlock();
   // continue
   if (!exitJson.contains("is_exit")) {
     newBlock->addInstruction(Make<BranchInst>(continuations.loopHeader));
@@ -248,11 +245,11 @@ BasicBlock *Compiler::constructExitCFG(const json &exitJson, Function &function,
 }
 
 BasicBlock *
-Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
+Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &f,
                                  List<json> &statements,
                                  const Continuations &continuations) {
   ERROR("Cursor loops are not currently supported.");
-  auto newBlock = function.makeBasicBlock();
+  auto newBlock = f.makeBasicBlock();
 
   // // create a new function out of the orginal with empty basic blocks
   // Function cursorLoopFunction(function);
@@ -283,7 +280,7 @@ Compiler::constructCursorLoopCFG(const json &cursorLoopJson, Function &function,
   return newBlock;
 }
 
-BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
+BasicBlock *Compiler::constructCFG(Function &f, List<json> &statements,
                                    const Continuations &continuations) {
   if (statements.empty()) {
     return continuations.fallthrough;
@@ -293,46 +290,46 @@ BasicBlock *Compiler::constructCFG(Function &function, List<json> &statements,
   statements.pop_front();
 
   if (statement.contains("PLpgSQL_stmt_assign")) {
-    return constructAssignmentCFG(statement["PLpgSQL_stmt_assign"], function,
+    return constructAssignmentCFG(statement["PLpgSQL_stmt_assign"], f,
                                   statements, continuations);
   }
   if (statement.contains("PLpgSQL_stmt_return")) {
-    return constructReturnCFG(statement["PLpgSQL_stmt_return"], function,
-                              statements, continuations);
+    return constructReturnCFG(statement["PLpgSQL_stmt_return"], f, statements,
+                              continuations);
   }
   if (statement.contains("PLpgSQL_stmt_if")) {
-    return constructIfCFG(statement["PLpgSQL_stmt_if"], function, statements,
+    return constructIfCFG(statement["PLpgSQL_stmt_if"], f, statements,
                           continuations);
   }
   if (statement.contains("PLpgSQL_if_else")) {
-    return constructIfElseCFG(statement["PLpgSQL_if_else"], function,
-                              statements, continuations);
+    return constructIfElseCFG(statement["PLpgSQL_if_else"], f, statements,
+                              continuations);
   }
   if (statement.contains("PLpgSQL_if_elsif")) {
-    return constructIfElseIfCFG(statement["PLpgSQL_if_elsif"], function,
-                                statements, continuations);
+    return constructIfElseIfCFG(statement["PLpgSQL_if_elsif"], f, statements,
+                                continuations);
   }
   if (statement.contains("PLpgSQL_stmt_while")) {
-    return constructWhileCFG(statement["PLpgSQL_stmt_while"], function,
-                             statements, continuations);
+    return constructWhileCFG(statement["PLpgSQL_stmt_while"], f, statements,
+                             continuations);
   }
   if (statement.contains("PLpgSQL_stmt_loop")) {
-    return constructLoopCFG(statement["PLpgSQL_stmt_loop"], function,
-                            statements, continuations);
+    return constructLoopCFG(statement["PLpgSQL_stmt_loop"], f, statements,
+                            continuations);
   }
   if (statement.contains("PLpgSQL_stmt_fori")) {
-    return constructForLoopCFG(statement["PLpgSQL_stmt_fori"], function,
-                               statements, continuations);
+    return constructForLoopCFG(statement["PLpgSQL_stmt_fori"], f, statements,
+                               continuations);
   }
 
   if (statement.contains("PLpgSQL_stmt_exit")) {
-    return constructExitCFG(statement["PLpgSQL_stmt_exit"], function,
-                            statements, continuations);
+    return constructExitCFG(statement["PLpgSQL_stmt_exit"], f, statements,
+                            continuations);
   }
 
   if (statement.contains("PLpgSQL_stmt_fors")) {
-    return constructCursorLoopCFG(statement["PLpgSQL_stmt_fors"], function,
-                                  statements, continuations);
+    return constructCursorLoopCFG(statement["PLpgSQL_stmt_fors"], f, statements,
+                                  continuations);
   }
 
   // We don't have an assignment so we are starting a new basic block
@@ -352,10 +349,10 @@ List<json> Compiler::getJsonList(const json &body) {
   return res;
 }
 
-void Compiler::buildCursorLoopCFG(Function &function, const json &ast) {
+void Compiler::buildCursorLoopCFG(Function &f, const json &ast) {
   const auto &body = ast["body"];
-  auto *entryBlock = function.makeBasicBlock("entry");
-  auto *functionExitBlock = function.makeBasicBlock("exit");
+  auto *entryBlock = f.makeBasicBlock("entry");
+  auto *functionExitBlock = f.makeBasicBlock("exit");
   auto exitInst = Make<ExitInst>();
   functionExitBlock->addInstruction(std::move(exitInst));
 
@@ -365,22 +362,22 @@ void Compiler::buildCursorLoopCFG(Function &function, const json &ast) {
   // Connect "entry" block to initial block
   auto initialContinuations =
       Continuations(functionExitBlock, nullptr, nullptr, functionExitBlock);
-  entryBlock->addInstruction(Make<BranchInst>(
-      constructCFG(function, statements, initialContinuations)));
+  entryBlock->addInstruction(
+      Make<BranchInst>(constructCFG(f, statements, initialContinuations)));
 }
 
-void Compiler::buildCFG(Function &function, const json &ast) {
+void Compiler::buildCFG(Function &f, const json &ast) {
   const auto &body =
       ast["PLpgSQL_function"]["action"]["PLpgSQL_stmt_block"]["body"];
 
-  auto *entryBlock = function.makeBasicBlock("entry");
-  auto *functionExitBlock = function.makeBasicBlock("exit");
+  auto *entryBlock = f.makeBasicBlock("entry");
+  auto *functionExitBlock = f.makeBasicBlock("exit");
   auto exitInst = Make<ExitInst>();
   functionExitBlock->addInstruction(std::move(exitInst));
 
   // Create a "declare" BasicBlock with all declarations
-  auto declareBlock = function.makeBasicBlock();
-  auto declarations = function.takeDeclarations();
+  auto declareBlock = f.makeBasicBlock();
+  auto declarations = f.takeDeclarations();
   for (auto &declaration : declarations) {
     declareBlock->addInstruction(std::move(declaration));
   }
@@ -394,8 +391,8 @@ void Compiler::buildCFG(Function &function, const json &ast) {
   // Finally, jump to the "declare" block from the "entry" BasicBlock
   auto initialContinuations =
       Continuations(functionExitBlock, nullptr, nullptr, functionExitBlock);
-  declareBlock->addInstruction(Make<BranchInst>(
-      constructCFG(function, statements, initialContinuations)));
+  declareBlock->addInstruction(
+      Make<BranchInst>(constructCFG(f, statements, initialContinuations)));
 }
 
 CompilationResult Compiler::run() {
@@ -417,7 +414,7 @@ CompilationResult Compiler::run() {
     auto ast = asts[i];
     auto datums = ast["PLpgSQL_function"]["datums"];
     ASSERT(datums.is_array(), "Datums is not an array.");
-    auto &function = *functions[i];
+    auto &f = *functions[i];
 
     bool readingArguments = true;
 
@@ -436,7 +433,7 @@ CompilationResult Compiler::run() {
       String variableType = variable["datatype"]["PLpgSQL_type"]["typname"];
 
       if (variableType == "UNKNOWN") {
-        if (function.hasBinding(variableName)) {
+        if (f.hasBinding(variableName)) {
           continue;
         }
         EXCEPTION(fmt::format(
@@ -446,8 +443,7 @@ CompilationResult Compiler::run() {
       }
 
       if (readingArguments) {
-        function.addArgument(variableName,
-                             getTypeFromPostgresName(variableType));
+        f.addArgument(variableName, getTypeFromPostgresName(variableType));
       } else {
         // If the declared variable has a default value (i.e. DECLARE x = 0;)
         // then get it (otherwise assign to the default value of the type)
@@ -456,28 +452,28 @@ CompilationResult Compiler::run() {
             variable.contains("default_val")
                 ? variable["default_val"]["PLpgSQL_expr"]["query"].get<String>()
                 : varType.getDefaultValue(true);
-        function.addVariable(variableName, std::move(varType),
-                             !variable.contains("default_val"));
+        f.addVariable(variableName, std::move(varType),
+                      !variable.contains("default_val"));
         pendingInitialization.emplace_back(variableName, defaultVal);
       }
     }
 
-    makeDuckDBContext(function);
+    f.makeDuckDBContext();
 
     for (auto &init : pendingInitialization) {
-      auto var = function.getBinding(init.first);
-      auto expr = bindExpression(function, init.second);
-      function.addVarInitialization(var, std::move(expr));
+      auto var = f.getBinding(init.first);
+      auto expr = f.bindExpression(init.second);
+      f.addVarInitialization(var, std::move(expr));
     }
 
-    buildCFG(function, ast);
+    buildCFG(f, ast);
 
-    optimize(function);
+    optimize(f);
 
-    destroyDuckDBContext();
+    f.destroyDuckDBContext();
 
-    std::cout << function << std::endl;
-    auto res = generateCode(function);
+    std::cout << f << std::endl;
+    auto res = generateCode(f);
     codeRes.code += res.code;
     codeRes.registration += res.registration;
   }
@@ -485,130 +481,9 @@ CompilationResult Compiler::run() {
   return codeRes;
 }
 
-void Compiler::destroyDuckDBContext() {
-  String dropTableCommand = "DROP TABLE tmp;";
-  auto res = connection->Query(dropTableCommand);
-  if (res->HasError()) {
-    EXCEPTION(res->GetError());
-  }
-}
-
 /**
  * create a
  */
-void Compiler::makeDuckDBContext(const Function &function) {
-  std::stringstream createTableString;
-  createTableString << "CREATE TABLE tmp(";
-  std::stringstream insertTableString;
-  std::stringstream insertTableSecondRow;
-  insertTableString << "INSERT INTO tmp VALUES(";
-  insertTableSecondRow << "(";
-
-  bool first = true;
-  for (const auto &[name, variable] : function.getAllBindings()) {
-    auto type = variable->getType();
-    createTableString << (first ? "" : ", ");
-    insertTableString << (first ? "" : ", ");
-    insertTableSecondRow << (first ? "" : ", ");
-    if (first) {
-      first = false;
-    }
-    createTableString << name << " " << type;
-    insertTableString << "(NULL) ";
-    insertTableSecondRow << type.getDefaultValue(true);
-  }
-  createTableString << ");";
-  insertTableString << "),";
-  insertTableSecondRow << ");";
-
-  // Create commands
-  String createTableCommand = createTableString.str();
-  String insertTableCommand =
-      insertTableString.str() + insertTableSecondRow.str();
-
-  // CREATE TABLE
-  auto res = connection->Query(createTableCommand);
-  if (res->HasError()) {
-    EXCEPTION(res->GetError());
-  }
-
-  // INSERT (NULL,NULL,...)
-  res = connection->Query(insertTableCommand);
-  if (res->HasError()) {
-    destroyDuckDBContext();
-    EXCEPTION(res->GetError());
-  }
-}
-
-Own<SelectExpression> Compiler::buildReplacedExpression(
-    Function &f, const SelectExpression *original,
-    const Map<const Variable *, const Variable *> &oldToNew) {
-  auto replacedText = original->getRawSQL();
-  for (auto &[oldVar, newVar] : oldToNew) {
-    std::regex wordRegex("\\b" + oldVar->getName() + "\\b");
-    replacedText =
-        std::regex_replace(replacedText, wordRegex, newVar->getName());
-  }
-  return bindExpression(f, replacedText)->clone();
-}
-
-Own<SelectExpression> Compiler::bindExpression(const Function &function,
-                                               const String &expr) {
-  destroyDuckDBContext();
-  makeDuckDBContext(function);
-
-  String selectExpressionCommand;
-  if (toUpper(expr).find("SELECT") == String::npos)
-    selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
-  else {
-    // insert tmp to the from clause
-    auto fromPos = expr.find(" FROM ");
-    selectExpressionCommand = expr;
-    selectExpressionCommand.insert(fromPos + 6, " tmp, ");
-  }
-  auto clientContext = connection->context.get();
-  clientContext->config.enable_optimizer = true;
-  auto &config = duckdb::DBConfig::GetConfig(*clientContext);
-  std::set<duckdb::OptimizerType> disable_optimizers_should_delete;
-
-  if (config.options.disabled_optimizers.count(
-          duckdb::OptimizerType::STATISTICS_PROPAGATION) == 0)
-    disable_optimizers_should_delete.insert(
-        duckdb::OptimizerType::STATISTICS_PROPAGATION);
-  config.options.disabled_optimizers.insert(
-      duckdb::OptimizerType::STATISTICS_PROPAGATION);
-
-  // SELECT <expr> FROM tmp
-  Shared<LogicalPlan> boundExpression;
-  Shared<duckdb::Binder> plannerBinder;
-  try {
-    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
-                                                 plannerBinder);
-
-    for (auto &type : disable_optimizers_should_delete) {
-      config.options.disabled_optimizers.erase(type);
-    }
-  } catch (const std::exception &e) {
-    for (auto &type : disable_optimizers_should_delete) {
-      config.options.disabled_optimizers.erase(type);
-    }
-
-    destroyDuckDBContext();
-    EXCEPTION(e.what());
-  }
-
-  duckdb::UsedVariableFinder usedVariableFinder("tmp", plannerBinder);
-  usedVariableFinder.VisitOperator(*boundExpression);
-
-  // for each used variable, bind it to a Variable*
-  Vec<const Variable *> usedVariables;
-  for (const auto &varName : usedVariableFinder.usedVariables) {
-    usedVariables.push_back(function.getBinding(varName));
-  }
-
-  return Make<SelectExpression>(expr, std::move(boundExpression),
-                                usedVariables);
-}
 
 json Compiler::parseJson() const {
   auto result = pg_query_parse_plpgsql(programText.c_str());
@@ -641,7 +516,7 @@ VecOwn<Function> Compiler::getFunctions() const {
   // Construct the function and return
   for (std::size_t i = 0; i < functionNames.size(); ++i) {
     functions.emplace_back(Make<Function>(
-        functionNames[i], getTypeFromPostgresName(returnTypes[i])));
+        connection, functionNames[i], getTypeFromPostgresName(returnTypes[i])));
   }
   return functions;
 }
@@ -768,837 +643,22 @@ String Compiler::resolveTypeName(const String &type) const {
   return matches[0];
 }
 
-void Compiler::insertPhiFunctions(
-    Function &f, const Own<DominanceFrontier> &dominanceFrontier) {
-
-  // For each variable, when it is assigned in a block, map to the block
-  Map<const Variable *, Set<BasicBlock *>> varToBlocksAssigned;
-
-  for (auto &block : f.getBasicBlocks()) {
-    for (auto &inst : block->getInstructions()) {
-      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-        auto *var = assign->getLHS();
-        varToBlocksAssigned[var].insert(block.get());
-      }
-    }
-  }
-
-  // Initialize worklists
-  Set<BasicBlock *> worklist;
-  Map<BasicBlock *, const Variable *> inWorklist;
-  Map<BasicBlock *, const Variable *> inserted;
-  for (auto &block : f.getBasicBlocks()) {
-    inserted[block.get()] = nullptr;
-    inWorklist[block.get()] = nullptr;
-  }
-
-  // for each variable
-  for (auto *var : f.getAllVariables()) {
-    // add to the worklist each block where it has been assigned
-    for (auto *block : varToBlocksAssigned[var]) {
-      inWorklist[block] = var;
-      worklist.insert(block);
-    }
-    while (!worklist.empty()) {
-      auto *block = *worklist.begin();
-      worklist.erase(block);
-
-      for (auto *m : dominanceFrontier->getFrontier(block)) {
-        if (inserted[m] != var) {
-          // place a phi instruction for var at m
-          auto numPreds = m->getPredecessors().size();
-          auto args = Vec<const Variable *>(numPreds, var);
-          auto phiInst = Make<PhiNode>(var, args);
-          m->insertBefore(m->getInitiator(), std::move(phiInst));
-          // update worklists
-          inserted[m] = var;
-          if (inWorklist[m] != var) {
-            inWorklist[m] = var;
-            worklist.insert(m);
-          }
-        }
-      }
-    }
-  }
-}
-
-void Compiler::renameVariablesToSSA(Function &f,
-                                    const Own<DominatorTree> &dominatorTree) {
-
-  Map<const Variable *, Counter> counter;
-  Map<const Variable *, Stack<Counter>> stacks;
-
-  // initialize data structures
-  for (auto *var : f.getAllVariables()) {
-    counter.insert({var, 0});
-    stacks.insert({var, Stack<Counter>({0})});
-  }
-
-  auto accessCounter = [&](const Variable *var) -> Counter & {
-    return counter.at(f.getBinding(f.getOriginalName(var->getName())));
-  };
-
-  auto accessStack = [&](const Variable *var) -> Stack<Counter> & {
-    return stacks.at(f.getBinding(f.getOriginalName(var->getName())));
-  };
-
-  auto getNewArgumentName = [&](const Variable *var) {
-    auto i = accessStack(var).top();
-    auto oldName = f.getOriginalName(var->getName());
-    auto newName = oldName + "_" + std::to_string(i) + "_";
-    return newName;
-  };
-
-  auto renameVariable = [&](const Variable *var, bool updateVariable) {
-    auto i = updateVariable ? accessCounter(var) : accessStack(var).top();
-    auto oldName = f.getOriginalName(var->getName());
-    auto newName = oldName + "_" + std::to_string(i) + "_";
-    auto *oldVar = f.getBinding(oldName);
-    if (!f.hasBinding(newName)) {
-      f.addVariable(newName, oldVar->getType(), oldVar->isNull());
-    }
-    // Update stack and counters
-    if (updateVariable) {
-      accessStack(var).push(i);
-      accessCounter(var) = i + 1;
-    }
-    return f.getBinding(newName);
-  };
-
-  auto renameSelectExpression = [&](const SelectExpression *expr) {
-    // For each variable, map it to its SSA variable
-    Map<String, String> oldToNew;
-
-    // Map RHS variables to new SSA variable names
-    for (auto *var : expr->getUsedVariables()) {
-      auto i = accessStack(var).top();
-      auto newName =
-          f.getOriginalName(var->getName()) + "_" + std::to_string(i) + "_";
-      oldToNew.insert({var->getName(), newName});
-    }
-
-    // Map old variables to new ones
-    Map<const Variable *, const Variable *> varMapping;
-    for (auto &[oldName, newName] : oldToNew) {
-      auto *oldVar = f.getBinding(oldName);
-      if (!f.hasBinding(newName)) {
-        f.addVariable(newName, oldVar->getType(), oldVar->isNull());
-      }
-      varMapping.insert({oldVar, f.getBinding(newName)});
-    }
-
-    // For every variable, rebind the select expression with its new equivalent
-    Own<SelectExpression> replacedExpression = expr->clone();
-    replacedExpression =
-        buildReplacedExpression(f, replacedExpression.get(), varMapping);
-    return replacedExpression;
-  };
-
-  std::function<void(BasicBlock *)> rename = [&](BasicBlock *block) -> void {
-    const auto &instructions = block->getInstructions();
-
-    // we don't perform renaming for the entry block (due to arguments)
-    if (block != f.getEntryBlock()) {
-      for (auto it = instructions.begin(); it != instructions.end(); ++it) {
-        if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
-          auto newPhi =
-              Make<PhiNode>(renameVariable(phi->getLHS(), true), phi->getRHS());
-          it = block->replaceInst(it->get(), std::move(newPhi));
-        } else if (auto *returnInst =
-                       dynamic_cast<const ReturnInst *>(it->get())) {
-          auto newReturn =
-              Make<ReturnInst>(renameSelectExpression(returnInst->getExpr()),
-                               returnInst->getExitBlock());
-          it = block->replaceInst(it->get(), std::move(newReturn));
-        } else if (auto *branchInst =
-                       dynamic_cast<const BranchInst *>(it->get())) {
-          if (branchInst->isUnconditional()) {
-            continue;
-          }
-          auto newBranch = Make<BranchInst>(
-              branchInst->getIfTrue(), branchInst->getIfFalse(),
-              renameSelectExpression(branchInst->getCond()));
-          it = block->replaceInst(it->get(), std::move(newBranch));
-        } else if (auto *assign = dynamic_cast<const Assignment *>(it->get())) {
-          auto newAssignment =
-              Make<Assignment>(renameVariable(assign->getLHS(), true),
-                               renameSelectExpression(assign->getRHS()));
-          it = block->replaceInst(it->get(), std::move(newAssignment));
-        } else if (dynamic_cast<const ExitInst *>(it->get())) {
-          // Ignore exit block
-          continue;
-        } else {
-          ERROR("Unhandled instruction type during SSA renaming!");
-        }
-      }
-    }
-
-    // for each successor
-    for (auto *succ : block->getSuccessors()) {
-      auto j = f.getPredNumber(succ, block);
-      auto &instructions = succ->getInstructions();
-      for (auto it = instructions.begin(); it != instructions.end(); ++it) {
-        auto &inst = *it;
-        if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
-          auto newArguments = phi->getRHS();
-          newArguments[j] = renameVariable(phi->getRHS()[j], false);
-          auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-          it = succ->replaceInst(inst.get(), std::move(newPhi));
-        }
-      }
-    }
-
-    for (const auto &childLabel :
-         dominatorTree->getChildren(block->getLabel())) {
-      rename(f.getBlockFromLabel(childLabel));
-    }
-
-    // for each assignment, pop the stack
-    for (auto &inst : block->getInstructions()) {
-      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
-        accessStack(assign->getLHS()).pop();
-      }
-    }
-  };
-
-  // For each arg, create x' and assignment x' = x in entry
-  for (const auto &arg : f.getArguments()) {
-    auto oldName = arg->getName();
-    auto newName = getNewArgumentName(arg.get());
-    f.addVariable(newName, arg->getType(), false);
-    auto assign =
-        Make<Assignment>(f.getBinding(newName), bindExpression(f, oldName));
-    auto *entryBlock = f.getEntryBlock();
-    entryBlock->insertBefore(entryBlock->getTerminator(), std::move(assign));
-  }
-
-  // rename all of the variables
-  rename(f.getEntryBlock());
-
-  // collect the old variable
-  Vec<const Variable *> oldVariables;
-  for (auto &var : f.getVariables()) {
-    if (var->getName() == f.getOriginalName(var->getName())) {
-      oldVariables.push_back(var.get());
-    }
-  }
-
-  // delete the old variables
-  for (auto *oldVar : oldVariables) {
-    f.removeVariable(oldVar);
-  }
-}
-
 void Compiler::optimize(Function &f) {
-  std::cout << f << std::endl;
-  mergeBasicBlocks(f);
-  std::cout << f << std::endl;
-
-  convertToSSAForm(f);
+  MergeBasicBlocksPass mergeBasicBlocks;
+  mergeBasicBlocks.runOnFunction(f);
   std::cout << f << std::endl;
 
-  performCopyPropagation(f);
+  SSAConstructionPass ssaConstruction;
+  ssaConstruction.runOnFunction(f);
   std::cout << f << std::endl;
 
-  convertOutOfSSAForm(f);
+  CopyPropagationPass copyPropagation;
+  copyPropagation.runOnFunction(f);
   std::cout << f << std::endl;
-}
 
-void Compiler::mergeBasicBlocks(Function &f) {
-  f.visitBFS([&](BasicBlock *block) {
-    while (true) {
-
-      // skip if we are entry or exit
-      if (block == f.getEntryBlock() || block == f.getExitBlock()) {
-        return;
-      }
-      // if we have an unique successor
-      auto successors = block->getSuccessors();
-      if (successors.size() != 1) {
-        return;
-      }
-      auto *uniqueSucc = *successors.begin();
-      // that isn't entry/exit
-      if (uniqueSucc == f.getEntryBlock() || uniqueSucc == f.getExitBlock()) {
-        return;
-      }
-      // and we are the unique predecessor
-      if (uniqueSucc->getPredecessors().size() != 1) {
-        return;
-      }
-
-      // special: don't merge conditionals
-      if (uniqueSucc->getSuccessors().size() != 1) {
-        return;
-      }
-
-      // special: don't merge blocks containing SELECT
-      if (auto *assign =
-              dynamic_cast<const Assignment *>(block->getInitiator())) {
-        if (assign->getRHS()->isSQLExpression()) {
-          return;
-        }
-      }
-      if (auto *assign =
-              dynamic_cast<const Assignment *>(uniqueSucc->getInitiator())) {
-        if (assign->getRHS()->isSQLExpression()) {
-          return;
-        }
-      }
-
-      // merge the two blocks
-      block->appendBasicBlock(uniqueSucc);
-
-      // finally remove the basic block from the function
-      f.removeBasicBlock(uniqueSucc);
-    }
-  });
-}
-
-void Compiler::convertToSSAForm(Function &f) {
-  DominatorDataflow dataflow(f);
-  dataflow.runAnalysis();
-  auto dominators = dataflow.computeDominators();
-  auto dominanceFrontier = dataflow.computeDominanceFrontier(dominators);
-  auto dominatorTree = dataflow.computeDominatorTree(dominators);
-
-  insertPhiFunctions(f, dominanceFrontier);
-  renameVariablesToSSA(f, dominatorTree);
-}
-
-void Compiler::performCopyPropagation(Function &f) {
-  for (auto &basicBlock : f.getBasicBlocks()) {
-    // ignore the entry block because of how arguments are handled
-    if (basicBlock.get() == f.getEntryBlock()) {
-      continue;
-    }
-    auto &instructions = basicBlock->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
-      // check for x = y assignment
-      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
-        auto *lhs = assign->getLHS();
-        auto *rhs = assign->getRHS();
-
-        // skip SQL expressions
-        if (rhs->isSQLExpression()) {
-          ++it;
-          continue;
-        }
-
-        // Try converting the RHS to a variable
-        if (!f.hasBinding(rhs->getRawSQL())) {
-          ++it;
-          continue;
-        }
-        auto *var = f.getBinding(rhs->getRawSQL());
-
-        Map<const Variable *, const Variable *> oldToNew{{lhs, var}};
-        replaceUsesWith(f, oldToNew);
-        it = basicBlock->removeInst(inst);
-
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
-        if (!phi->hasIdenticalArguments()) {
-          ++it;
-          continue;
-        }
-        Map<const Variable *, const Variable *> oldToNew{
-            {phi->getLHS(), phi->getRHS().front()}};
-        replaceUsesWith(f, oldToNew);
-        it = basicBlock->removeInst(inst);
-      } else {
-        ++it;
-      }
-    }
-  }
-}
-
-void Compiler::replaceDefsWith(
-    Function &f, const Map<const Variable *, const Variable *> &oldToNew) {
-  for (auto &block : f.getBasicBlocks()) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
-      auto *var = inst->getResultOperand();
-      if (var == nullptr) {
-        ++it;
-        continue;
-      }
-      if (oldToNew.find(var) == oldToNew.end()) {
-        ++it;
-        continue;
-      }
-      // replace the defs
-      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
-        it = block->replaceInst(
-            inst,
-            Make<Assignment>(oldToNew.at(var), assign->getRHS()->clone()));
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
-        it = block->replaceInst(inst,
-                                Make<PhiNode>(oldToNew.at(var), phi->getRHS()));
-      } else {
-        ERROR("Unhandled instruction type during SSA destruction!");
-      }
-    }
-  }
-}
-
-void Compiler::replaceUsesWith(
-    Function &f, const Map<const Variable *, const Variable *> &oldToNew) {
-  for (auto &block : f.getBasicBlocks()) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
-
-      // skip the instruction if it doesn't use the variable we are
-      // replacing
-      const auto &ops = inst->getOperands();
-      if (std::find_if(ops.begin(), ops.end(), [&](const Variable *op) {
-            return oldToNew.find(op) != oldToNew.end();
-          }) == ops.end()) {
-        ++it;
-        continue;
-      }
-
-      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
-        auto *rhs = assign->getRHS();
-        // replace RHS with new expression
-        auto newAssign = Make<Assignment>(
-            assign->getLHS(), buildReplacedExpression(f, rhs, oldToNew));
-
-        it = block->replaceInst(it->get(), std::move(newAssign));
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
-        auto newArguments = phi->getRHS();
-        for (auto &arg : newArguments) {
-          if (oldToNew.find(arg) == oldToNew.end()) {
-            continue;
-          }
-          arg = oldToNew.at(arg);
-        }
-
-        auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-        it = block->replaceInst(it->get(), std::move(newPhi));
-
-      } else if (auto *returnInst =
-                     dynamic_cast<const ReturnInst *>(it->get())) {
-        auto newReturn = Make<ReturnInst>(
-            buildReplacedExpression(f, returnInst->getExpr(), oldToNew),
-            returnInst->getExitBlock());
-        it = block->replaceInst(it->get(), std::move(newReturn));
-      } else if (auto *branchInst =
-                     dynamic_cast<const BranchInst *>(it->get())) {
-        if (branchInst->isUnconditional()) {
-          ++it;
-          continue;
-        }
-        auto newBranch = Make<BranchInst>(
-            branchInst->getIfTrue(), branchInst->getIfFalse(),
-            buildReplacedExpression(f, branchInst->getCond(), oldToNew));
-        it = block->replaceInst(it->get(), std::move(newBranch));
-      } else {
-        ++it;
-      }
-    }
-  }
-}
-
-void Compiler::convertOutOfSSAForm(Function &f) {
-  auto dataflow = Make<LivenessDataflow>(f);
-  dataflow->runAnalysis();
-  auto liveness = dataflow->computeLiveness();
-  auto interferenceGraph = dataflow->computeInterfenceGraph();
-
-  Set<const Variable *> marked;
-  OrderedSet<Pair<const Variable *, const Variable *>> brokenEdges;
-  OrderedSet<Pair<const Variable *, const Variable *>> deferred;
-  Map<const Variable *, Set<const Variable *>> phiCongruent;
-  for (auto *var : f.getAllVariables()) {
-    phiCongruent[var].insert(var);
-  }
-
-  auto intersect = [](const Set<const Variable *> &lhs,
-                      const Set<const Variable *> &rhs) {
-    Set<const Variable *> result;
-    for (auto *var : lhs) {
-      if (rhs.find(var) != rhs.end()) {
-        result.insert(var);
-      }
-    }
-    return result;
-  };
-
-  // for every phi
-  for (auto &block : f.getBasicBlocks()) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
-      auto *inst = it->get();
-      if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
-        brokenEdges.clear();
-        marked.clear();
-        deferred.clear();
-        auto &args = phi->getRHS();
-        // for each pair of arguments
-        for (std::size_t i = 0; i < args.size(); ++i) {
-          auto *x_i = args[i];
-          for (std::size_t j = i + 1; j < args.size(); ++j) {
-            auto *x_j = args[j];
-            if (interferenceGraph->interferes(x_i, x_j)) {
-              // The edge eventually gets broken
-              brokenEdges.insert({x_i, x_j});
-
-              // Resolve according to the four cases
-              auto *n_i = block->getPredecessors()[i];
-              auto *n_j = block->getPredecessors()[j];
-
-              bool lhsConflict =
-                  !intersect(phiCongruent[x_i], liveness->getLiveOut(n_j))
-                       .empty();
-              bool rhsConflict =
-                  !intersect(phiCongruent[x_j], liveness->getLiveOut(n_i))
-                       .empty();
-              if (lhsConflict && !rhsConflict) {
-                // mark x_i
-                marked.insert(x_i);
-              } else if (!lhsConflict && rhsConflict) {
-                // mark x_j
-                marked.insert(x_j);
-              } else if (!lhsConflict && !rhsConflict) {
-                // unsure so we defer (x_i,x_j)
-                deferred.insert({x_i, x_j});
-              } else {
-                // mark both
-                marked.insert(x_i);
-                marked.insert(x_j);
-              }
-            }
-          }
-        }
-        // for the result variable and each argument variable
-        auto *x_i = phi->getLHS();
-        auto &rhs = phi->getRHS();
-        for (std::size_t j = 0; j < rhs.size(); ++j) {
-          auto *x_j = rhs[j];
-          if (interferenceGraph->interferes(x_i, x_j)) {
-            // The edge eventually gets broken
-            brokenEdges.insert({x_i, x_j});
-
-            // Resolve according to the four cases
-            auto *n = block.get(); // defining block for x_i is trivially n
-            auto *n_j = block->getPredecessors()[j];
-
-            bool selfConflict =
-                !intersect(phiCongruent[x_i], liveness->getLiveOut(n)).empty();
-            bool lhsConflict =
-                !intersect(phiCongruent[x_i], liveness->getLiveOut(n_j))
-                     .empty();
-            bool rhsInConflict =
-                !intersect(phiCongruent[x_j], liveness->getLiveIn(n)).empty();
-            bool rhsOutConflict =
-                !intersect(phiCongruent[x_j], liveness->getLiveOut(n)).empty();
-
-            if (selfConflict && !rhsInConflict) {
-              // mark x_i
-              marked.insert(x_i);
-            } else if (!selfConflict && rhsInConflict) {
-              // mark x_j
-              marked.insert(x_j);
-            } else if (!lhsConflict && !rhsOutConflict) {
-              // unsure so we defer (x_i, x_j)
-              deferred.insert({x_i, x_j});
-            } else if (lhsConflict && rhsOutConflict) {
-              // mark both
-              marked.insert(x_i);
-              marked.insert(x_j);
-            }
-          }
-        }
-
-        // for each marked variable, remove all pairs
-        //  which have the marked variable as a component from deferred
-        for (auto *var : marked) {
-          for (auto it = deferred.begin(); it != deferred.end();) {
-            if (it->first == var || it->second == var) {
-              it = deferred.erase(it);
-            } else {
-              ++it;
-            }
-          }
-        }
-
-        // while there are still deferred elements
-        while (!deferred.empty()) {
-          // find the most frequently occurring variable
-          Counter maxCount = 0;
-          Map<const Variable *, Counter> freqCount;
-          for (auto *var : f.getAllVariables()) {
-            freqCount.insert({var, 0});
-          }
-
-          for (auto &[first, second] : deferred) {
-            freqCount[first]++;
-            freqCount[second]++;
-            maxCount = std::max(maxCount, freqCount[first]);
-            maxCount = std::max(maxCount, freqCount[second]);
-          }
-
-          const Variable *mostFreqVar = nullptr;
-          for (auto &[var, count] : freqCount) {
-            if (count == maxCount) {
-              mostFreqVar = var;
-              break;
-            }
-          }
-          ASSERT(mostFreqVar != nullptr,
-                 "Error, incorrectly retrieved most frequent element!");
-
-          // add it to the marked set
-          marked.insert(mostFreqVar);
-
-          // remove all pairs containing it from the deferred set
-          for (auto it = deferred.begin(); it != deferred.end();) {
-            if (it->first == mostFreqVar || it->second == mostFreqVar) {
-              it = deferred.erase(it);
-            } else {
-              ++it;
-            }
-          }
-        }
-
-        for (auto *x : marked) {
-          auto newName = String("p") + x->getName();
-          // Make a new variable
-          if (!f.hasBinding(newName)) {
-            f.addVariable(newName, x->getType(), x->isNull());
-          }
-          auto xPrime = f.getBinding(newName);
-          phiCongruent[xPrime].insert(xPrime);
-
-          // 1. Update the phi instruction to use x' instead of x
-          auto oldResult = phi->getLHS();
-          auto oldArgs = phi->getRHS();
-          auto newResult = oldResult;
-          auto newArgs = oldArgs;
-          bool modifyingResult = (newResult == x);
-
-          if (modifyingResult) {
-            newResult = xPrime;
-          } else {
-            for (auto &newArg : newArgs) {
-              if (newArg == x) {
-                newArg = xPrime;
-              }
-            }
-          }
-
-          auto newPhi = Make<PhiNode>(newResult, newArgs);
-          it = block->replaceInst(phi, std::move(newPhi));
-
-          // 2. Insert the new assignment in the right place
-          if (modifyingResult) {
-            // Insert after the phi instruction if we are modifying the
-            // result x = x'
-            auto newAssignment =
-                Make<Assignment>(x, bindExpression(f, newName));
-            block->insertAfter(it->get(), std::move(newAssignment));
-
-            // Update the live in/out and interference graph
-            liveness->removeLiveIn(block.get(), x);
-            for (auto *var : liveness->getLiveIn(block.get())) {
-              interferenceGraph->addInterferenceEdge(xPrime, var);
-            }
-            liveness->addLiveIn(block.get(), xPrime);
-          } else {
-            // Otherwise insert at the end of the corresponding pred block
-            // x' = x
-            auto argIt = oldArgs.begin();
-            // for each argument to the phi that uses x_i
-            while ((argIt = std::find(argIt, oldArgs.end(), x)) !=
-                   oldArgs.end()) {
-              auto newAssignment =
-                  Make<Assignment>(xPrime, bindExpression(f, x->getName()));
-
-              auto predIndex = std::distance(oldArgs.begin(), argIt);
-              auto *toModify = block->getPredecessors()[predIndex];
-              if (toModify->isConditional()) {
-                ASSERT(toModify->getPredecessors().size() == 1,
-                       "Must have unique predecessor for conditional block!!");
-                toModify = toModify->getPredecessors().front();
-              }
-              toModify->insertBefore(toModify->getTerminator(),
-                                     std::move(newAssignment));
-              // update the live in/out and interference graph
-              auto &successors = block->getSuccessors();
-              if (std::all_of(successors.begin(), successors.end(),
-                              [&](BasicBlock *succ) {
-                                // not in livein of succ
-                                auto &succLiveIn = liveness->getLiveIn(succ);
-                                if (succLiveIn.find(x) != succLiveIn.end()) {
-                                  return false;
-                                }
-                                // not referenced in any phi
-                                for (auto *phi : f.getPhisFromBlock(succ)) {
-                                  auto &uses = phi->getRHS();
-                                  if (std::find(uses.begin(), uses.end(), x) !=
-                                      uses.end()) {
-                                    return false;
-                                  }
-                                }
-                                return true;
-                              })) {
-                liveness->removeLiveOut(toModify, x);
-              }
-              for (auto *var : liveness->getLiveOut(toModify)) {
-                interferenceGraph->addInterferenceEdge(xPrime, var);
-              }
-              liveness->addLiveOut(toModify, xPrime);
-              ++argIt;
-            }
-          }
-
-          // finally update the phi
-          phi = dynamic_cast<const PhiNode *>(it->get());
-        }
-
-        // merge phi congruence classes
-        Vec<const Variable *> variables = phi->getRHS();
-        variables.push_back(phi->getLHS());
-        Set<const Variable *> currentClass;
-        for (auto *x : variables) {
-          for (auto *congruent : phiCongruent[x]) {
-            currentClass.insert(congruent);
-          }
-        }
-        for (auto *x : currentClass) {
-          phiCongruent[x] = currentClass;
-        }
-      }
-    }
-  }
-
-  for (auto &[var, congruent] : phiCongruent) {
-    if (congruent.size() == 1) {
-      congruent.clear();
-    }
-  }
-
-  // Remove superfluous copies using phiCongruence
-  for (auto &block : f.getBasicBlocks()) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
-      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
-        // Try converting the RHS to a variable
-        auto rhsText = assign->getRHS()->getRawSQL();
-        if (!f.hasBinding(rhsText)) {
-          ++it;
-          continue;
-        }
-        auto *lhs = assign->getLHS();
-        auto *rhs = f.getBinding(rhsText);
-
-        bool lhsEmpty = phiCongruent[lhs].empty();
-        bool rhsEmpty = phiCongruent[rhs].empty();
-
-        bool lhsConflict = false;
-        bool rhsConflict = false;
-
-        auto rhsConflicts = phiCongruent[rhs];
-        rhsConflicts.erase(rhs);
-        for (auto *x : rhsConflicts) {
-          rhsConflict |= interferenceGraph->interferes(lhs, x);
-        }
-
-        auto lhsConflicts = phiCongruent[lhs];
-        lhsConflicts.erase(lhs);
-        for (auto *x : lhsConflicts) {
-          lhsConflict |= interferenceGraph->interferes(rhs, x);
-        }
-
-        if (lhsEmpty && rhsEmpty) {
-          it = block->removeInst(inst);
-        } else if (lhsEmpty && !rhsEmpty) {
-          if (rhsConflict) {
-            ++it;
-            continue;
-          }
-          it = block->removeInst(inst);
-        } else if (!lhsEmpty && rhsEmpty) {
-          if (lhsConflict) {
-            ++it;
-            continue;
-          }
-          it = block->removeInst(inst);
-        } else {
-          if (lhsConflict || rhsConflict) {
-            ++it;
-            continue;
-          }
-          it = block->removeInst(inst);
-        }
-      } else {
-        ++it;
-      }
-    }
-  }
-
-  // Remove all phis, inserting the appropriate assignments in predecessors
-  for (auto &block : f.getBasicBlocks()) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
-      if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
-        // Add assignment instructions for each arg to the appropriate block
-        for (auto *pred : block->getPredecessors()) {
-          auto predNumber = f.getPredNumber(block.get(), pred);
-          auto *arg = phi->getRHS()[predNumber];
-          // Elide the assignment if the source and destination are the same
-          if (f.getOriginalName(arg->getName()) ==
-              f.getOriginalName(phi->getLHS()->getName())) {
-            continue;
-          }
-          auto newAssignment = Make<Assignment>(
-              phi->getLHS(), bindExpression(f, arg->getName()));
-          if (pred->isConditional()) {
-            ASSERT(pred->getPredecessors().size() == 1,
-                   "Must have unique predecessor for conditional block!!");
-            pred = pred->getPredecessors().front();
-          }
-          pred->insertBefore(pred->getTerminator(), std::move(newAssignment));
-        }
-        // Remove the phi
-        it = block->removeInst(inst);
-      } else {
-        ++it;
-      }
-    }
-  }
-
-  // collect the old variables
-  Vec<const Variable *> oldVariables;
-  for (auto &var : f.getVariables()) {
-    oldVariables.push_back(var.get());
-  }
-
-  // map each old (SSA) variable to its new (non-SSA) variable
-  Map<const Variable *, const Variable *> oldToNew;
-  for (auto *var : oldVariables) {
-    auto oldName = f.getOriginalName(var->getName());
-    if (!f.hasBinding(oldName)) {
-      f.addVariable(oldName, var->getType(), var->isNull());
-    }
-    auto *originalVar = f.getBinding(oldName);
-    if (originalVar != var) {
-      oldToNew.insert({var, originalVar});
-    }
-  }
-
-  replaceUsesWith(f, oldToNew);
-  replaceDefsWith(f, oldToNew);
-
-  // delete the old variables
-  for (auto *oldVar : oldVariables) {
-    f.removeVariable(oldVar);
-  }
+  SSADestructionPass ssaDestruction;
+  ssaDestruction.runOnFunction(f);
+  std::cout << f << std::endl;
 }
 
 /**

@@ -15,6 +15,7 @@
 #define FMT_HEADER_ONLY
 #include "compiler_fmt/core.h"
 #include "duckdb/common/enums/expression_type.hpp"
+#include "function.hpp"
 #include "utils.hpp"
 #include <iostream>
 
@@ -36,8 +37,7 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
                                String &function_name,
                                Vec<String> &template_args,
                                const Vec<Expression *> &children,
-                               CodeGenInfo &insert,
-                               List<String> &args) {
+                               CodeGenInfo &insert, List<String> &args) {
   ASSERT(function_info.width_scale != std::make_pair((uint8_t)0, (uint8_t)0) &&
              function_info.width_scale2 !=
                  std::make_pair((uint8_t)0, (uint8_t)0),
@@ -122,9 +122,8 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
  */
 void BoundExpressionCodeGenerator::SpecialCaseHandler(
     const ScalarFunctionInfo &function_info, String &function_name,
-    Vec<String> &template_args,
-    const Vec<Expression *> &children, CodeGenInfo &insert,
-    List<String> &args) {
+    Vec<String> &template_args, const Vec<Expression *> &children,
+    CodeGenInfo &insert, List<String> &args) {
   for (auto special_case : function_info.special_handling) {
     switch (special_case) {
     case ScalarFunctionInfo::BinaryNumericDivideWrapper:
@@ -183,8 +182,8 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
 }
 
 String BoundExpressionCodeGenerator::CodeGenScalarFunction(
-    const ScalarFunctionInfo &function_info,
-    const Vec<Expression *> &children, CodeGenInfo &insert) {
+    const ScalarFunctionInfo &function_info, const Vec<Expression *> &children,
+    CodeGenInfo &insert) {
   List<String> args;
   for (auto &child : children) {
     args.push_back(Transpile(*child, insert));
@@ -391,8 +390,8 @@ String BoundExpressionCodeGenerator::Transpile(const Expression &exp,
  *
  */
 void LogicalOperatorCodeGenerator::VisitOperator(duckdb::LogicalOperator &op) {
-  auto func = newFunction("tmp");
-  CodeGenInfo insert(func);
+  String newFunctionName = "tmp";
+  CodeGenInfo insert;
   VisitOperator(op, insert);
   return;
 }
