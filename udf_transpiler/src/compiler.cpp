@@ -8,10 +8,12 @@
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
 #include "file.hpp"
+#include "fixpoint_pass.hpp"
 #include "function.hpp"
 #include "liveness_dataflow.hpp"
 #include "merge_basic_blocks.hpp"
 #include "pg_query.h"
+#include "pipeline_pass.hpp"
 #include "ssa_construction.hpp"
 #include "ssa_destruction.hpp"
 #include "utils.hpp"
@@ -71,25 +73,15 @@ json Compiler::parseJson() const {
   return json;
 }
 
-/**
- * create a
- */
-
 void Compiler::optimize(Function &f) {
-  MergeBasicBlocksPass mergeBasicBlocks;
-  mergeBasicBlocks.runOnFunction(f);
-  std::cout << f << std::endl;
+  auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
+      Make<MergeBasicBlocksPass>(), Make<CopyPropagationPass>()));
+  auto pipeline = Make<PipelinePass>(
+      Make<MergeBasicBlocksPass>(), Make<SSAConstructionPass>(),
+      std::move(corePasses), Make<SSADestructionPass>());
 
-  SSAConstructionPass ssaConstruction;
-  ssaConstruction.runOnFunction(f);
   std::cout << f << std::endl;
-
-  CopyPropagationPass copyPropagation;
-  copyPropagation.runOnFunction(f);
-  std::cout << f << std::endl;
-
-  SSADestructionPass ssaDestruction;
-  ssaDestruction.runOnFunction(f);
+  pipeline->runOnFunction(f);
   std::cout << f << std::endl;
 }
 

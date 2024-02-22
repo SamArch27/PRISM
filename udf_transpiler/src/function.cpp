@@ -176,14 +176,13 @@ bool Function::replaceUsesWith(
         ++it;
         continue;
       }
-      changed = true;
 
       if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
         auto *rhs = assign->getRHS();
         // replace RHS with new expression
         auto newAssign = Make<Assignment>(
             assign->getLHS(), buildReplacedExpression(rhs, oldToNew));
-
+        changed = true;
         it = block->replaceInst(it->get(), std::move(newAssign));
       } else if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
         auto newArguments = phi->getRHS();
@@ -195,6 +194,7 @@ bool Function::replaceUsesWith(
         }
 
         auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
+        changed = true;
         it = block->replaceInst(it->get(), std::move(newPhi));
 
       } else if (auto *returnInst =
@@ -202,6 +202,7 @@ bool Function::replaceUsesWith(
         auto newReturn = Make<ReturnInst>(
             buildReplacedExpression(returnInst->getExpr(), oldToNew),
             returnInst->getExitBlock());
+        changed = true;
         it = block->replaceInst(it->get(), std::move(newReturn));
       } else if (auto *branchInst =
                      dynamic_cast<const BranchInst *>(it->get())) {
@@ -212,6 +213,7 @@ bool Function::replaceUsesWith(
         auto newBranch = Make<BranchInst>(
             branchInst->getIfTrue(), branchInst->getIfFalse(),
             buildReplacedExpression(branchInst->getCond(), oldToNew));
+        changed = true;
         it = block->replaceInst(it->get(), std::move(newBranch));
       } else {
         ++it;
