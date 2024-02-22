@@ -17,8 +17,8 @@ Own<Liveness> LivenessDataflow::computeLiveness() const {
                             definingInstructions[i]->getResultOperand());
       }
     }
-    for (auto &inst : block->getInstructions()) {
-      auto &out = results.at(inst.get()).out;
+    for (auto &inst : *block) {
+      auto &out = results.at(&inst).out;
       for (std::size_t i = 0; i < out.size(); ++i) {
         if (out[i]) {
           liveness->addLiveOut(block.get(),
@@ -34,8 +34,8 @@ Own<InterferenceGraph> LivenessDataflow::computeInterfenceGraph() const {
   auto interferenceGraph = Make<InterferenceGraph>();
 
   for (auto &block : f.getBasicBlocks()) {
-    for (auto &inst : block->getInstructions()) {
-      auto &out = results.at(inst.get()).out;
+    for (auto &inst : *block) {
+      auto &out = results.at(&inst).out;
 
       // all pairs
       for (std::size_t i = 0; i < out.size(); ++i) {

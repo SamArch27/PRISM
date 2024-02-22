@@ -22,8 +22,8 @@ void SSAConstructionPass::insertPhiFunctions(
   Map<const Variable *, Set<BasicBlock *>> varToBlocksAssigned;
 
   for (auto &block : f.getBasicBlocks()) {
-    for (auto &inst : block->getInstructions()) {
-      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+    for (auto &inst : *block) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         auto *var = assign->getLHS();
         varToBlocksAssigned[var].insert(block.get());
       }
@@ -142,36 +142,33 @@ void SSAConstructionPass::renameVariablesToSSA(
   };
 
   std::function<void(BasicBlock *)> rename = [&](BasicBlock *block) -> void {
-    const auto &instructions = block->getInstructions();
-
     // we don't perform renaming for the entry block (due to arguments)
     if (block != f.getEntryBlock()) {
-      for (auto it = instructions.begin(); it != instructions.end(); ++it) {
-        if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
+      for (auto it = block->begin(); it != block->end(); ++it) {
+        auto &inst = *it;
+        if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
           auto newPhi =
               Make<PhiNode>(renameVariable(phi->getLHS(), true), phi->getRHS());
-          it = block->replaceInst(it->get(), std::move(newPhi));
-        } else if (auto *returnInst =
-                       dynamic_cast<const ReturnInst *>(it->get())) {
+          it = block->replaceInst(&inst, std::move(newPhi));
+        } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(&inst)) {
           auto newReturn =
               Make<ReturnInst>(renameSelectExpression(returnInst->getExpr()),
                                returnInst->getExitBlock());
-          it = block->replaceInst(it->get(), std::move(newReturn));
-        } else if (auto *branchInst =
-                       dynamic_cast<const BranchInst *>(it->get())) {
+          it = block->replaceInst(&inst, std::move(newReturn));
+        } else if (auto *branchInst = dynamic_cast<const BranchInst *>(&inst)) {
           if (branchInst->isUnconditional()) {
             continue;
           }
           auto newBranch = Make<BranchInst>(
               branchInst->getIfTrue(), branchInst->getIfFalse(),
               renameSelectExpression(branchInst->getCond()));
-          it = block->replaceInst(it->get(), std::move(newBranch));
-        } else if (auto *assign = dynamic_cast<const Assignment *>(it->get())) {
+          it = block->replaceInst(&inst, std::move(newBranch));
+        } else if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
           auto newAssignment =
               Make<Assignment>(renameVariable(assign->getLHS(), true),
                                renameSelectExpression(assign->getRHS()));
-          it = block->replaceInst(it->get(), std::move(newAssignment));
-        } else if (dynamic_cast<const ExitInst *>(it->get())) {
+          it = block->replaceInst(&inst, std::move(newAssignment));
+        } else if (dynamic_cast<const ExitInst *>(&inst)) {
           // Ignore exit block
           continue;
         } else {
@@ -183,14 +180,13 @@ void SSAConstructionPass::renameVariablesToSSA(
     // for each successor
     for (auto *succ : block->getSuccessors()) {
       auto j = f.getPredNumber(succ, block);
-      auto &instructions = succ->getInstructions();
-      for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+      for (auto it = succ->begin(); it != succ->end(); ++it) {
         auto &inst = *it;
-        if (auto *phi = dynamic_cast<const PhiNode *>(inst.get())) {
+        if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
           auto newArguments = phi->getRHS();
           newArguments[j] = renameVariable(phi->getRHS()[j], false);
           auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-          it = succ->replaceInst(inst.get(), std::move(newPhi));
+          it = succ->replaceInst(&inst, std::move(newPhi));
         }
       }
     }
@@ -201,8 +197,8 @@ void SSAConstructionPass::renameVariablesToSSA(
     }
 
     // for each assignment, pop the stack
-    for (auto &inst : block->getInstructions()) {
-      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+    for (auto &inst : *block) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         accessStack(assign->getLHS()).pop();
       }
     }

@@ -130,10 +130,9 @@ bool Function::replaceDefsWith(
     const Map<const Variable *, const Variable *> &oldToNew) {
   bool changed = false;
   for (auto &block : basicBlocks) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
-      auto *var = inst->getResultOperand();
+    for (auto it = block->begin(); it != block->end();) {
+      auto &inst = *it;
+      auto *var = inst.getResultOperand();
       if (var == nullptr) {
         ++it;
         continue;
@@ -144,12 +143,12 @@ bool Function::replaceDefsWith(
       }
       changed = true;
       // replace the defs
-      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         it = block->replaceInst(
-            inst,
+            &inst,
             Make<Assignment>(oldToNew.at(var), assign->getRHS()->clone()));
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
-        it = block->replaceInst(inst,
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
+        it = block->replaceInst(&inst,
                                 Make<PhiNode>(oldToNew.at(var), phi->getRHS()));
       } else {
         ERROR("Unhandled instruction type during SSA destruction!");
@@ -163,13 +162,12 @@ bool Function::replaceUsesWith(
     const Map<const Variable *, const Variable *> &oldToNew) {
   bool changed = false;
   for (auto &block : basicBlocks) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
+    for (auto it = block->begin(); it != block->end();) {
+      auto &inst = *it;
 
       // skip the instruction if it doesn't use the variable we are
       // replacing
-      const auto &ops = inst->getOperands();
+      const auto &ops = inst.getOperands();
       if (std::find_if(ops.begin(), ops.end(), [&](const Variable *op) {
             return oldToNew.find(op) != oldToNew.end();
           }) == ops.end()) {
@@ -177,14 +175,14 @@ bool Function::replaceUsesWith(
         continue;
       }
 
-      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         auto *rhs = assign->getRHS();
         // replace RHS with new expression
         auto newAssign = Make<Assignment>(
             assign->getLHS(), buildReplacedExpression(rhs, oldToNew));
         changed = true;
-        it = block->replaceInst(it->get(), std::move(newAssign));
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
+        it = block->replaceInst(&inst, std::move(newAssign));
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
         auto newArguments = phi->getRHS();
         for (auto &arg : newArguments) {
           if (oldToNew.find(arg) == oldToNew.end()) {
@@ -195,17 +193,15 @@ bool Function::replaceUsesWith(
 
         auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
         changed = true;
-        it = block->replaceInst(it->get(), std::move(newPhi));
+        it = block->replaceInst(&inst, std::move(newPhi));
 
-      } else if (auto *returnInst =
-                     dynamic_cast<const ReturnInst *>(it->get())) {
+      } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(&inst)) {
         auto newReturn = Make<ReturnInst>(
             buildReplacedExpression(returnInst->getExpr(), oldToNew),
             returnInst->getExitBlock());
         changed = true;
-        it = block->replaceInst(it->get(), std::move(newReturn));
-      } else if (auto *branchInst =
-                     dynamic_cast<const BranchInst *>(it->get())) {
+        it = block->replaceInst(&inst, std::move(newReturn));
+      } else if (auto *branchInst = dynamic_cast<const BranchInst *>(&inst)) {
         if (branchInst->isUnconditional()) {
           ++it;
           continue;
@@ -214,7 +210,7 @@ bool Function::replaceUsesWith(
             branchInst->getIfTrue(), branchInst->getIfFalse(),
             buildReplacedExpression(branchInst->getCond(), oldToNew));
         changed = true;
-        it = block->replaceInst(it->get(), std::move(newBranch));
+        it = block->replaceInst(&inst, std::move(newBranch));
       } else {
         ++it;
       }

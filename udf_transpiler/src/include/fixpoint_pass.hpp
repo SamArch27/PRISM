@@ -10,6 +10,7 @@ public:
   bool runOnFunction(Function &f) override {
     bool changed = false;
     do {
+      changed = false;
       changed |= pass->runOnFunction(f);
     } while (changed);
     return changed;

@@ -42,7 +42,6 @@ void DataflowFramework<T, forward>::runForwards() {
     auto *basicBlock = *worklist.begin();
     worklist.erase(basicBlock);
 
-    auto &instructions = basicBlock->getInstructions();
     auto *firstInst = basicBlock->getInitiator();
 
     T newIn = results[firstInst].in;
@@ -67,8 +66,8 @@ void DataflowFramework<T, forward>::runForwards() {
     // for the remaining instructions:
     // (1) IN becomes OUT of the previous
     // (2) OUT because transfer of IN on the current instruction
-    for (auto &inst : instructions) {
-      auto *currentInst = inst.get();
+    for (auto &inst : *basicBlock) {
+      auto *currentInst = &inst;
       if (currentInst == firstInst) {
         continue;
       }
@@ -97,10 +96,6 @@ void DataflowFramework<T, forward>::runBackwards() {
     BasicBlock *basicBlock = *worklist.begin();
     worklist.erase(basicBlock);
 
-    ASSERT(!basicBlock->getInstructions().empty(),
-           "Cannot have empty block during Dataflow Analysis!");
-
-    auto &instructions = basicBlock->getInstructions();
     auto *lastInst = basicBlock->getTerminator();
 
     T newOut = results[lastInst].out;
@@ -123,8 +118,8 @@ void DataflowFramework<T, forward>::runBackwards() {
     auto prevInst = lastInst;
 
     // iterate the remaining instructions
-    for (auto &inst : reverse(instructions)) {
-      auto *currentInst = inst.get();
+    for (auto &inst : reverse(*basicBlock)) {
+      auto *currentInst = &inst;
       if (currentInst == lastInst) {
         continue;
       }
@@ -147,8 +142,8 @@ void DataflowFramework<T, forward>::preprocess() {
 
   // call pre-process for each inst
   for (auto &basicBlock : f.getBasicBlocks()) {
-    for (auto &inst : basicBlock->getInstructions()) {
-      auto *currentInst = inst.get();
+    for (auto &inst : *basicBlock) {
+      auto *currentInst = &inst;
       preprocessInst(currentInst);
     }
   }
@@ -157,8 +152,8 @@ void DataflowFramework<T, forward>::preprocess() {
 
   // initialize the IN/OUT sets
   for (auto &basicBlock : f.getBasicBlocks()) {
-    for (auto &inst : basicBlock->getInstructions()) {
-      auto *currentInst = inst.get();
+    for (auto &inst : *basicBlock) {
+      auto *currentInst = &inst;
       results[currentInst].in = innerStart;
       results[currentInst].out = innerStart;
     }

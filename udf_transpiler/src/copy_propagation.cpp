@@ -1,11 +1,11 @@
 #include "copy_propagation.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
+#include <iostream>
 
 String CopyPropagationPass::getPassName() const { return "CopyPropagation"; }
 
 bool CopyPropagationPass::runOnFunction(Function &f) {
-
   bool changed = false;
 
   for (auto &basicBlock : f.getBasicBlocks()) {
@@ -13,11 +13,10 @@ bool CopyPropagationPass::runOnFunction(Function &f) {
     if (basicBlock.get() == f.getEntryBlock()) {
       continue;
     }
-    auto &instructions = basicBlock->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
+    for (auto it = basicBlock->begin(); it != basicBlock->end();) {
+      auto &inst = *it;
       // check for x = y assignment
-      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         auto *lhs = assign->getLHS();
         auto *rhs = assign->getRHS();
 
@@ -36,9 +35,9 @@ bool CopyPropagationPass::runOnFunction(Function &f) {
 
         Map<const Variable *, const Variable *> oldToNew{{lhs, var}};
         changed |= f.replaceUsesWith(oldToNew);
-        it = basicBlock->removeInst(inst);
+        it = basicBlock->removeInst(&inst);
 
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
         if (!phi->hasIdenticalArguments()) {
           ++it;
           continue;
@@ -46,12 +45,11 @@ bool CopyPropagationPass::runOnFunction(Function &f) {
         Map<const Variable *, const Variable *> oldToNew{
             {phi->getLHS(), phi->getRHS().front()}};
         changed |= f.replaceUsesWith(oldToNew);
-        it = basicBlock->removeInst(inst);
+        it = basicBlock->removeInst(&inst);
       } else {
         ++it;
       }
     }
   }
-
   return changed;
 }

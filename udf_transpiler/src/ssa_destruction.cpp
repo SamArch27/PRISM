@@ -14,8 +14,7 @@ bool SSADestructionPass::runOnFunction(Function &f) {
 
   // for every phi, resolve the phi interference
   for (auto &block : f.getBasicBlocks()) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+    for (auto it = block->begin(); it != block->end(); ++it) {
       it = resolvePhiInterference(f, it, phiCongruent, *interferenceGraph,
                                   *liveness);
     }
@@ -35,7 +34,8 @@ InstIterator SSADestructionPass::resolvePhiInterference(
   MarkedSet marked;
   DeferredSet deferred;
 
-  if (auto *phi = dynamic_cast<const PhiNode *>(it->get())) {
+  auto &inst = *it;
+  if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
     computeSourceConflicts(phi, phiCongruent, interferenceGraph, liveness,
                            marked, deferred);
     computeResultConflicts(phi, phiCongruent, interferenceGraph, liveness,
@@ -55,10 +55,9 @@ void SSADestructionPass::removeCopies(
 
   // Remove superfluous copies using phiCongruence
   for (auto &block : f.getBasicBlocks()) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
-      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+    for (auto it = block->begin(); it != block->end();) {
+      auto &inst = *it;
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         // Try converting the RHS to a variable
         auto rhsText = assign->getRHS()->getRawSQL();
         if (!f.hasBinding(rhsText)) {
@@ -87,25 +86,25 @@ void SSADestructionPass::removeCopies(
         }
 
         if (lhsEmpty && rhsEmpty) {
-          it = block->removeInst(inst);
+          it = block->removeInst(&inst);
         } else if (lhsEmpty && !rhsEmpty) {
           if (rhsConflict) {
             ++it;
             continue;
           }
-          it = block->removeInst(inst);
+          it = block->removeInst(&inst);
         } else if (!lhsEmpty && rhsEmpty) {
           if (lhsConflict) {
             ++it;
             continue;
           }
-          it = block->removeInst(inst);
+          it = block->removeInst(&inst);
         } else {
           if (lhsConflict || rhsConflict) {
             ++it;
             continue;
           }
-          it = block->removeInst(inst);
+          it = block->removeInst(&inst);
         }
       } else {
         ++it;
@@ -117,10 +116,9 @@ void SSADestructionPass::removeCopies(
 void SSADestructionPass::removePhis(Function &f) {
   // Remove all phis, inserting the appropriate assignments in predecessors
   for (auto &block : f.getBasicBlocks()) {
-    auto &instructions = block->getInstructions();
-    for (auto it = instructions.begin(); it != instructions.end();) {
-      auto *inst = it->get();
-      if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+    for (auto it = block->begin(); it != block->end();) {
+      auto &inst = *it;
+      if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
         // Add assignment instructions for each arg to the appropriate block
         for (auto *pred : block->getPredecessors()) {
           auto predNumber = f.getPredNumber(block.get(), pred);
@@ -140,7 +138,7 @@ void SSADestructionPass::removePhis(Function &f) {
           pred->insertBefore(pred->getTerminator(), std::move(newAssignment));
         }
         // Remove the phi
-        it = block->removeInst(inst);
+        it = block->removeInst(&inst);
       } else {
         ++it;
       }
@@ -341,7 +339,8 @@ InstIterator SSADestructionPass::processMarkedSet(
     InterferenceGraph &interferenceGraph, Liveness &liveness,
     const MarkedSet &marked) {
   for (auto *x : marked) {
-    auto *oldPhi = dynamic_cast<const PhiNode *>(it->get());
+    auto &inst = *it;
+    auto *oldPhi = dynamic_cast<const PhiNode *>(&inst);
     auto *block = oldPhi->getParent();
     auto *xPrime = createUpdatedVariable(f, x);
     auto newPhi = createUpdatedPhi(x, xPrime, oldPhi, phiCongruent);
@@ -464,8 +463,8 @@ SSADestructionPass::createUpdatedPhi(const Variable *x, const Variable *xPrime,
 void SSADestructionPass::mergePhiCongruenceClasses(
     InstIterator it, CongruenceClasses &phiCongruent) {
   auto &inst = *it;
-  Vec<const Variable *> variables = inst->getOperands();
-  variables.push_back(inst->getResultOperand());
+  Vec<const Variable *> variables = inst.getOperands();
+  variables.push_back(inst.getResultOperand());
   Set<const Variable *> currentClass;
   for (auto *x : variables) {
     for (auto *congruent : phiCongruent[x]) {

@@ -39,9 +39,9 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
   code += fmt::format("/* ==== Basic block {} start ==== */\n", bb->getLabel());
   code += fmt::format("{}:\n", bb->getLabel());
 
-  for (auto &inst : bb->getInstructions()) {
+  for (auto &inst : *bb) {
     try {
-      if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         if (assign->getRHS()->isSQLExpression()) {
           ERROR("FROM clause should not be compiled.");
         }
@@ -51,7 +51,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
         auto [header, res] = locg.getResult();
         code += header;
         code += fmt::format("{} = {};\n", assign->getLHS()->getName(), res);
-      } else if (auto *ret = dynamic_cast<const ReturnInst *>(inst.get())) {
+      } else if (auto *ret = dynamic_cast<const ReturnInst *>(&inst)) {
         duckdb::LogicalOperatorCodeGenerator locg;
         auto *plan = ret->getExpr()->getLogicalPlan();
         locg.VisitOperator(*plan, function_info);
@@ -61,7 +61,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
             "{};\ngoto exit;\n",
             createReturnValue(config.function["return_name"].Scalar(),
                               f.getReturnType(), res));
-      } else if (auto *br = dynamic_cast<const BranchInst *>(inst.get())) {
+      } else if (auto *br = dynamic_cast<const BranchInst *>(&inst)) {
         if (br->isConditional()) {
           duckdb::LogicalOperatorCodeGenerator locg;
           auto *plan = br->getCond()->getLogicalPlan();
@@ -74,9 +74,9 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
         } else {
           code += fmt::format("goto {};\n", br->getIfTrue()->getLabel());
         }
-      } else if (dynamic_cast<const ExitInst *>(inst.get())) {
+      } else if (dynamic_cast<const ExitInst *>(&inst)) {
         code += fmt::format("return;\n");
-      } else if (dynamic_cast<const PhiNode *>(inst.get())) {
+      } else if (dynamic_cast<const PhiNode *>(&inst)) {
         ERROR("Encountered a phi instruction which should have been removed "
               "before code-generation to C++!");
 
@@ -85,7 +85,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
       }
     } catch (const std::exception &e) {
       std::stringstream ss;
-      ss << e.what() << "When compiling instruction: " << *inst;
+      ss << e.what() << "When compiling instruction: " << inst;
       throw duckdb::ParserException(ss.str());
     }
   }

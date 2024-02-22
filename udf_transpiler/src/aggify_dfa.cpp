@@ -1,8 +1,8 @@
 #include "aggify_dfa.hpp"
 
 bool AggifyDFA::analyzeBasicBlock(BasicBlock *bb, const Function &func) {
-  for (auto &inst : bb->getInstructions()) {
-    if (auto *assign = dynamic_cast<const Assignment *>(inst.get())) {
+  for (auto &inst : *bb) {
+    if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
       returnVarName = assign->getLHS()->getName();
       return true;
     }

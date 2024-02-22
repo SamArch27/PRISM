@@ -34,10 +34,8 @@ void BasicBlock::addInstruction(Own<Instruction> inst) {
   instructions.emplace_back(std::move(inst));
 }
 
-List<Own<Instruction>>::iterator
-BasicBlock::insertBefore(const Instruction *targetInst,
-                         Own<Instruction> newInst) {
-
+InstIterator BasicBlock::insertBefore(const Instruction *targetInst,
+                                      Own<Instruction> newInst) {
   auto it = std::find_if(
       instructions.begin(), instructions.end(),
       [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
@@ -47,9 +45,8 @@ BasicBlock::insertBefore(const Instruction *targetInst,
   return instructions.emplace(it, std::move(newInst));
 }
 
-List<Own<Instruction>>::iterator
-BasicBlock::insertAfter(const Instruction *targetInst,
-                        Own<Instruction> newInst) {
+InstIterator BasicBlock::insertAfter(const Instruction *targetInst,
+                                     Own<Instruction> newInst) {
 
   auto it = std::find_if(
       instructions.begin(), instructions.end(),
@@ -61,32 +58,26 @@ BasicBlock::insertAfter(const Instruction *targetInst,
   return instructions.insert(it, std::move(newInst));
 }
 
-List<Own<Instruction>>::iterator
-BasicBlock::removeInst(const Instruction *targetInst) {
+InstIterator BasicBlock::removeInst(const Instruction *targetInst) {
   auto it = std::find_if(
       instructions.begin(), instructions.end(),
       [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
   return instructions.erase(it);
 }
 
-List<Own<Instruction>>::iterator
-BasicBlock::replaceInst(const Instruction *targetInst,
-                        Own<Instruction> newInst) {
+InstIterator BasicBlock::replaceInst(const Instruction *targetInst,
+                                     Own<Instruction> newInst) {
   auto it = insertBefore(targetInst, std::move(newInst));
   removeInst(targetInst);
   return it;
-}
-
-const ListOwn<Instruction> &BasicBlock::getInstructions() const {
-  return instructions;
 }
 
 void BasicBlock::appendBasicBlock(BasicBlock *toAppend) {
   // delete my terminator
   instructions.pop_back();
   // copy all instructions over from other basic block
-  for (const auto &inst : toAppend->getInstructions()) {
-    addInstruction(inst->clone());
+  for (const auto &inst : *toAppend) {
+    addInstruction(inst.clone());
   }
 }
 

@@ -121,9 +121,9 @@ public:
   // TODO: Exploit SSA to make this faster
   const Instruction *getDefiningInstruction(const Variable *var) {
     for (auto &block : basicBlocks) {
-      for (auto &inst : block->getInstructions()) {
-        if (inst->getResultOperand() == var) {
-          return inst.get();
+      for (auto &inst : *block) {
+        if (inst.getResultOperand() == var) {
+          return &inst;
         }
       }
     }
@@ -133,8 +133,8 @@ public:
 
   Vec<const PhiNode *> getPhisFromBlock(BasicBlock *block) {
     Vec<const PhiNode *> phis;
-    for (auto &inst : block->getInstructions()) {
-      if (auto *phiNode = dynamic_cast<const PhiNode *>(inst.get())) {
+    for (auto &inst : *block) {
+      if (auto *phiNode = dynamic_cast<const PhiNode *>(&inst)) {
         phis.push_back(phiNode);
       }
     }

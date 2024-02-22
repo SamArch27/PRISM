@@ -5,7 +5,6 @@
 #include "utils.hpp"
 
 using CongruenceClasses = Map<const Variable *, Set<const Variable *>>;
-using InstIterator = ListOwn<Instruction>::const_iterator;
 using MarkedSet = Set<const Variable *>;
 using DeferredSet = OrderedSet<Pair<const Variable *, const Variable *>>;
 
