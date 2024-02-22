@@ -1,9 +1,3 @@
-/**
- * @file cfg.hpp
- * Building block classes of the control flow graph
- * All the definitions copied from compiler.hpp
- */
-
 #pragma once
 
 #include "compiler_fmt/core.h"
@@ -206,133 +200,11 @@ public:
   Vec<BasicBlock *> getSuccessors() const override { return {}; }
 
 protected:
-  void print(std::ostream &os) const override {
-    os << *var << " = " << *getRHS();
-  }
+  void print(std::ostream &os) const override { os << *var << " = " << *expr; }
 
 private:
   const Variable *var;
   Own<SelectExpression> expr;
-};
-
-class BasicBlock {
-public:
-  BasicBlock(const String &label)
-
-      : label(label), predecessors(), successors() {}
-
-  using InstIterator = ListOwn<Instruction>::iterator;
-
-  friend std::ostream &operator<<(std::ostream &os, const BasicBlock &block) {
-    block.print(os);
-    return os;
-  }
-
-  const Vec<BasicBlock *> &getSuccessors() const { return successors; }
-  const Vec<BasicBlock *> &getPredecessors() const { return predecessors; }
-
-  void addSuccessor(BasicBlock *succ) { successors.push_back(succ); }
-  void addPredecessor(BasicBlock *pred) { predecessors.push_back(pred); }
-  void removeSuccessor(BasicBlock *succ) {
-    successors.erase(std::remove(successors.begin(), successors.end(), succ),
-                     successors.end());
-  }
-  void removePredecessor(BasicBlock *pred) {
-    predecessors.erase(
-        std::remove(predecessors.begin(), predecessors.end(), pred),
-        predecessors.end());
-  }
-
-  void addInstruction(Own<Instruction> inst) {
-    // if we are inserting a terminator instruction then we update the
-    // successor/predecessors appropriately
-    inst->setParent(this);
-    if (inst->isTerminator()) {
-      for (auto *succBlock : inst->getSuccessors()) {
-        addSuccessor(succBlock);
-        succBlock->addPredecessor(this);
-      }
-    }
-    instructions.emplace_back(std::move(inst));
-  }
-
-  List<Own<Instruction>>::iterator insertBefore(const Instruction *targetInst,
-                                                Own<Instruction> newInst) {
-
-    auto it = std::find_if(
-        instructions.begin(), instructions.end(),
-        [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
-    ASSERT((it != instructions.end()),
-           "Instruction must exist when performing insertBefore()!");
-    newInst->setParent(this);
-    return instructions.emplace(it, std::move(newInst));
-  }
-
-  List<Own<Instruction>>::iterator insertAfter(const Instruction *targetInst,
-                                               Own<Instruction> newInst) {
-
-    auto it = std::find_if(
-        instructions.begin(), instructions.end(),
-        [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
-    ASSERT((it != instructions.end()),
-           "Instruction must exist when performing insertBefore()!");
-    newInst->setParent(this);
-    ++it; // import that we increment the iterator before to insert after
-    return instructions.insert(it, std::move(newInst));
-  }
-
-  List<Own<Instruction>>::iterator removeInst(const Instruction *targetInst) {
-    auto it = std::find_if(
-        instructions.begin(), instructions.end(),
-        [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
-    return instructions.erase(it);
-  }
-
-  List<Own<Instruction>>::iterator replaceInst(const Instruction *targetInst,
-                                               Own<Instruction> newInst) {
-    auto it = insertBefore(targetInst, std::move(newInst));
-    removeInst(targetInst);
-    return it;
-  }
-
-  const ListOwn<Instruction> &getInstructions() const { return instructions; }
-
-  void appendBasicBlock(BasicBlock *toAppend) {
-    // delete my terminator
-    instructions.pop_back();
-    // copy all instructions over from other basic block
-    for (const auto &inst : toAppend->getInstructions()) {
-      addInstruction(inst->clone());
-    }
-  }
-
-  Instruction *getInitiator() { return instructions.begin()->get(); }
-
-  Instruction *getTerminator() {
-    auto last = std::prev(instructions.end());
-    ASSERT((*last)->isTerminator(),
-           "Last instruction of BasicBlock must be a Terminator instruction.");
-    return last->get();
-  }
-
-  String getLabel() const { return label; }
-
-  bool isConditional() const { return successors.size() == 2; }
-
-protected:
-  void print(std::ostream &os) const {
-    os << label << ":" << std::endl;
-    for (const auto &inst : instructions) {
-
-      os << *inst << std::endl;
-    }
-  }
-
-private:
-  String label;
-  ListOwn<Instruction> instructions;
-  Vec<BasicBlock *> predecessors;
-  Vec<BasicBlock *> successors;
 };
 
 class ExitInst : public Instruction {
@@ -388,7 +260,7 @@ public:
 
 protected:
   void print(std::ostream &os) const override {
-    os << "RETURN " << *getExpr() << ";";
+    os << "RETURN " << *expr << ";";
   }
 
 private:
@@ -409,21 +281,14 @@ public:
   ~BranchInst() override = default;
 
   Own<Instruction> clone() const override {
-    if (isConditional()) {
-      return Make<BranchInst>(ifTrue, ifFalse, cond->clone());
-    } else {
-      return Make<BranchInst>(ifTrue);
-    }
+    return conditional ? Make<BranchInst>(ifTrue, ifFalse, cond->clone())
+                       : Make<BranchInst>(ifTrue);
   }
 
   const Variable *getResultOperand() const override { return nullptr; }
 
   Vec<const Variable *> getOperands() const override {
-    if (isConditional()) {
-      return cond->getUsedVariables();
-    } else {
-      return {};
-    }
+    return conditional ? cond->getUsedVariables() : Vec<const Variable *>{};
   }
 
   friend std::ostream &operator<<(std::ostream &os,
@@ -434,12 +299,8 @@ public:
 
   bool isTerminator() const override { return true; }
   Vec<BasicBlock *> getSuccessors() const override {
-    Vec<BasicBlock *> res;
-    res.push_back(ifTrue);
-    if (conditional) {
-      res.push_back(ifFalse);
-    }
-    return res;
+    return (conditional ? Vec<BasicBlock *>{ifTrue, ifFalse}
+                        : Vec<BasicBlock *>{ifTrue});
   }
 
   bool isConditional() const { return conditional; }
@@ -450,20 +311,7 @@ public:
   const SelectExpression *getCond() const { return cond.get(); }
 
 protected:
-  void print(std::ostream &os) const override {
-    if (conditional) {
-      os << "br ";
-    } else {
-      os << "jmp ";
-    }
-
-    if (conditional) {
-      os << *getCond();
-      os << " [" << ifTrue->getLabel() << "," << ifFalse->getLabel() << "]";
-    } else {
-      os << " [" << ifTrue->getLabel() << "] ";
-    }
-  }
+  void print(std::ostream &os) const override;
 
 private:
   BasicBlock *ifTrue;
@@ -471,5 +319,3 @@ private:
   Own<SelectExpression> cond;
   bool conditional;
 };
-
-class DominatorTree;

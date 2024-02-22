@@ -1,5 +1,6 @@
 #pragma once
 
+#include "basic_block.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
 
