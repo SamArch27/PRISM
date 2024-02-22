@@ -5,14 +5,15 @@
 
 class PipelinePass : public FunctionPass {
 public:
-  template <typename... Args> PipelinePass(Args... args) {
+  template <typename... Args> PipelinePass(Args... args) : FunctionPass() {
     Own<FunctionPass> tmp[] = {std::move(args)...};
     for (auto &cur : tmp) {
       pipeline.push_back(std::move(cur));
     }
   }
 
-  PipelinePass(VecOwn<FunctionPass> pipeline) : pipeline(std::move(pipeline)) {}
+  PipelinePass(VecOwn<FunctionPass> pipeline)
+      : FunctionPass(), pipeline(std::move(pipeline)) {}
 
   bool runOnFunction(Function &f) override {
     bool changed = false;

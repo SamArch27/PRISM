@@ -3,8 +3,6 @@
 #include "liveness_dataflow.hpp"
 #include "utils.hpp"
 
-String SSADestructionPass::getPassName() const { return "SSADestruction"; }
-
 bool SSADestructionPass::runOnFunction(Function &f) {
   auto dataflow = Make<LivenessDataflow>(f);
   dataflow->runAnalysis();

@@ -12,7 +12,7 @@ class SSADestructionPass : public FunctionPass {
 public:
   SSADestructionPass() : FunctionPass() {}
   bool runOnFunction(Function &f) override;
-  String getPassName() const override;
+  String getPassName() const override { return "SSADestruction"; }
 
 private:
   InstIterator resolvePhiInterference(Function &f, InstIterator it,

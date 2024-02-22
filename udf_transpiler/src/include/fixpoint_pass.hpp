@@ -5,7 +5,8 @@
 
 class FixpointPass : public FunctionPass {
 public:
-  FixpointPass(Own<FunctionPass> pass) : pass(std::move(pass)) {}
+  FixpointPass(Own<FunctionPass> pass)
+      : FunctionPass(), pass(std::move(pass)) {}
 
   bool runOnFunction(Function &f) override {
     bool changed = false;

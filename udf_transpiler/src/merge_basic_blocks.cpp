@@ -80,5 +80,3 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
   }
   return changed;
 }
-
-String MergeBasicBlocksPass::getPassName() const { return "MergeBasicBlocks"; }

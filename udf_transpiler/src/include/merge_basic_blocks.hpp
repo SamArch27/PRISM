@@ -6,5 +6,5 @@ class MergeBasicBlocksPass : public FunctionPass {
 public:
   MergeBasicBlocksPass() : FunctionPass() {}
   bool runOnFunction(Function &f) override;
-  String getPassName() const override;
+  String getPassName() const override { return "MergeBasicBlock"; }
 };

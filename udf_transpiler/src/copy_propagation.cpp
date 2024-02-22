@@ -3,8 +3,6 @@
 #include "utils.hpp"
 #include <iostream>
 
-String CopyPropagationPass::getPassName() const { return "CopyPropagation"; }
-
 bool CopyPropagationPass::runOnFunction(Function &f) {
   bool changed = false;
 
