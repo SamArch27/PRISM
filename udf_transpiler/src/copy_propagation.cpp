@@ -8,12 +8,12 @@ String CopyPropagationPass::getPassName() const { return "CopyPropagation"; }
 bool CopyPropagationPass::runOnFunction(Function &f) {
   bool changed = false;
 
-  for (auto &basicBlock : f.getBasicBlocks()) {
+  for (auto &basicBlock : f) {
     // ignore the entry block because of how arguments are handled
-    if (basicBlock.get() == f.getEntryBlock()) {
+    if (&basicBlock == f.getEntryBlock()) {
       continue;
     }
-    for (auto it = basicBlock->begin(); it != basicBlock->end();) {
+    for (auto it = basicBlock.begin(); it != basicBlock.end();) {
       auto &inst = *it;
       // check for x = y assignment
       if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
@@ -35,7 +35,7 @@ bool CopyPropagationPass::runOnFunction(Function &f) {
 
         Map<const Variable *, const Variable *> oldToNew{{lhs, var}};
         changed |= f.replaceUsesWith(oldToNew);
-        it = basicBlock->removeInst(&inst);
+        it = basicBlock.removeInst(it);
 
       } else if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
         if (!phi->hasIdenticalArguments()) {
@@ -45,7 +45,7 @@ bool CopyPropagationPass::runOnFunction(Function &f) {
         Map<const Variable *, const Variable *> oldToNew{
             {phi->getLHS(), phi->getRHS().front()}};
         changed |= f.replaceUsesWith(oldToNew);
-        it = basicBlock->removeInst(&inst);
+        it = basicBlock.removeInst(it);
       } else {
         ++it;
       }

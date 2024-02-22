@@ -35,8 +35,7 @@ Vec<String> AggifyCodeGenerator::getOrginalCursorLoopCol(const json &ast) {
   return res;
 }
 
-AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &f,
-                                                   const json &ast,
+AggifyCodeGeneratorResult AggifyCodeGenerator::run(Function &f, const json &ast,
                                                    const AggifyDFA &dfaResult,
                                                    size_t id) {
   std::set<String> cursorVars;
@@ -121,8 +120,8 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(const Function &f,
 
   // code gen the body
   CodeGenInfo function_info;
-  for (auto &bbUniq : f.getBasicBlocks()) {
-    basicBlockCodeGenerator(bbUniq.get(), f, function_info);
+  for (auto &bbUniq : f) {
+    basicBlockCodeGenerator(&bbUniq, f, function_info);
   }
 
   String body = joinVector(container.basicBlockCodes, "\n");

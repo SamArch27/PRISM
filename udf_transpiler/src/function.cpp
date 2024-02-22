@@ -145,10 +145,9 @@ bool Function::replaceDefsWith(
       // replace the defs
       if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         it = block->replaceInst(
-            &inst,
-            Make<Assignment>(oldToNew.at(var), assign->getRHS()->clone()));
+            it, Make<Assignment>(oldToNew.at(var), assign->getRHS()->clone()));
       } else if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
-        it = block->replaceInst(&inst,
+        it = block->replaceInst(it,
                                 Make<PhiNode>(oldToNew.at(var), phi->getRHS()));
       } else {
         ERROR("Unhandled instruction type during SSA destruction!");
@@ -181,7 +180,7 @@ bool Function::replaceUsesWith(
         auto newAssign = Make<Assignment>(
             assign->getLHS(), buildReplacedExpression(rhs, oldToNew));
         changed = true;
-        it = block->replaceInst(&inst, std::move(newAssign));
+        it = block->replaceInst(it, std::move(newAssign));
       } else if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
         auto newArguments = phi->getRHS();
         for (auto &arg : newArguments) {
@@ -193,14 +192,14 @@ bool Function::replaceUsesWith(
 
         auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
         changed = true;
-        it = block->replaceInst(&inst, std::move(newPhi));
+        it = block->replaceInst(it, std::move(newPhi));
 
       } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(&inst)) {
         auto newReturn = Make<ReturnInst>(
             buildReplacedExpression(returnInst->getExpr(), oldToNew),
             returnInst->getExitBlock());
         changed = true;
-        it = block->replaceInst(&inst, std::move(newReturn));
+        it = block->replaceInst(it, std::move(newReturn));
       } else if (auto *branchInst = dynamic_cast<const BranchInst *>(&inst)) {
         if (branchInst->isUnconditional()) {
           ++it;
@@ -210,7 +209,7 @@ bool Function::replaceUsesWith(
             branchInst->getIfTrue(), branchInst->getIfFalse(),
             buildReplacedExpression(branchInst->getCond(), oldToNew));
         changed = true;
-        it = block->replaceInst(&inst, std::move(newBranch));
+        it = block->replaceInst(it, std::move(newBranch));
       } else {
         ++it;
       }

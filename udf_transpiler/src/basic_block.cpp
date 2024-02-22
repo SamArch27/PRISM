@@ -34,38 +34,24 @@ void BasicBlock::addInstruction(Own<Instruction> inst) {
   instructions.emplace_back(std::move(inst));
 }
 
-InstIterator BasicBlock::insertBefore(const Instruction *targetInst,
+InstIterator BasicBlock::insertBefore(InstIterator targetInst,
                                       Own<Instruction> newInst) {
-  auto it = std::find_if(
-      instructions.begin(), instructions.end(),
-      [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
-  ASSERT((it != instructions.end()),
-         "Instruction must exist when performing insertBefore()!");
   newInst->setParent(this);
-  return instructions.emplace(it, std::move(newInst));
+  return instructions.emplace(targetInst.iter, std::move(newInst));
 }
 
-InstIterator BasicBlock::insertAfter(const Instruction *targetInst,
+InstIterator BasicBlock::insertAfter(InstIterator targetInst,
                                      Own<Instruction> newInst) {
-
-  auto it = std::find_if(
-      instructions.begin(), instructions.end(),
-      [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
-  ASSERT((it != instructions.end()),
-         "Instruction must exist when performing insertBefore()!");
   newInst->setParent(this);
-  ++it; // import that we increment the iterator before to insert after
-  return instructions.insert(it, std::move(newInst));
+  ++targetInst; // import that we increment the iterator before to insert after
+  return instructions.insert(targetInst.iter, std::move(newInst));
 }
 
-InstIterator BasicBlock::removeInst(const Instruction *targetInst) {
-  auto it = std::find_if(
-      instructions.begin(), instructions.end(),
-      [&](const Own<Instruction> &inst) { return targetInst == inst.get(); });
-  return instructions.erase(it);
+InstIterator BasicBlock::removeInst(InstIterator targetInst) {
+  return instructions.erase(targetInst.iter);
 }
 
-InstIterator BasicBlock::replaceInst(const Instruction *targetInst,
+InstIterator BasicBlock::replaceInst(InstIterator targetInst,
                                      Own<Instruction> newInst) {
   auto it = insertBefore(targetInst, std::move(newInst));
   removeInst(targetInst);

@@ -3,25 +3,25 @@
 
 Own<Liveness> LivenessDataflow::computeLiveness() const {
   Vec<BasicBlock *> blocks;
-  for (auto &block : f.getBasicBlocks()) {
-    blocks.push_back(block.get());
+  for (auto &block : f) {
+    blocks.push_back(&block);
   }
   auto liveness = Make<Liveness>(blocks);
 
-  for (auto &block : f.getBasicBlocks()) {
-    auto *firstInst = block->getInitiator();
+  for (auto &block : f) {
+    auto *firstInst = block.getInitiator();
     auto &in = results.at(firstInst).in;
     for (std::size_t i = 0; i < in.size(); ++i) {
       if (in[i]) {
-        liveness->addLiveIn(block.get(),
+        liveness->addLiveIn(&block,
                             definingInstructions[i]->getResultOperand());
       }
     }
-    for (auto &inst : *block) {
+    for (auto &inst : block) {
       auto &out = results.at(&inst).out;
       for (std::size_t i = 0; i < out.size(); ++i) {
         if (out[i]) {
-          liveness->addLiveOut(block.get(),
+          liveness->addLiveOut(&block,
                                definingInstructions[i]->getResultOperand());
         }
       }
@@ -33,8 +33,8 @@ Own<Liveness> LivenessDataflow::computeLiveness() const {
 Own<InterferenceGraph> LivenessDataflow::computeInterfenceGraph() const {
   auto interferenceGraph = Make<InterferenceGraph>();
 
-  for (auto &block : f.getBasicBlocks()) {
-    for (auto &inst : *block) {
+  for (auto &block : f) {
+    for (auto &inst : block) {
       auto &out = results.at(&inst).out;
 
       // all pairs

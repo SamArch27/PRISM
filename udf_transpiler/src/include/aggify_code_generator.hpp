@@ -32,6 +32,6 @@ private:
 public:
   AggifyCodeGenerator(const YAMLConfig &_config) : CFGCodeGenerator(_config) {}
 
-  AggifyCodeGeneratorResult run(const Function &func, const json &ast,
+  AggifyCodeGeneratorResult run(Function &func, const json &ast,
                                 const AggifyDFA &dfaResult, size_t id);
 };

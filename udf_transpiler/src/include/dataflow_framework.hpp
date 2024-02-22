@@ -141,8 +141,8 @@ template <typename T, bool forward>
 void DataflowFramework<T, forward>::preprocess() {
 
   // call pre-process for each inst
-  for (auto &basicBlock : f.getBasicBlocks()) {
-    for (auto &inst : *basicBlock) {
+  for (auto &basicBlock : f) {
+    for (auto &inst : basicBlock) {
       auto *currentInst = &inst;
       preprocessInst(currentInst);
     }
@@ -151,8 +151,8 @@ void DataflowFramework<T, forward>::preprocess() {
   genBoundaryInner();
 
   // initialize the IN/OUT sets
-  for (auto &basicBlock : f.getBasicBlocks()) {
-    for (auto &inst : *basicBlock) {
+  for (auto &basicBlock : f) {
+    for (auto &inst : basicBlock) {
       auto *currentInst = &inst;
       results[currentInst].in = innerStart;
       results[currentInst].out = innerStart;

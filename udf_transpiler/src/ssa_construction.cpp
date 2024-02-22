@@ -21,11 +21,11 @@ void SSAConstructionPass::insertPhiFunctions(
   // For each variable, when it is assigned in a block, map to the block
   Map<const Variable *, Set<BasicBlock *>> varToBlocksAssigned;
 
-  for (auto &block : f.getBasicBlocks()) {
-    for (auto &inst : *block) {
+  for (auto &block : f) {
+    for (auto &inst : block) {
       if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         auto *var = assign->getLHS();
-        varToBlocksAssigned[var].insert(block.get());
+        varToBlocksAssigned[var].insert(&block);
       }
     }
   }
@@ -34,9 +34,9 @@ void SSAConstructionPass::insertPhiFunctions(
   Set<BasicBlock *> worklist;
   Map<BasicBlock *, const Variable *> inWorklist;
   Map<BasicBlock *, const Variable *> inserted;
-  for (auto &block : f.getBasicBlocks()) {
-    inserted[block.get()] = nullptr;
-    inWorklist[block.get()] = nullptr;
+  for (auto &block : f) {
+    inserted[&block] = nullptr;
+    inWorklist[&block] = nullptr;
   }
 
   // for each variable
@@ -56,7 +56,7 @@ void SSAConstructionPass::insertPhiFunctions(
           auto numPreds = m->getPredecessors().size();
           auto args = Vec<const Variable *>(numPreds, var);
           auto phiInst = Make<PhiNode>(var, args);
-          m->insertBefore(m->getInitiator(), std::move(phiInst));
+          m->insertBefore(m->begin(), std::move(phiInst));
           // update worklists
           inserted[m] = var;
           if (inWorklist[m] != var) {
@@ -149,12 +149,12 @@ void SSAConstructionPass::renameVariablesToSSA(
         if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
           auto newPhi =
               Make<PhiNode>(renameVariable(phi->getLHS(), true), phi->getRHS());
-          it = block->replaceInst(&inst, std::move(newPhi));
+          it = block->replaceInst(it, std::move(newPhi));
         } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(&inst)) {
           auto newReturn =
               Make<ReturnInst>(renameSelectExpression(returnInst->getExpr()),
                                returnInst->getExitBlock());
-          it = block->replaceInst(&inst, std::move(newReturn));
+          it = block->replaceInst(it, std::move(newReturn));
         } else if (auto *branchInst = dynamic_cast<const BranchInst *>(&inst)) {
           if (branchInst->isUnconditional()) {
             continue;
@@ -162,12 +162,12 @@ void SSAConstructionPass::renameVariablesToSSA(
           auto newBranch = Make<BranchInst>(
               branchInst->getIfTrue(), branchInst->getIfFalse(),
               renameSelectExpression(branchInst->getCond()));
-          it = block->replaceInst(&inst, std::move(newBranch));
+          it = block->replaceInst(it, std::move(newBranch));
         } else if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
           auto newAssignment =
               Make<Assignment>(renameVariable(assign->getLHS(), true),
                                renameSelectExpression(assign->getRHS()));
-          it = block->replaceInst(&inst, std::move(newAssignment));
+          it = block->replaceInst(it, std::move(newAssignment));
         } else if (dynamic_cast<const ExitInst *>(&inst)) {
           // Ignore exit block
           continue;
@@ -186,7 +186,7 @@ void SSAConstructionPass::renameVariablesToSSA(
           auto newArguments = phi->getRHS();
           newArguments[j] = renameVariable(phi->getRHS()[j], false);
           auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-          it = succ->replaceInst(&inst, std::move(newPhi));
+          it = succ->replaceInst(it, std::move(newPhi));
         }
       }
     }
@@ -212,7 +212,7 @@ void SSAConstructionPass::renameVariablesToSSA(
     auto assign =
         Make<Assignment>(f.getBinding(newName), f.bindExpression(oldName));
     auto *entryBlock = f.getEntryBlock();
-    entryBlock->insertBefore(entryBlock->getTerminator(), std::move(assign));
+    entryBlock->insertBefore(--entryBlock->end(), std::move(assign));
   }
 
   // rename all of the variables

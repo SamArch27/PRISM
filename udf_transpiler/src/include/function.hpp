@@ -4,6 +4,103 @@
 #include "instructions.hpp"
 #include "utils.hpp"
 
+class BasicBlockIterator {
+  using iterator_category = std::bidirectional_iterator_tag;
+  using difference_type = std::ptrdiff_t;
+  using value_type = BasicBlock;
+  using pointer = BasicBlock *;
+  using reference = BasicBlock &;
+
+public:
+  BasicBlockIterator(VecOwn<BasicBlock>::iterator iter) : iter(iter) {}
+
+  reference operator*() const { return *iter->get(); }
+  pointer operator->() { return iter->get(); }
+
+  BasicBlockIterator &operator++() {
+    ++iter;
+    return *this;
+  }
+
+  BasicBlockIterator &operator--() {
+    --iter;
+    return *this;
+  }
+
+  BasicBlockIterator operator++(int) {
+    auto tmp = *this;
+    ++(*this);
+    return tmp;
+  }
+
+  BasicBlockIterator operator--(int) {
+    auto tmp = *this;
+    --(*this);
+    return tmp;
+  }
+
+  friend bool operator==(const BasicBlockIterator &a,
+                         const BasicBlockIterator &b) {
+    return a.iter->get() == b.iter->get();
+  };
+  friend bool operator!=(const BasicBlockIterator &a,
+                         const BasicBlockIterator &b) {
+    return !(a == b);
+  };
+
+private:
+  VecOwn<BasicBlock>::iterator iter;
+};
+
+class ConstBasicBlockIterator {
+  using iterator_category = std::bidirectional_iterator_tag;
+  using difference_type = std::ptrdiff_t;
+  using value_type = BasicBlock;
+  using pointer = BasicBlock *;
+  using reference = BasicBlock &;
+
+public:
+  ConstBasicBlockIterator(VecOwn<BasicBlock>::const_iterator iter)
+      : iter(iter) {}
+
+  const reference operator*() const { return *iter->get(); }
+  pointer operator->() { return iter->get(); }
+
+  ConstBasicBlockIterator &operator++() {
+    ++iter;
+    return *this;
+  }
+
+  ConstBasicBlockIterator &operator--() {
+    --iter;
+    return *this;
+  }
+
+  ConstBasicBlockIterator operator++(int) {
+    auto tmp = *this;
+    ++(*this);
+    return tmp;
+  }
+
+  ConstBasicBlockIterator operator--(int) {
+    auto tmp = *this;
+    --(*this);
+    return tmp;
+  }
+
+  friend bool operator==(const ConstBasicBlockIterator &a,
+                         const ConstBasicBlockIterator &b) {
+    return a.iter->get() == b.iter->get();
+  };
+  friend bool operator!=(const ConstBasicBlockIterator &a,
+                         const ConstBasicBlockIterator &b) {
+    return !(a == b);
+  };
+
+private:
+  VecOwn<BasicBlock>::const_iterator iter;
+};
+
 class Function {
 public:
   Function(duckdb::Connection *conn, const String &name, const Type &returnType)
@@ -18,6 +115,15 @@ public:
     function.print(os);
     return os;
   }
+
+  ConstBasicBlockIterator begin() const {
+    return ConstBasicBlockIterator(basicBlocks.cbegin());
+  }
+  ConstBasicBlockIterator end() const {
+    return ConstBasicBlockIterator(basicBlocks.cend());
+  }
+  BasicBlockIterator begin() { return BasicBlockIterator(basicBlocks.begin()); }
+  BasicBlockIterator end() { return BasicBlockIterator(basicBlocks.end()); }
 
   template <typename Iter>
   static Vec<String> getBasicBlockLabels(Iter it, Iter end) {
@@ -147,8 +253,6 @@ public:
   BasicBlock *getBlockFromLabel(const String &label) {
     return labelToBasicBlock.at(label);
   }
-
-  const VecOwn<BasicBlock> &getBasicBlocks() const { return basicBlocks; }
 
   void removeVariable(const Variable *var) {
     bindings.erase(var->getName());

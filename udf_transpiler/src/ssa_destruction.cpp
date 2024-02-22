@@ -13,8 +13,8 @@ bool SSADestructionPass::runOnFunction(Function &f) {
   auto phiCongruent = createPhiCongruenceClasses(f);
 
   // for every phi, resolve the phi interference
-  for (auto &block : f.getBasicBlocks()) {
-    for (auto it = block->begin(); it != block->end(); ++it) {
+  for (auto &block : f) {
+    for (auto it = block.begin(); it != block.end(); ++it) {
       it = resolvePhiInterference(f, it, phiCongruent, *interferenceGraph,
                                   *liveness);
     }
@@ -54,8 +54,8 @@ void SSADestructionPass::removeCopies(
     const InterferenceGraph &interferenceGraph) {
 
   // Remove superfluous copies using phiCongruence
-  for (auto &block : f.getBasicBlocks()) {
-    for (auto it = block->begin(); it != block->end();) {
+  for (auto &block : f) {
+    for (auto it = block.begin(); it != block.end();) {
       auto &inst = *it;
       if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         // Try converting the RHS to a variable
@@ -86,25 +86,25 @@ void SSADestructionPass::removeCopies(
         }
 
         if (lhsEmpty && rhsEmpty) {
-          it = block->removeInst(&inst);
+          it = block.removeInst(it);
         } else if (lhsEmpty && !rhsEmpty) {
           if (rhsConflict) {
             ++it;
             continue;
           }
-          it = block->removeInst(&inst);
+          it = block.removeInst(it);
         } else if (!lhsEmpty && rhsEmpty) {
           if (lhsConflict) {
             ++it;
             continue;
           }
-          it = block->removeInst(&inst);
+          it = block.removeInst(it);
         } else {
           if (lhsConflict || rhsConflict) {
             ++it;
             continue;
           }
-          it = block->removeInst(&inst);
+          it = block.removeInst(it);
         }
       } else {
         ++it;
@@ -115,13 +115,13 @@ void SSADestructionPass::removeCopies(
 
 void SSADestructionPass::removePhis(Function &f) {
   // Remove all phis, inserting the appropriate assignments in predecessors
-  for (auto &block : f.getBasicBlocks()) {
-    for (auto it = block->begin(); it != block->end();) {
+  for (auto &block : f) {
+    for (auto it = block.begin(); it != block.end();) {
       auto &inst = *it;
       if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
         // Add assignment instructions for each arg to the appropriate block
-        for (auto *pred : block->getPredecessors()) {
-          auto predNumber = f.getPredNumber(block.get(), pred);
+        for (auto *pred : block.getPredecessors()) {
+          auto predNumber = f.getPredNumber(&block, pred);
           auto *arg = phi->getRHS()[predNumber];
           // Elide the assignment if the source and destination are the same
           if (f.getOriginalName(arg->getName()) ==
@@ -135,10 +135,10 @@ void SSADestructionPass::removePhis(Function &f) {
                    "Must have unique predecessor for conditional block!!");
             pred = pred->getPredecessors().front();
           }
-          pred->insertBefore(pred->getTerminator(), std::move(newAssignment));
+          pred->insertBefore(--pred->end(), std::move(newAssignment));
         }
         // Remove the phi
-        it = block->removeInst(&inst);
+        it = block.removeInst(it);
       } else {
         ++it;
       }
@@ -348,24 +348,23 @@ InstIterator SSADestructionPass::processMarkedSet(
     bool resultConflict = (newPhi->getLHS() != oldPhi->getLHS());
 
     if (resultConflict) {
-      processResultConflict(f, x, xPrime, oldPhi, interferenceGraph, liveness);
+      processResultConflict(f, x, xPrime, it, interferenceGraph, liveness);
     } else {
-      processSourceConflict(f, x, xPrime, oldPhi, interferenceGraph, liveness);
+      processSourceConflict(f, x, xPrime, it, interferenceGraph, liveness);
     }
 
-    it = block->replaceInst(oldPhi, std::move(newPhi));
+    it = block->replaceInst(it, std::move(newPhi));
   }
   return it;
 }
 
 void SSADestructionPass::processResultConflict(
-    Function &f, const Variable *x, const Variable *xPrime,
-    const PhiNode *oldPhi, InterferenceGraph &interferenceGraph,
-    Liveness &liveness) {
+    Function &f, const Variable *x, const Variable *xPrime, InstIterator it,
+    InterferenceGraph &interferenceGraph, Liveness &liveness) {
   // Insert x = x' after the phi instruction
   auto newAssignment = Make<Assignment>(x, f.bindExpression(xPrime->getName()));
-  auto *block = oldPhi->getParent();
-  block->insertAfter(oldPhi, std::move(newAssignment));
+  auto *block = it->getParent();
+  block->insertAfter(it, std::move(newAssignment));
 
   // Update the live in/out and interference graph
   liveness.removeLiveIn(block, x);
@@ -376,13 +375,12 @@ void SSADestructionPass::processResultConflict(
 }
 
 void SSADestructionPass::processSourceConflict(
-    Function &f, const Variable *x, const Variable *xPrime,
-    const PhiNode *oldPhi, InterferenceGraph &interferenceGraph,
-    Liveness &liveness) {
+    Function &f, const Variable *x, const Variable *xPrime, InstIterator it,
+    InterferenceGraph &interferenceGraph, Liveness &liveness) {
 
   // For each argument, insert x' = x at the end of the corresponding pred block
-  auto *block = oldPhi->getParent();
-  auto &oldArgs = oldPhi->getRHS();
+  auto *block = it->getParent();
+  auto oldArgs = it->getOperands();
   auto argIt = oldArgs.begin();
   while ((argIt = std::find(argIt, oldArgs.end(), x)) != oldArgs.end()) {
     auto newAssignment =
@@ -395,7 +393,7 @@ void SSADestructionPass::processSourceConflict(
              "Must have unique predecessor for conditional block!!");
       toModify = toModify->getPredecessors().front();
     }
-    toModify->insertBefore(toModify->getTerminator(), std::move(newAssignment));
+    toModify->insertBefore(--toModify->end(), std::move(newAssignment));
     // update the live in/out and interference graph
     auto &successors = block->getSuccessors();
     if (std::all_of(

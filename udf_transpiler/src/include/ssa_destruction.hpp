@@ -53,12 +53,12 @@ private:
                                 CongruenceClasses &phiCongruent);
 
   void processResultConflict(Function &f, const Variable *x,
-                             const Variable *xPrime, const PhiNode *oldPhi,
+                             const Variable *xPrime, InstIterator it,
                              InterferenceGraph &interferenceGraph,
                              Liveness &liveness);
 
   void processSourceConflict(Function &f, const Variable *x,
-                             const Variable *xPrime, const PhiNode *oldPhi,
+                             const Variable *xPrime, InstIterator it,
                              InterferenceGraph &interferenceGraph,
                              Liveness &liveness);
 };

@@ -128,8 +128,8 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &f) {
        << ENDL;
   CodeGenInfo function_info;
 
-  for (auto &bbUniq : f.getBasicBlocks()) {
-    basicBlockCodeGenerator(bbUniq.get(), f, function_info);
+  for (auto &bbUniq : f) {
+    basicBlockCodeGenerator(&bbUniq, f, function_info);
   }
   String function_args, arg_indexes, subfunc_args, subfunc_args_all_0,
       fbody_args;

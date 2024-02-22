@@ -10,19 +10,15 @@
 
 class AggifyDFA {
 public:
-  AggifyDFA(const Function &function) : func(function) {
-    analyzeFunction(func);
-  }
+  AggifyDFA(const Function &f) : f(f) { analyzeFunction(f); }
 
   String getReturnVarName() const { return returnVarName; }
 
-  const Variable *getReturnVar() const {
-    return func.getBinding(returnVarName);
-  }
+  const Variable *getReturnVar() const { return f.getBinding(returnVarName); }
 
 private:
-  const Function &func;
+  const Function &f;
   String returnVarName;
-  bool analyzeBasicBlock(BasicBlock *bb, const Function &func);
-  void analyzeFunction(const Function &function);
+  bool analyzeBasicBlock(BasicBlock *bb, const Function &f);
+  void analyzeFunction(const Function &f);
 };
