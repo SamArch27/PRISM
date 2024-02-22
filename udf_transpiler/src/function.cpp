@@ -36,13 +36,13 @@ void Function::makeDuckDBContext() {
       insertTableString.str() + insertTableSecondRow.str();
 
   // CREATE TABLE
-  auto res = connection->Query(createTableCommand);
+  auto res = conn->Query(createTableCommand);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
 
   // INSERT (NULL,NULL,...)
-  res = connection->Query(insertTableCommand);
+  res = conn->Query(insertTableCommand);
   if (res->HasError()) {
     destroyDuckDBContext();
     EXCEPTION(res->GetError());
@@ -51,7 +51,7 @@ void Function::makeDuckDBContext() {
 
 void Function::destroyDuckDBContext() {
   String dropTableCommand = "DROP TABLE tmp;";
-  auto res = connection->Query(dropTableCommand);
+  auto res = conn->Query(dropTableCommand);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
@@ -82,7 +82,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr) {
     selectExpressionCommand = expr;
     selectExpressionCommand.insert(fromPos + 6, " tmp, ");
   }
-  auto clientContext = connection->context.get();
+  auto clientContext = conn->context.get();
   clientContext->config.enable_optimizer = true;
   auto &config = duckdb::DBConfig::GetConfig(*clientContext);
   std::set<duckdb::OptimizerType> disable_optimizers_should_delete;

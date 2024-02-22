@@ -5,12 +5,13 @@
 
 class Function {
 public:
-  Function(duckdb::Connection *connection, const String &functionName,
-           Type returnType)
-      : connection(connection), labelNumber(0), functionName(functionName),
-        returnType(returnType) {}
+  Function(duckdb::Connection *conn, const String &name, const Type &returnType)
+      : conn(conn), labelNumber(0), functionName(name), returnType(returnType) {
+  }
 
   Function(const Function &other) = delete;
+
+  ~Function() { destroyDuckDBContext(); }
 
   friend std::ostream &operator<<(std::ostream &os, const Function &function) {
     function.print(os);
@@ -69,7 +70,7 @@ public:
     return ssaName.substr(0, ssaName.find_first_of("_"));
   };
 
-  duckdb::Connection *getConnection() const { return connection; }
+  duckdb::Connection *getConnection() const { return conn; }
   const VecOwn<Variable> &getArguments() const { return arguments; }
   const SetOwn<Variable> &getVariables() const { return variables; }
   Set<Variable *> getAllVariables() const {
@@ -213,7 +214,7 @@ private:
     }
   };
 
-  duckdb::Connection *connection;
+  duckdb::Connection *conn;
   std::size_t labelNumber;
   String functionName;
   Type returnType;
