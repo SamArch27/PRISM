@@ -74,8 +74,6 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
         } else {
           code += fmt::format("goto {};\n", br->getIfTrue()->getLabel());
         }
-      } else if (dynamic_cast<const ExitInst *>(&inst)) {
-        code += fmt::format("return;\n");
       } else if (dynamic_cast<const PhiNode *>(&inst)) {
         ERROR("Encountered a phi instruction which should have been removed "
               "before code-generation to C++!");

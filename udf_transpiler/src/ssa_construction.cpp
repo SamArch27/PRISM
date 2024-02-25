@@ -152,8 +152,7 @@ void SSAConstructionPass::renameVariablesToSSA(
           it = block->replaceInst(it, std::move(newPhi));
         } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(&inst)) {
           auto newReturn =
-              Make<ReturnInst>(renameSelectExpression(returnInst->getExpr()),
-                               returnInst->getExitBlock());
+              Make<ReturnInst>(renameSelectExpression(returnInst->getExpr()));
           it = block->replaceInst(it, std::move(newReturn));
         } else if (auto *branchInst = dynamic_cast<const BranchInst *>(&inst)) {
           if (branchInst->isUnconditional()) {
@@ -168,9 +167,6 @@ void SSAConstructionPass::renameVariablesToSSA(
               Make<Assignment>(renameVariable(assign->getLHS(), true),
                                renameSelectExpression(assign->getRHS()));
           it = block->replaceInst(it, std::move(newAssignment));
-        } else if (dynamic_cast<const ExitInst *>(&inst)) {
-          // Ignore exit block
-          continue;
         } else {
           ERROR("Unhandled instruction type during SSA renaming!");
         }

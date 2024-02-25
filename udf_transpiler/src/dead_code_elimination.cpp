@@ -6,19 +6,23 @@ bool DeadCodeEliminationPass::runOnFunction(Function &f) {
   bool changed = false;
   bool removedDeadCode = false;
 
+  int i = -1;
   do {
+    ++i;
     removedDeadCode = false;
     LivenessDataflow dataflow(f);
     dataflow.runAnalysis();
     auto liveness = dataflow.computeLiveness();
 
+    std::cout << f << std::endl;
+
     for (auto &block : f) {
       if (&block == f.getEntryBlock()) {
         continue;
       }
-      auto &liveOut = liveness->getLiveOut(&block);
       for (auto it = block.begin(); it != block.end(); ++it) {
         auto &inst = *it;
+        auto liveOut = liveness->getLiveOut(&inst);
 
         if (auto *result = inst.getResultOperand()) {
           bool out = liveOut.find(result) != liveOut.end();

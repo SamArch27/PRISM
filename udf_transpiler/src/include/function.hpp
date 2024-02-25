@@ -248,7 +248,6 @@ public:
   }
 
   BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
-  BasicBlock *getExitBlock() { return basicBlocks[1].get(); }
 
   BasicBlock *getBlockFromLabel(const String &label) {
     return labelToBasicBlock.at(label);

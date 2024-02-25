@@ -196,8 +196,7 @@ bool Function::replaceUsesWith(
 
       } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(&inst)) {
         auto newReturn = Make<ReturnInst>(
-            buildReplacedExpression(returnInst->getExpr(), oldToNew),
-            returnInst->getExitBlock());
+            buildReplacedExpression(returnInst->getExpr(), oldToNew));
         changed = true;
         it = block->replaceInst(it, std::move(newReturn));
       } else if (auto *branchInst = dynamic_cast<const BranchInst *>(&inst)) {

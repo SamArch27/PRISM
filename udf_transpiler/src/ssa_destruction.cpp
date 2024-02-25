@@ -211,9 +211,11 @@ void SSADestructionPass::computeSourceConflicts(
         auto *n_j = block->getPredecessors()[j];
 
         bool lhsConflict =
-            !intersect(phiCongruent.at(x_i), liveness.getLiveOut(n_j)).empty();
+            !intersect(phiCongruent.at(x_i), liveness.getBlockLiveOut(n_j))
+                 .empty();
         bool rhsConflict =
-            !intersect(phiCongruent.at(x_j), liveness.getLiveOut(n_i)).empty();
+            !intersect(phiCongruent.at(x_j), liveness.getBlockLiveOut(n_i))
+                 .empty();
         if (lhsConflict && !rhsConflict) {
           // mark x_i
           marked.insert(x_i);
@@ -250,13 +252,14 @@ void SSADestructionPass::computeResultConflicts(
       auto *n_j = block->getPredecessors()[j];
 
       bool selfConflict =
-          !intersect(phiCongruent.at(x_i), liveness.getLiveOut(n)).empty();
+          !intersect(phiCongruent.at(x_i), liveness.getBlockLiveOut(n)).empty();
       bool lhsConflict =
-          !intersect(phiCongruent.at(x_i), liveness.getLiveOut(n_j)).empty();
+          !intersect(phiCongruent.at(x_i), liveness.getBlockLiveOut(n_j))
+               .empty();
       bool rhsInConflict =
-          !intersect(phiCongruent.at(x_j), liveness.getLiveIn(n)).empty();
+          !intersect(phiCongruent.at(x_j), liveness.getBlockLiveIn(n)).empty();
       bool rhsOutConflict =
-          !intersect(phiCongruent.at(x_j), liveness.getLiveOut(n)).empty();
+          !intersect(phiCongruent.at(x_j), liveness.getBlockLiveOut(n)).empty();
 
       if (selfConflict && !rhsInConflict) {
         // mark x_i
@@ -365,11 +368,11 @@ void SSADestructionPass::processResultConflict(
   block->insertAfter(it, std::move(newAssignment));
 
   // Update the live in/out and interference graph
-  liveness.removeLiveIn(block, x);
-  for (auto *var : liveness.getLiveIn(block)) {
+  liveness.removeBlockLiveIn(block, x);
+  for (auto *var : liveness.getBlockLiveIn(block)) {
     interferenceGraph.addInterferenceEdge(xPrime, var);
   }
-  liveness.addLiveIn(block, xPrime);
+  liveness.addBlockLiveIn(block, xPrime);
 }
 
 void SSADestructionPass::processSourceConflict(
@@ -397,7 +400,7 @@ void SSADestructionPass::processSourceConflict(
     if (std::all_of(
             successors.begin(), successors.end(), [&](BasicBlock *succ) {
               // not in livein of succ
-              auto &succLiveIn = liveness.getLiveIn(succ);
+              auto &succLiveIn = liveness.getBlockLiveIn(succ);
               if (succLiveIn.find(x) != succLiveIn.end()) {
                 return false;
               }
@@ -410,12 +413,12 @@ void SSADestructionPass::processSourceConflict(
               }
               return true;
             })) {
-      liveness.removeLiveOut(toModify, x);
+      liveness.removeBlockLiveOut(toModify, x);
     }
-    for (auto *var : liveness.getLiveOut(toModify)) {
+    for (auto *var : liveness.getBlockLiveOut(toModify)) {
       interferenceGraph.addInterferenceEdge(xPrime, var);
     }
-    liveness.addLiveOut(toModify, xPrime);
+    liveness.addBlockLiveOut(toModify, xPrime);
     ++argIt;
   }
 }

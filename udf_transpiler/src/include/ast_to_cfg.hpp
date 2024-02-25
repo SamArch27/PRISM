@@ -8,14 +8,12 @@ using json = nlohmann::json;
 
 struct Continuations {
   Continuations(BasicBlock *fallthrough, BasicBlock *loopHeader,
-                BasicBlock *loopExit, BasicBlock *functionExit)
-      : fallthrough(fallthrough), loopHeader(loopHeader), loopExit(loopExit),
-        functionExit(functionExit) {}
+                BasicBlock *loopExit)
+      : fallthrough(fallthrough), loopHeader(loopHeader), loopExit(loopExit) {}
 
   BasicBlock *fallthrough;
   BasicBlock *loopHeader;
   BasicBlock *loopExit;
-  BasicBlock *functionExit;
 };
 
 using StringPair = Pair<String, String>;

@@ -13,20 +13,40 @@ Own<Liveness> LivenessDataflow::computeLiveness() const {
     auto &in = results.at(firstInst).in;
     for (std::size_t i = 0; i < in.size(); ++i) {
       if (in[i]) {
-        liveness->addLiveIn(&block,
-                            definingInstructions[i]->getResultOperand());
+        liveness->addBlockLiveIn(&block,
+                                 definingInstructions[i]->getResultOperand());
       }
     }
     for (auto &inst : block) {
       auto &out = results.at(&inst).out;
       for (std::size_t i = 0; i < out.size(); ++i) {
         if (out[i]) {
-          liveness->addLiveOut(&block,
+          liveness->addBlockLiveOut(
+              &block, definingInstructions[i]->getResultOperand());
+        }
+      }
+    }
+  }
+
+  for (auto &block : f) {
+    for (auto &inst : block) {
+      auto &in = results.at(&inst).in;
+      for (std::size_t i = 0; i < in.size(); i++) {
+        if (in[i]) {
+          liveness->addLiveIn(&inst,
+                              definingInstructions[i]->getResultOperand());
+        }
+      }
+      auto &out = results.at(&inst).out;
+      for (std::size_t i = 0; i < out.size(); i++) {
+        if (out[i]) {
+          liveness->addLiveOut(&inst,
                                definingInstructions[i]->getResultOperand());
         }
       }
     }
   }
+
   return liveness;
 }
 
@@ -64,7 +84,6 @@ BitVector LivenessDataflow::transfer(BitVector out, Instruction *inst) {
   // Create bitvector for defs
   BitVector def(instToIndex.size(), false);
   for (auto *definition : allDefs[block]) {
-
     def[instToIndex.at(definition)] = true;
   }
 

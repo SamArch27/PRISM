@@ -24,7 +24,7 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
     while (true) {
 
       // skip if we are entry or exit
-      if (block == f.getEntryBlock() || block == f.getExitBlock()) {
+      if (block == f.getEntryBlock()) {
         break;
       }
 
@@ -36,7 +36,7 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
       auto *uniqueSucc = *successors.begin();
 
       // that isn't entry/exit
-      if (uniqueSucc == f.getEntryBlock() || uniqueSucc == f.getExitBlock()) {
+      if (uniqueSucc == f.getEntryBlock()) {
         break;
       }
       // and we are the unique predecessor

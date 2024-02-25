@@ -207,38 +207,15 @@ private:
   Own<SelectExpression> expr;
 };
 
-class ExitInst : public Instruction {
-public:
-  ExitInst() : Instruction() {}
-
-  ~ExitInst() override = default;
-
-  Own<Instruction> clone() const override { return Make<ExitInst>(); }
-
-  const Variable *getResultOperand() const override { return nullptr; }
-
-  Vec<const Variable *> getOperands() const override { return {}; }
-
-  friend std::ostream &operator<<(std::ostream &os, const ExitInst &exitInst) {
-    exitInst.print(os);
-    return os;
-  }
-
-protected:
-  void print(std::ostream &os) const override { os << "EXIT;"; }
-  bool isTerminator() const override { return true; }
-  Vec<BasicBlock *> getSuccessors() const override { return {}; }
-};
-
 class ReturnInst : public Instruction {
 public:
-  ReturnInst(Own<SelectExpression> expr, BasicBlock *exitBlock)
-      : Instruction(), expr(std::move(expr)), exitBlock(exitBlock) {}
+  ReturnInst(Own<SelectExpression> expr)
+      : Instruction(), expr(std::move(expr)) {}
 
   ~ReturnInst() override = default;
 
   Own<Instruction> clone() const override {
-    return Make<ReturnInst>(expr->clone(), exitBlock);
+    return Make<ReturnInst>(expr->clone());
   }
 
   const Variable *getResultOperand() const override { return nullptr; }
@@ -254,9 +231,8 @@ public:
   }
 
   bool isTerminator() const override { return true; }
-  Vec<BasicBlock *> getSuccessors() const override { return {exitBlock}; }
+  Vec<BasicBlock *> getSuccessors() const override { return {}; }
   const SelectExpression *getExpr() const { return expr.get(); }
-  BasicBlock *getExitBlock() const { return exitBlock; }
 
 protected:
   void print(std::ostream &os) const override {

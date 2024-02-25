@@ -70,9 +70,6 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
       ast["PLpgSQL_function"]["action"]["PLpgSQL_stmt_block"]["body"];
 
   auto *entryBlock = f.makeBasicBlock("entry");
-  auto *functionExitBlock = f.makeBasicBlock("exit");
-  auto exitInst = Make<ExitInst>();
-  functionExitBlock->addInstruction(std::move(exitInst));
 
   // Create a "declare" BasicBlock with all declarations
   auto declareBlock = f.makeBasicBlock();
@@ -88,8 +85,7 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
   entryBlock->addInstruction(Make<BranchInst>(declareBlock));
 
   // Finally, jump to the "declare" block from the "entry" BasicBlock
-  auto initialContinuations =
-      Continuations(functionExitBlock, nullptr, nullptr, functionExitBlock);
+  auto initialContinuations = Continuations(nullptr, nullptr, nullptr);
   declareBlock->addInstruction(
       Make<BranchInst>(constructCFG(f, statements, initialContinuations)));
 }
@@ -185,8 +181,7 @@ BasicBlock *AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
   }
   auto newBlock = f.makeBasicBlock();
   String ret = getJsonExpr(returnJson["expr"]);
-  newBlock->addInstruction(
-      Make<ReturnInst>(f.bindExpression(ret), continuations.functionExit));
+  newBlock->addInstruction(Make<ReturnInst>(f.bindExpression(ret)));
   return newBlock;
 }
 
@@ -199,9 +194,8 @@ BasicBlock *AstToCFG::constructIfCFG(const json &ifJson, Function &f,
   auto *afterIfBlock = constructCFG(f, statements, continuations);
   auto thenStatements = getJsonList(ifJson["then_body"]);
 
-  auto newContinuations =
-      Continuations(afterIfBlock, continuations.fallthrough,
-                    continuations.loopExit, continuations.functionExit);
+  auto newContinuations = Continuations(afterIfBlock, continuations.fallthrough,
+                                        continuations.loopExit);
   auto *thenBlock = constructCFG(f, thenStatements, newContinuations);
 
   List<json> elseIfStatements;
@@ -262,8 +256,7 @@ BasicBlock *AstToCFG::constructWhileCFG(const json &whileJson, Function &f,
   auto *afterLoopBlock = constructCFG(f, statements, continuations);
   auto bodyStatements = getJsonList(whileJson["body"]);
 
-  auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock,
-                                        continuations.functionExit);
+  auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock);
   auto *bodyBlock = constructCFG(f, bodyStatements, newContinuations);
 
   // create a block for the condition
@@ -284,8 +277,7 @@ BasicBlock *AstToCFG::constructLoopCFG(const json &loopJson, Function &f,
   auto newBlock = f.makeBasicBlock();
   auto *afterLoopBlock = constructCFG(f, statements, continuations);
   auto bodyStatements = getJsonList(loopJson["body"]);
-  auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock,
-                                        continuations.functionExit);
+  auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock);
   auto *bodyBlock = constructCFG(f, bodyStatements, newContinuations);
   newBlock->addInstruction(Make<BranchInst>(bodyBlock));
   auto preHeader = f.makeBasicBlock();
@@ -336,8 +328,7 @@ BasicBlock *AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
   auto *afterLoopBlock = constructCFG(f, statements, continuations);
   auto bodyStatements = getJsonList(bodyJson);
 
-  auto newContinuations = Continuations(latchBlock, latchBlock, afterLoopBlock,
-                                        continuations.functionExit);
+  auto newContinuations = Continuations(latchBlock, latchBlock, afterLoopBlock);
   auto *bodyBlock = constructCFG(f, bodyStatements, newContinuations);
 
   // create a block for the condition
@@ -381,16 +372,12 @@ AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson, Function &f,
 void AstToCFG::buildCursorLoopCFG(Function &f, const json &ast) {
   const auto &body = ast["body"];
   auto *entryBlock = f.makeBasicBlock("entry");
-  auto *functionExitBlock = f.makeBasicBlock("exit");
-  auto exitInst = Make<ExitInst>();
-  functionExitBlock->addInstruction(std::move(exitInst));
 
   // Get the statements from the body
   auto statements = getJsonList(body);
 
   // Connect "entry" block to initial block
-  auto initialContinuations =
-      Continuations(functionExitBlock, nullptr, nullptr, functionExitBlock);
+  auto initialContinuations = Continuations(nullptr, nullptr, nullptr);
   entryBlock->addInstruction(
       Make<BranchInst>(constructCFG(f, statements, initialContinuations)));
 }

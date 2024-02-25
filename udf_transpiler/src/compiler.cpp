@@ -76,8 +76,8 @@ json Compiler::parseJson() const {
 
 void Compiler::optimize(Function &f) {
   auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
-      Make<MergeBasicBlocksPass>(), Make<CopyPropagationPass>()
-      /*,Make<DeadCodeEliminationPass>()*/));
+      Make<MergeBasicBlocksPass>(), Make<CopyPropagationPass>(),
+      Make<DeadCodeEliminationPass>()));
   auto pipeline = Make<PipelinePass>(
       Make<MergeBasicBlocksPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<SSADestructionPass>());

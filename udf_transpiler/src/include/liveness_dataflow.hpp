@@ -7,10 +7,16 @@
 
 class Liveness {
 public:
-  Liveness(const Vec<BasicBlock *> &basicBlocks) : liveIn(), liveOut() {
+  Liveness(const Vec<BasicBlock *> &basicBlocks)
+      : liveIn(), liveOut(), blockLiveIn(), blockLiveOut() {
     for (auto *block : basicBlocks) {
-      liveIn.insert({block, Set<const Variable *>()});
-      liveOut.insert({block, Set<const Variable *>()});
+      blockLiveIn.insert({block, Set<const Variable *>()});
+      blockLiveOut.insert({block, Set<const Variable *>()});
+
+      for (auto &inst : *block) {
+        liveIn.insert({&inst, Set<const Variable *>()});
+        liveOut.insert({&inst, Set<const Variable *>()});
+      }
     }
   }
 
@@ -19,36 +25,52 @@ public:
     return os;
   }
 
-  void addLiveIn(BasicBlock *block, const Variable *liveVariable) {
-    liveIn.at(block).insert(liveVariable);
+  const Set<const Variable *> &getLiveIn(Instruction *inst) {
+    return liveIn.at(inst);
   }
 
-  void removeLiveIn(BasicBlock *block, const Variable *liveVariable) {
-    liveIn.at(block).erase(liveVariable);
+  const Set<const Variable *> &getLiveOut(Instruction *inst) {
+    return liveOut.at(inst);
   }
 
-  void addLiveOut(BasicBlock *block, const Variable *liveVariable) {
-    liveOut.at(block).insert(liveVariable);
+  void addLiveIn(Instruction *inst, const Variable *liveVariable) {
+    liveIn.at(inst).insert(liveVariable);
   }
 
-  void removeLiveOut(BasicBlock *block, const Variable *liveVariable) {
-    liveOut.at(block).erase(liveVariable);
+  void addLiveOut(Instruction *inst, const Variable *liveVariable) {
+    liveOut.at(inst).insert(liveVariable);
   }
 
-  const Set<const Variable *> &getLiveIn(BasicBlock *block) const {
-    return liveIn.at(block);
+  void addBlockLiveIn(BasicBlock *block, const Variable *liveVariable) {
+    blockLiveIn.at(block).insert(liveVariable);
   }
 
-  const Set<const Variable *> &getLiveOut(BasicBlock *block) const {
-    return liveOut.at(block);
+  void removeBlockLiveIn(BasicBlock *block, const Variable *liveVariable) {
+    blockLiveIn.at(block).erase(liveVariable);
+  }
+
+  void addBlockLiveOut(BasicBlock *block, const Variable *liveVariable) {
+    blockLiveOut.at(block).insert(liveVariable);
+  }
+
+  void removeBlockLiveOut(BasicBlock *block, const Variable *liveVariable) {
+    blockLiveOut.at(block).erase(liveVariable);
+  }
+
+  const Set<const Variable *> &getBlockLiveIn(BasicBlock *block) const {
+    return blockLiveIn.at(block);
+  }
+
+  const Set<const Variable *> &getBlockLiveOut(BasicBlock *block) const {
+    return blockLiveOut.at(block);
   }
 
 protected:
   void print(std::ostream &os) const {
-    for (auto &[block, _] : liveIn) {
+    for (auto &[block, _] : blockLiveIn) {
       String liveInString;
       bool first = true;
-      for (auto liveVar : liveIn.at(block)) {
+      for (auto liveVar : blockLiveIn.at(block)) {
         if (first) {
           first = false;
         } else {
@@ -60,7 +82,7 @@ protected:
 
       String liveOutString;
       first = true;
-      for (auto liveVar : liveOut.at(block)) {
+      for (auto liveVar : blockLiveOut.at(block)) {
         if (first) {
           first = false;
         } else {
@@ -74,8 +96,10 @@ protected:
   }
 
 private:
-  Map<BasicBlock *, Set<const Variable *>> liveIn;
-  Map<BasicBlock *, Set<const Variable *>> liveOut;
+  Map<Instruction *, Set<const Variable *>> liveIn;
+  Map<Instruction *, Set<const Variable *>> liveOut;
+  Map<BasicBlock *, Set<const Variable *>> blockLiveIn;
+  Map<BasicBlock *, Set<const Variable *>> blockLiveOut;
 };
 
 class InterferenceGraph {
@@ -131,6 +155,7 @@ private:
 class LivenessDataflow : public DataflowFramework<BitVector, false> {
 public:
   LivenessDataflow(Function &f) : DataflowFramework(f) {}
+
   Own<Liveness> computeLiveness() const;
   Own<InterferenceGraph> computeInterfenceGraph() const;
 
