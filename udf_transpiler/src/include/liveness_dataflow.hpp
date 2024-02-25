@@ -25,22 +25,6 @@ public:
     return os;
   }
 
-  const Set<const Variable *> &getLiveIn(Instruction *inst) {
-    return liveIn.at(inst);
-  }
-
-  const Set<const Variable *> &getLiveOut(Instruction *inst) {
-    return liveOut.at(inst);
-  }
-
-  void addLiveIn(Instruction *inst, const Variable *liveVariable) {
-    liveIn.at(inst).insert(liveVariable);
-  }
-
-  void addLiveOut(Instruction *inst, const Variable *liveVariable) {
-    liveOut.at(inst).insert(liveVariable);
-  }
-
   void addBlockLiveIn(BasicBlock *block, const Variable *liveVariable) {
     blockLiveIn.at(block).insert(liveVariable);
   }

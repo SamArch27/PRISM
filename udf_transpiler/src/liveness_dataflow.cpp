@@ -27,26 +27,6 @@ Own<Liveness> LivenessDataflow::computeLiveness() const {
       }
     }
   }
-
-  for (auto &block : f) {
-    for (auto &inst : block) {
-      auto &in = results.at(&inst).in;
-      for (std::size_t i = 0; i < in.size(); i++) {
-        if (in[i]) {
-          liveness->addLiveIn(&inst,
-                              definingInstructions[i]->getResultOperand());
-        }
-      }
-      auto &out = results.at(&inst).out;
-      for (std::size_t i = 0; i < out.size(); i++) {
-        if (out[i]) {
-          liveness->addLiveOut(&inst,
-                               definingInstructions[i]->getResultOperand());
-        }
-      }
-    }
-  }
-
   return liveness;
 }
 

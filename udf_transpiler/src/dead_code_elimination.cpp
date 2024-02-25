@@ -22,7 +22,7 @@ bool DeadCodeEliminationPass::runOnFunction(Function &f) {
       }
       for (auto it = block.begin(); it != block.end(); ++it) {
         auto &inst = *it;
-        auto liveOut = liveness->getLiveOut(&inst);
+        auto liveOut = liveness->getBlockLiveOut(&block);
 
         if (auto *result = inst.getResultOperand()) {
           bool out = liveOut.find(result) != liveOut.end();
