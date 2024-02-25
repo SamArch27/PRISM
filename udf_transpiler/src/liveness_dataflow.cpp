@@ -1,4 +1,5 @@
 #include "liveness_dataflow.hpp"
+#include "use_def.hpp"
 #include "utils.hpp"
 
 void LivenessAnalysis::computeLiveness() {
@@ -117,12 +118,17 @@ BitVector LivenessAnalysis::meet(BitVector result, BitVector in,
 }
 
 void LivenessAnalysis::preprocessInst(Instruction *inst) {
+
+  UseDefAnalysis useDefAnalysis(f);
+  useDefAnalysis.runAnalysis();
+  auto &useDefs = useDefAnalysis.getUseDefs();
+
   // Collect definitions for each block, mapping them to bitvector positions
   const auto *resultOperand = inst->getResultOperand();
   auto *block = inst->getParent();
 
   if (resultOperand != nullptr) {
-    auto *def = f.getDefiningInstruction(resultOperand);
+    auto *def = useDefs->getDef(resultOperand);
     if (instToIndex.find(def) == instToIndex.end()) {
       std::size_t newSize = instToIndex.size();
       instToIndex[def] = newSize;
@@ -139,11 +145,11 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
   if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
     // Add the def to the phiDefs for the block
     auto *result = phi->getResultOperand();
-    phiDefs[block].insert(f.getDefiningInstruction(result));
+    phiDefs[block].insert(useDefs->getDef(result));
 
     // Add the uses to every predecessor block
     for (auto *operand : phi->getOperands()) {
-      auto *definingInst = f.getDefiningInstruction(operand);
+      auto *definingInst = useDefs->getDef(operand);
       phiUses[block].insert(definingInst);
     }
   }
@@ -152,7 +158,7 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
     // For each operatnd, check if it is "upwards exposed"
     for (auto *operand : inst->getOperands()) {
       // Get the block that it was defined in
-      auto *definingInst = f.getDefiningInstruction(operand);
+      auto *definingInst = useDefs->getDef(operand);
       auto *definingBlock = definingInst->getParent();
       // If it was defined outside of this block then it is "upwards exposed"
       if (definingBlock != inst->getParent()) {

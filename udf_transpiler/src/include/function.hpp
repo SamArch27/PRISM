@@ -224,19 +224,6 @@ public:
 
   const Map<String, Variable *> &getAllBindings() const { return bindings; }
 
-  // TODO: Exploit SSA to make this faster
-  const Instruction *getDefiningInstruction(const Variable *var) {
-    for (auto &block : basicBlocks) {
-      for (auto &inst : *block) {
-        if (inst.getResultOperand() == var) {
-          return &inst;
-        }
-      }
-    }
-    ERROR("Should always have defining instruction for a variable!");
-    return nullptr;
-  }
-
   Vec<const PhiNode *> getPhisFromBlock(BasicBlock *block) {
     Vec<const PhiNode *> phis;
     for (auto &inst : *block) {
