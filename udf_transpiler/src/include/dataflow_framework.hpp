@@ -1,4 +1,5 @@
 #pragma once
+#include "analysis.hpp"
 #include "bitvector.hpp"
 #include "function.hpp"
 #include "instructions.hpp"
@@ -10,18 +11,17 @@ public:
   T out;
 };
 
-template <typename T, bool forward> class DataflowFramework {
+template <typename T, bool forward> class DataflowFramework : public Analysis {
 public:
   Map<Instruction *, DataflowResult<T>> results;
 
-  DataflowFramework(Function &f) : f(f) {}
+  DataflowFramework(Function &f) : Analysis(f) {}
 
-  void runAnalysis();
+  void runAnalysis() override;
 
 protected:
   T innerStart;
   T boundaryStart;
-  Function &f;
   Vec<BasicBlock *> exitBlocks;
 
   virtual T transfer(T in, Instruction *inst) = 0;

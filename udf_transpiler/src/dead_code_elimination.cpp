@@ -1,41 +1,51 @@
 #include "dead_code_elimination.hpp"
-#include "liveness_dataflow.hpp"
+#include "use_def.hpp"
 #include <iostream>
 
 bool DeadCodeEliminationPass::runOnFunction(Function &f) {
   bool changed = false;
-  bool removedDeadCode = false;
+  UseDefAnalysis useDefAnalysis(f);
+  useDefAnalysis.runAnalysis();
+  auto useDefs = useDefAnalysis.computeUseDefs();
 
-  int i = -1;
-  do {
-    ++i;
-    removedDeadCode = false;
-    LivenessDataflow dataflow(f);
-    dataflow.runAnalysis();
-    auto liveness = dataflow.computeLiveness();
+  auto worklist = useDefs->getAllDefs();
 
-    std::cout << f << std::endl;
+  while (!worklist.empty()) {
+    auto *inst = *worklist.begin();
+    worklist.erase(inst);
 
-    for (auto &block : f) {
-      if (&block == f.getEntryBlock()) {
-        continue;
-      }
-      for (auto it = block.begin(); it != block.end(); ++it) {
-        auto &inst = *it;
-        auto liveOut = liveness->getBlockLiveOut(&block);
+    // don't remove any instructions from the entry block
+    if (inst->getParent() == f.getEntryBlock()) {
+      continue;
+    }
 
-        if (auto *result = inst.getResultOperand()) {
-          bool out = liveOut.find(result) != liveOut.end();
+    // this def has uses
+    if (!useDefs->getUses(inst->getResultOperand()).empty()) {
+      continue;
+    }
 
-          // dead if its defined in this block but not live out
-          if (!out) {
-            changed = true;
-            removedDeadCode = true;
-            it = block.removeInst(it);
-          }
-        }
+    // we remove this instruction
+    changed = true;
+
+    // for each operand on the RHS
+    // get its definition and remove this instruction as a "user"
+    Set<const Variable *> toRemove;
+    for (auto *operand : inst->getOperands()) {
+      auto *def = useDefs->getDef(operand);
+      toRemove.insert(def->getResultOperand());
+    }
+    for (auto *def : toRemove) {
+      useDefs->removeUse(def, inst);
+    }
+
+    // if after removing the uses from this instruction
+    // there are no uses, add the inst for the worklist
+    for (auto *def : toRemove) {
+      if (useDefs->getUses(def).empty()) {
+        worklist.insert(useDefs->getDef(def));
       }
     }
-  } while (removedDeadCode);
+    inst->eraseFromParent();
+  }
   return changed;
 }

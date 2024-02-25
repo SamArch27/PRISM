@@ -15,3 +15,5 @@ void BranchInst::print(std::ostream &os) const {
     os << " [" << ifTrue->getLabel() << "] ";
   }
 }
+
+void Instruction::eraseFromParent() { parent->removeInst(this); }

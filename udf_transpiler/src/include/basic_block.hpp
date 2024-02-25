@@ -133,6 +133,7 @@ public:
   InstIterator insertBefore(InstIterator targetInst, Own<Instruction> newInst);
   InstIterator insertAfter(InstIterator targetInst, Own<Instruction> newInst);
 
+  void removeInst(Instruction *inst);
   InstIterator removeInst(InstIterator targetInst);
   InstIterator replaceInst(InstIterator targetInst, Own<Instruction> newInst);
 

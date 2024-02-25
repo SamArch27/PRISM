@@ -51,6 +51,15 @@ InstIterator BasicBlock::removeInst(InstIterator targetInst) {
   return instructions.erase(targetInst.iter);
 }
 
+void BasicBlock::removeInst(Instruction *inst) {
+  for (auto it = begin(); it != end(); ++it) {
+    auto &curr = *it;
+    if (&curr == inst) {
+      it = removeInst(it);
+    }
+  }
+}
+
 InstIterator BasicBlock::replaceInst(InstIterator targetInst,
                                      Own<Instruction> newInst) {
   auto it = insertBefore(targetInst, std::move(newInst));

@@ -58,7 +58,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
         auto [header, res] = locg.getResult();
         code += header;
         code += fmt::format(
-            "{};\ngoto exit;\n",
+            "{};\nreturn;\n",
             createReturnValue(config.function["return_name"].Scalar(),
                               f.getReturnType(), res));
       } else if (auto *br = dynamic_cast<const BranchInst *>(&inst)) {
