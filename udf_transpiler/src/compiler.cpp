@@ -2,6 +2,7 @@
 #include "aggify_code_generator.hpp"
 #include "aggify_dfa.hpp"
 #include "ast_to_cfg.hpp"
+#include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
 #include "copy_propagation.hpp"
 #include "dead_code_elimination.hpp"
@@ -80,7 +81,8 @@ void Compiler::optimize(Function &f) {
       Make<DeadCodeEliminationPass>()));
   auto pipeline = Make<PipelinePass>(
       Make<MergeBasicBlocksPass>(), Make<SSAConstructionPass>(),
-      std::move(corePasses), Make<SSADestructionPass>());
+      std::move(corePasses), Make<BreakPhiInterferencePass>(),
+      Make<SSADestructionPass>());
 
   std::cout << f << std::endl;
   pipeline->runOnFunction(f);
