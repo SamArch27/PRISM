@@ -6,10 +6,9 @@ bool DeadCodeEliminationPass::runOnFunction(Function &f) {
   bool changed = false;
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
-  auto useDefs = useDefAnalysis.computeUseDefs();
+  auto &useDefs = useDefAnalysis.getUseDefs();
 
   auto worklist = useDefs->getAllDefs();
-
   while (!worklist.empty()) {
     auto *inst = *worklist.begin();
     worklist.erase(inst);

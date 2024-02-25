@@ -4,11 +4,10 @@
 #include "utils.hpp"
 
 bool SSAConstructionPass::runOnFunction(Function &f) {
-  DominatorDataflow dataflow(f);
-  dataflow.runAnalysis();
-  auto dominators = dataflow.computeDominators();
-  auto dominanceFrontier = dataflow.computeDominanceFrontier(dominators);
-  auto dominatorTree = dataflow.computeDominatorTree(dominators);
+  DominatorAnalysis dominatorAnalysis(f);
+  dominatorAnalysis.runAnalysis();
+  auto &dominanceFrontier = dominatorAnalysis.getDominanceFrontier();
+  auto &dominatorTree = dominatorAnalysis.getDominatorTree();
 
   insertPhiFunctions(f, dominanceFrontier);
   renameVariablesToSSA(f, dominatorTree);

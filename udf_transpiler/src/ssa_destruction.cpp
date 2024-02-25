@@ -4,10 +4,10 @@
 #include "utils.hpp"
 
 bool SSADestructionPass::runOnFunction(Function &f) {
-  auto dataflow = Make<LivenessDataflow>(f);
-  dataflow->runAnalysis();
-  auto liveness = dataflow->computeLiveness();
-  auto interferenceGraph = dataflow->computeInterfenceGraph();
+  auto livenessAnalysis = Make<LivenessAnalysis>(f);
+  livenessAnalysis->runAnalysis();
+  auto &liveness = livenessAnalysis->getLiveness();
+  auto &interferenceGraph = livenessAnalysis->getInterferenceGraph();
   auto phiCongruent = createPhiCongruenceClasses(f);
 
   // for every phi, resolve the phi interference

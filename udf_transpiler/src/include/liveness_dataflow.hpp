@@ -136,18 +136,25 @@ private:
   Map<const Variable *, Set<const Variable *>> edge;
 };
 
-class LivenessDataflow : public DataflowFramework<BitVector, false> {
+class LivenessAnalysis : public DataflowFramework<BitVector, false> {
 public:
-  LivenessDataflow(Function &f) : DataflowFramework(f) {}
+  LivenessAnalysis(Function &f) : DataflowFramework(f) {}
 
-  Own<Liveness> computeLiveness() const;
-  Own<InterferenceGraph> computeInterfenceGraph() const;
+  const Own<Liveness> &getLiveness() const { return liveness; }
+  const Own<InterferenceGraph> &getInterferenceGraph() const {
+    return interferenceGraph;
+  }
 
 protected:
   BitVector transfer(BitVector out, Instruction *inst) override;
   BitVector meet(BitVector result, BitVector in, BasicBlock *block) override;
   void preprocessInst(Instruction *inst) override;
   void genBoundaryInner() override;
+  void finalize() override;
+
+private:
+  void computeLiveness();
+  void computeInterferenceGraph();
 
   Map<BasicBlock *, Set<const Instruction *>> allDefs;
   Map<BasicBlock *, Set<const Instruction *>> phiDefs;
@@ -155,4 +162,7 @@ protected:
   Map<BasicBlock *, Set<const Instruction *>> upwardsExposed;
   Vec<const Instruction *> definingInstructions;
   Map<const Instruction *, std::size_t> instToIndex;
+
+  Own<Liveness> liveness;
+  Own<InterferenceGraph> interferenceGraph;
 };

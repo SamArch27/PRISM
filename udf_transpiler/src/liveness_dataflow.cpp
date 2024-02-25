@@ -1,12 +1,12 @@
 #include "liveness_dataflow.hpp"
 #include "utils.hpp"
 
-Own<Liveness> LivenessDataflow::computeLiveness() const {
+void LivenessAnalysis::computeLiveness() {
   Vec<BasicBlock *> blocks;
   for (auto &block : f) {
     blocks.push_back(&block);
   }
-  auto liveness = Make<Liveness>(blocks);
+  liveness = Make<Liveness>(blocks);
 
   for (auto &block : f) {
     auto *firstInst = block.getInitiator();
@@ -27,11 +27,10 @@ Own<Liveness> LivenessDataflow::computeLiveness() const {
       }
     }
   }
-  return liveness;
 }
 
-Own<InterferenceGraph> LivenessDataflow::computeInterfenceGraph() const {
-  auto interferenceGraph = Make<InterferenceGraph>();
+void LivenessAnalysis::computeInterferenceGraph() {
+  interferenceGraph = Make<InterferenceGraph>();
 
   for (auto &block : f) {
     for (auto &inst : block) {
@@ -49,11 +48,9 @@ Own<InterferenceGraph> LivenessDataflow::computeInterfenceGraph() const {
       }
     }
   }
-
-  return interferenceGraph;
 }
 
-BitVector LivenessDataflow::transfer(BitVector out, Instruction *inst) {
+BitVector LivenessAnalysis::transfer(BitVector out, Instruction *inst) {
 
   auto *block = inst->getParent();
 
@@ -92,7 +89,7 @@ BitVector LivenessDataflow::transfer(BitVector out, Instruction *inst) {
   return result;
 }
 
-BitVector LivenessDataflow::meet(BitVector result, BitVector in,
+BitVector LivenessAnalysis::meet(BitVector result, BitVector in,
                                  BasicBlock *block) {
 
   // Create bitvector for phiDefs
@@ -119,7 +116,7 @@ BitVector LivenessDataflow::meet(BitVector result, BitVector in,
   return result;
 }
 
-void LivenessDataflow::preprocessInst(Instruction *inst) {
+void LivenessAnalysis::preprocessInst(Instruction *inst) {
   // Collect definitions for each block, mapping them to bitvector positions
   const auto *resultOperand = inst->getResultOperand();
   auto *block = inst->getParent();
@@ -165,7 +162,12 @@ void LivenessDataflow::preprocessInst(Instruction *inst) {
   }
 }
 
-void LivenessDataflow::genBoundaryInner() {
+void LivenessAnalysis::genBoundaryInner() {
   innerStart = BitVector(instToIndex.size(), false);
   boundaryStart = BitVector(instToIndex.size(), false);
+}
+
+void LivenessAnalysis::finalize() {
+  computeLiveness();
+  computeInterferenceGraph();
 }

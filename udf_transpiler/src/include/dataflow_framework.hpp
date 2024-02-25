@@ -28,6 +28,7 @@ protected:
   virtual T meet(T result, T in, BasicBlock *block) = 0;
   virtual void preprocessInst(Instruction *inst) = 0;
   virtual void genBoundaryInner() = 0;
+  virtual void finalize() = 0;
 
 private:
   void preprocess();
@@ -182,4 +183,5 @@ void DataflowFramework<T, forward>::runAnalysis() {
   } else {
     runBackwards();
   }
+  finalize();
 }

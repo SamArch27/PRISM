@@ -1,9 +1,7 @@
 #include "use_def.hpp"
 
-void UseDefAnalysis::runAnalysis() {}
-
-Own<UseDefs> UseDefAnalysis::computeUseDefs() {
-  auto useDefs = Make<UseDefs>();
+void UseDefAnalysis::runAnalysis() {
+  useDefs = Make<UseDefs>();
   for (auto &block : f) {
     for (auto &inst : block) {
       if (auto *result = inst.getResultOperand()) {
@@ -14,5 +12,4 @@ Own<UseDefs> UseDefAnalysis::computeUseDefs() {
       }
     }
   }
-  return useDefs;
 }

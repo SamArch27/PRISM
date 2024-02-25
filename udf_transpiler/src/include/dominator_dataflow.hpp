@@ -126,21 +126,31 @@ private:
   Map<String, Set<String>> edges;
 };
 
-class DominatorDataflow : public DataflowFramework<BitVector, true> {
+class DominatorAnalysis : public DataflowFramework<BitVector, true> {
 public:
-  DominatorDataflow(Function &f) : DataflowFramework(f) {}
+  DominatorAnalysis(Function &f) : DataflowFramework(f) {}
 
-  Own<Dominators> computeDominators() const;
-  Own<DominanceFrontier>
-  computeDominanceFrontier(const Own<Dominators> &dominators) const;
-  Own<DominatorTree>
-  computeDominatorTree(const Own<Dominators> &dominators) const;
+  const Own<Dominators> &getDominators() const { return dominators; }
+  const Own<DominanceFrontier> &getDominanceFrontier() const {
+    return frontier;
+  }
+  const Own<DominatorTree> &getDominatorTree() const { return dominatorTree; }
 
 protected:
   BitVector transfer(BitVector in, Instruction *inst) override;
   BitVector meet(BitVector result, BitVector in, BasicBlock *block) override;
   void preprocessInst(Instruction *inst) override;
   void genBoundaryInner() override;
+  void finalize() override;
+
+private:
+  void computeDominators();
+  void computeDominanceFrontier();
+  void computeDominatorTree();
+
+  Own<Dominators> dominators;
+  Own<DominanceFrontier> frontier;
+  Own<DominatorTree> dominatorTree;
 
   Map<BasicBlock *, std::size_t> blockToIndex;
   Vec<BasicBlock *> basicBlocks;
