@@ -3,6 +3,10 @@
 #include <iostream>
 
 bool DeadCodeEliminationPass::runOnFunction(Function &f) {
+
+  std::cout << "BEFORE DCE" << std::endl;
+  std::cout << f << std::endl;
+
   bool changed = false;
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();

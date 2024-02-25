@@ -88,13 +88,6 @@ void SSAConstructionPass::renameVariablesToSSA(
     return stacks.at(f.getBinding(f.getOriginalName(var->getName())));
   };
 
-  auto getNewArgumentName = [&](const Variable *var) {
-    auto i = accessStack(var).top();
-    auto oldName = f.getOriginalName(var->getName());
-    auto newName = oldName + "_" + std::to_string(i) + "_";
-    return newName;
-  };
-
   auto renameVariable = [&](const Variable *var, bool updateVariable) {
     auto i = updateVariable ? accessCounter(var) : accessStack(var).top();
     auto oldName = f.getOriginalName(var->getName());
@@ -202,7 +195,7 @@ void SSAConstructionPass::renameVariablesToSSA(
   // For each arg, create x' and assignment x' = x in entry
   for (const auto &arg : f.getArguments()) {
     auto oldName = arg->getName();
-    auto newName = getNewArgumentName(arg.get());
+    auto newName = renameVariable(arg.get(), true)->getName();
     f.addVariable(newName, arg->getType(), false);
     auto assign =
         Make<Assignment>(f.getBinding(newName), f.bindExpression(oldName));
