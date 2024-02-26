@@ -229,14 +229,17 @@ Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
         auto newReturn = Make<ReturnInst>(
             replaceVarWithExpression(returnInst->getExpr(), oldToNew));
         newInstructions[inst] = inst->replaceWith(std::move(newReturn));
-        inst = inst;
+        inst = newInstructions[inst];
       } else if (auto *branchInst = dynamic_cast<const BranchInst *>(inst)) {
         auto newBranch = Make<BranchInst>(
             branchInst->getIfTrue(), branchInst->getIfFalse(),
             replaceVarWithExpression(branchInst->getCond(), oldToNew));
         newInstructions[inst] = inst->replaceWith(std::move(newBranch));
         inst = newInstructions[inst];
+      } else if (dynamic_cast<const PhiNode *>(inst)) {
+        // do nothing for phi functions
       } else {
+        std::cout << *inst << std::endl;
         ERROR("Unhandled case in Function::replaceUsesWith!");
       }
 

@@ -21,7 +21,6 @@ bool CopyPropagationPass::runOnFunction(Function &f) {
     // Replace phi functions with identical arguments
     if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
       if (phi->hasIdenticalArguments()) {
-        changed = true;
         inst = inst->replaceWith(Make<Assignment>(
             phi->getLHS(), f.bindExpression(phi->getRHS().front()->getName())));
       }
@@ -38,13 +37,13 @@ bool CopyPropagationPass::runOnFunction(Function &f) {
       }
 
       // get RHS as a variable
-      changed = true;
       auto *rhsVar = f.getBinding(assign->getRHS()->getRawSQL());
       Map<const Variable *, const Variable *> oldToNew{
           {assign->getLHS(), rhsVar}};
 
       // replace uses of RHS with LHS and add to the worklist
       for (auto &[oldInst, newInst] : f.replaceUsesWithVar(oldToNew, useDefs)) {
+        changed = true;
         worklist.erase(oldInst);
         worklist.insert(newInst);
       }

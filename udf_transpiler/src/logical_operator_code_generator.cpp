@@ -212,7 +212,7 @@ template <>
 String
 BoundExpressionCodeGenerator::Transpile(const BoundFunctionExpression &exp,
                                         CodeGenInfo &insert) {
-  if (exp.function.has_scalar_funcition_info) {
+  if (exp.function.has_scalar_function_info) {
     // ScalarFunction &function = exp.function;
     const ScalarFunctionInfo &function_info = exp.function.function_info;
     Vec<Expression *> children(exp.children.size());
@@ -278,17 +278,30 @@ template <>
 String
 BoundExpressionCodeGenerator::Transpile(const BoundConjunctionExpression &exp,
                                         CodeGenInfo &insert) {
-  ASSERT(exp.children.size() == 2,
-         "Conjunction expression should have 2 children.");
+  String output;
+  bool first = true;
   switch (exp.GetExpressionType()) {
   case ExpressionType::CONJUNCTION_AND:
-    return fmt::format("({} && {})", Transpile(*exp.children[0], insert),
-                       Transpile(*exp.children[1], insert));
+    for (auto &child : exp.children) {
+      if (first) {
+        first = false;
+      } else {
+        output += " && ";
+      }
+      output += Transpile(*child, insert);
+    }
+    return output;
     break;
   case ExpressionType::CONJUNCTION_OR:
-    return fmt::format("({} || {})", Transpile(*exp.children[0], insert),
-                       Transpile(*exp.children[1], insert));
-    break;
+    for (auto &child : exp.children) {
+      if (first) {
+        first = false;
+      } else {
+        output += " || ";
+      }
+      output += Transpile(*child, insert);
+    }
+    return output;
   default:
     ASSERT(false, "Conjunction expression should be AND or OR.");
     break;
