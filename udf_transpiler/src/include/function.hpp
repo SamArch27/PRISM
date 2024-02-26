@@ -2,6 +2,7 @@
 
 #include "basic_block.hpp"
 #include "instructions.hpp"
+#include "use_def.hpp"
 #include "utils.hpp"
 
 class BasicBlockIterator {
@@ -100,6 +101,8 @@ public:
 private:
   VecOwn<BasicBlock>::const_iterator iter;
 };
+
+class UseDefs;
 
 class Function {
 public:
@@ -257,8 +260,8 @@ public:
       const Map<const Variable *, const Variable *> &oldToNew);
   Own<SelectExpression> bindExpression(const String &expr);
 
-  bool replaceUsesWith(const Map<const Variable *, const Variable *> &oldToNew);
-  bool replaceDefsWith(const Map<const Variable *, const Variable *> &oldToNew);
+  void replaceUsesWith(const Map<const Variable *, const Variable *> &oldToNew,
+                       const Own<UseDefs> &useDefs);
 
 protected:
   void print(std::ostream &os) const {

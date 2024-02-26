@@ -1,6 +1,7 @@
 #pragma once
 
 #include "analysis.hpp"
+#include "function.hpp"
 #include "utils.hpp"
 
 class UseDefs {
@@ -37,6 +38,8 @@ private:
   Map<const Variable *, Set<Instruction *>> uses;
   Map<const Variable *, Instruction *> defs;
 };
+
+class Function;
 
 class UseDefAnalysis : public Analysis {
 public:

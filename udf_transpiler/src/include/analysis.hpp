@@ -1,6 +1,6 @@
 #pragma once
 
-#include "function.hpp"
+class Function;
 
 class Analysis {
 public:

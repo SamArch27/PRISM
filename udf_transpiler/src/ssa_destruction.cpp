@@ -40,6 +40,7 @@ void SSADestructionPass::removePhis(Function &f) {
 }
 
 void SSADestructionPass::removeSSANames(Function &f) {
+
   // collect the old variables
   Vec<const Variable *> oldVariables;
   for (auto &var : f.getVariables()) {
@@ -59,8 +60,40 @@ void SSADestructionPass::removeSSANames(Function &f) {
     }
   }
 
-  f.replaceUsesWith(oldToNew);
-  f.replaceDefsWith(oldToNew);
+  for (auto &block : f) {
+    for (auto it = block.begin(); it != block.end(); ++it) {
+      auto &inst = *it;
+
+      // rewrite all instructions
+      if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
+        Vec<const Variable *> newRHS = phi->getRHS();
+        for (auto &var : newRHS) {
+          var = oldToNew.at(var);
+        }
+        it = block.replaceInst(
+            it, Make<PhiNode>(oldToNew.at(phi->getLHS()), newRHS));
+      } else if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+        it = block.replaceInst(
+            it, Make<Assignment>(
+                    oldToNew.at(assign->getLHS()),
+                    f.buildReplacedExpression(assign->getRHS(), oldToNew)));
+      } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(&inst)) {
+        it = block.replaceInst(it, Make<ReturnInst>(f.buildReplacedExpression(
+                                       returnInst->getExpr(), oldToNew)));
+      } else if (auto *branchInst = dynamic_cast<const BranchInst *>(&inst)) {
+        if (branchInst->isConditional()) {
+          it = block.replaceInst(
+              it,
+              Make<BranchInst>(
+                  branchInst->getIfTrue(), branchInst->getIfFalse(),
+                  f.buildReplacedExpression(branchInst->getCond(), oldToNew)));
+        }
+      } else {
+        ERROR("Unhandled instruction when renaming variables out of SSA during "
+              "SSA destruction!");
+      }
+    }
+  }
 
   // delete the old variables
   for (auto *oldVar : oldVariables) {

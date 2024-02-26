@@ -6,46 +6,47 @@
 bool CopyPropagationPass::runOnFunction(Function &f) {
   bool changed = false;
 
+  UseDefAnalysis useDefAnalysis(f);
+  useDefAnalysis.runAnalysis();
+  auto &useDefs = useDefAnalysis.getUseDefs();
+
   for (auto &basicBlock : f) {
     // ignore the entry block because of how arguments are handled
     if (&basicBlock == f.getEntryBlock()) {
       continue;
     }
-    for (auto it = basicBlock.begin(); it != basicBlock.end();) {
+    for (auto it = basicBlock.begin(); it != basicBlock.end(); ++it) {
       auto &inst = *it;
+
+      // Replace phi functions with identical arguments
+      if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
+        if (phi->hasIdenticalArguments()) {
+          changed = true;
+          it = basicBlock.replaceInst(
+              it, Make<Assignment>(
+                      phi->getLHS(),
+                      f.bindExpression(phi->getRHS().front()->getName())));
+        }
+      }
+
       // check for x = y assignment
       if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
-        auto *lhs = assign->getLHS();
-        auto *rhs = assign->getRHS();
-
-        // skip SQL expressions
-        if (rhs->isSQLExpression()) {
-          ++it;
+        if (useDefs->getUses(assign->getLHS()).empty()) {
           continue;
         }
 
-        // Try converting the RHS to a variable
-        if (!f.hasBinding(rhs->getRawSQL())) {
-          ++it;
+        if (!f.hasBinding(assign->getRHS()->getRawSQL())) {
           continue;
         }
-        auto *var = f.getBinding(rhs->getRawSQL());
 
-        Map<const Variable *, const Variable *> oldToNew{{lhs, var}};
-        changed |= f.replaceUsesWith(oldToNew);
-        it = basicBlock.removeInst(it);
-
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
-        if (!phi->hasIdenticalArguments()) {
-          ++it;
-          continue;
-        }
+        // get RHS as a variable
+        changed = true;
+        auto *rhsVar = f.getBinding(assign->getRHS()->getRawSQL());
         Map<const Variable *, const Variable *> oldToNew{
-            {phi->getLHS(), phi->getRHS().front()}};
-        changed |= f.replaceUsesWith(oldToNew);
-        it = basicBlock.removeInst(it);
-      } else {
-        ++it;
+            {assign->getLHS(), rhsVar}};
+
+        // replace uses of RHS with LHS
+        f.replaceUsesWith(oldToNew, useDefs);
       }
     }
   }

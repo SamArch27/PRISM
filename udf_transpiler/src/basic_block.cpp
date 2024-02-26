@@ -51,13 +51,15 @@ InstIterator BasicBlock::removeInst(InstIterator targetInst) {
   return instructions.erase(targetInst.iter);
 }
 
-void BasicBlock::removeInst(Instruction *inst) {
+InstIterator BasicBlock::findInst(Instruction *inst) {
   for (auto it = begin(); it != end(); ++it) {
     auto &curr = *it;
     if (&curr == inst) {
-      it = removeInst(it);
+      return it;
     }
   }
+  ERROR("Could not find instruction in BasicBlock::findInst()!");
+  return InstIterator(end());
 }
 
 InstIterator BasicBlock::replaceInst(InstIterator targetInst,
