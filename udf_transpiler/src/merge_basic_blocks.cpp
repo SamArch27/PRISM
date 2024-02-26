@@ -1,7 +1,6 @@
 #include "merge_basic_blocks.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
-#include <iostream>
 
 bool MergeBasicBlocksPass::runOnFunction(Function &f) {
   bool changed = false;

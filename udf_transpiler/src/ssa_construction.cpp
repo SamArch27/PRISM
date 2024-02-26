@@ -129,7 +129,7 @@ void SSAConstructionPass::renameVariablesToSSA(
     // For every variable, rebind the select expression with its new equivalent
     Own<SelectExpression> replacedExpression = expr->clone();
     replacedExpression =
-        f.buildReplacedExpression(replacedExpression.get(), varMapping);
+        f.renameVarInExpression(replacedExpression.get(), varMapping);
     return replacedExpression;
   };
 

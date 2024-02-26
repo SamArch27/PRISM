@@ -1,6 +1,5 @@
 #include "dead_code_elimination.hpp"
 #include "use_def.hpp"
-#include <iostream>
 
 bool DeadCodeEliminationPass::runOnFunction(Function &f) {
   bool changed = false;

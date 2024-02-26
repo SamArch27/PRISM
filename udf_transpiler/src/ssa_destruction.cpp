@@ -76,9 +76,9 @@ void SSADestructionPass::removeSSANames(Function &f) {
         it = block.replaceInst(
             it, Make<Assignment>(
                     oldToNew.at(assign->getLHS()),
-                    f.buildReplacedExpression(assign->getRHS(), oldToNew)));
+                    f.renameVarInExpression(assign->getRHS(), oldToNew)));
       } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(&inst)) {
-        it = block.replaceInst(it, Make<ReturnInst>(f.buildReplacedExpression(
+        it = block.replaceInst(it, Make<ReturnInst>(f.renameVarInExpression(
                                        returnInst->getExpr(), oldToNew)));
       } else if (auto *branchInst = dynamic_cast<const BranchInst *>(&inst)) {
         if (branchInst->isConditional()) {
@@ -86,7 +86,7 @@ void SSADestructionPass::removeSSANames(Function &f) {
               it,
               Make<BranchInst>(
                   branchInst->getIfTrue(), branchInst->getIfFalse(),
-                  f.buildReplacedExpression(branchInst->getCond(), oldToNew)));
+                  f.renameVarInExpression(branchInst->getCond(), oldToNew)));
         }
       } else {
         ERROR("Unhandled instruction when renaming variables out of SSA during "

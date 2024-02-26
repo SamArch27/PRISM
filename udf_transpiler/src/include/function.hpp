@@ -252,16 +252,25 @@ public:
   }
 
   void removeBasicBlock(BasicBlock *toRemove);
-
   void makeDuckDBContext();
   void destroyDuckDBContext();
-  Own<SelectExpression> buildReplacedExpression(
+
+  Own<SelectExpression> renameVarInExpression(
       const SelectExpression *original,
       const Map<const Variable *, const Variable *> &oldToNew);
+
+  Own<SelectExpression> replaceVarWithExpression(
+      const SelectExpression *original,
+      const Map<const Variable *, const SelectExpression *> &oldToNew);
+
   Own<SelectExpression> bindExpression(const String &expr);
 
-  void replaceUsesWith(const Map<const Variable *, const Variable *> &oldToNew,
-                       const Own<UseDefs> &useDefs);
+  Vec<Instruction *>
+  replaceUsesWithVar(const Map<const Variable *, const Variable *> &oldToNew,
+                     const Own<UseDefs> &useDefs);
+  Vec<Instruction *> replaceUsesWithExpr(
+      const Map<const Variable *, const SelectExpression *> &oldToNew,
+      const Own<UseDefs> &useDefs);
 
 protected:
   void print(std::ostream &os) const {

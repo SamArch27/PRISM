@@ -58,7 +58,7 @@ void Function::destroyDuckDBContext() {
   }
 }
 
-Own<SelectExpression> Function::buildReplacedExpression(
+Own<SelectExpression> Function::renameVarInExpression(
     const SelectExpression *original,
     const Map<const Variable *, const Variable *> &oldToNew) {
   auto replacedText = original->getRawSQL();
@@ -66,6 +66,18 @@ Own<SelectExpression> Function::buildReplacedExpression(
     std::regex wordRegex("\\b" + oldVar->getName() + "\\b");
     replacedText =
         std::regex_replace(replacedText, wordRegex, newVar->getName());
+  }
+  return bindExpression(replacedText)->clone();
+}
+
+Own<SelectExpression> Function::replaceVarWithExpression(
+    const SelectExpression *original,
+    const Map<const Variable *, const SelectExpression *> &oldToNew) {
+  auto replacedText = original->getRawSQL();
+  for (auto &[oldVar, newExpr] : oldToNew) {
+    std::regex wordRegex("\\b" + oldVar->getName() + "\\b");
+    replacedText =
+        std::regex_replace(replacedText, wordRegex, newExpr->getRawSQL());
   }
   return bindExpression(replacedText)->clone();
 }
@@ -127,10 +139,71 @@ Own<SelectExpression> Function::bindExpression(const String &expr) {
                                 usedVariables);
 }
 
-void Function::replaceUsesWith(
+Vec<Instruction *> Function::replaceUsesWithVar(
     const Map<const Variable *, const Variable *> &oldToNew,
     const Own<UseDefs> &useDefs) {
 
+  Vec<Instruction *> newInstructions;
+  for (auto &[oldVar, newVar] : oldToNew) {
+    Set<Instruction *> toReplace;
+    for (auto *use : useDefs->getUses(oldVar)) {
+      for (auto *op : use->getOperands()) {
+        useDefs->removeUse(op, use);
+      }
+      if (auto *def = use->getResultOperand()) {
+        useDefs->removeDef(def, use);
+      }
+      toReplace.insert(use);
+    }
+    for (auto *inst : toReplace) {
+      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+        auto *rhs = assign->getRHS();
+        // replace RHS with new expression
+        auto newAssign = Make<Assignment>(assign->getLHS(),
+                                          renameVarInExpression(rhs, oldToNew));
+        inst = inst->replaceWith(std::move(newAssign));
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+        auto newArguments = phi->getRHS();
+        for (auto &arg : newArguments) {
+          if (oldToNew.find(arg) == oldToNew.end()) {
+            continue;
+          }
+          arg = oldToNew.at(arg);
+        }
+        auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
+        inst = inst->replaceWith(std::move(newPhi));
+      } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(inst)) {
+        auto newReturn = Make<ReturnInst>(
+            renameVarInExpression(returnInst->getExpr(), oldToNew));
+        inst = inst->replaceWith(std::move(newReturn));
+      } else if (auto *branchInst = dynamic_cast<const BranchInst *>(inst)) {
+        auto newBranch = Make<BranchInst>(
+            branchInst->getIfTrue(), branchInst->getIfFalse(),
+            renameVarInExpression(branchInst->getCond(), oldToNew));
+        inst = inst->replaceWith(std::move(newBranch));
+      } else {
+        ERROR("Unhandled case in Function::replaceUsesWith!");
+      }
+
+      newInstructions.push_back(inst);
+
+      // add uses for the new instruction
+      for (auto *op : inst->getOperands()) {
+        useDefs->addUse(op, inst);
+      }
+      if (auto *def = inst->getResultOperand()) {
+        useDefs->addDef(def, inst);
+      }
+    }
+  }
+  return newInstructions;
+}
+
+Vec<Instruction *> Function::replaceUsesWithExpr(
+    const Map<const Variable *, const SelectExpression *> &oldToNew,
+    const Own<UseDefs> &useDefs) {
+
+  Vec<Instruction *> newInstructions;
   for (auto &[oldVar, newVar] : oldToNew) {
     Set<Instruction *> toReplace;
     for (auto *use : useDefs->getUses(oldVar)) {
@@ -147,30 +220,22 @@ void Function::replaceUsesWith(
         auto *rhs = assign->getRHS();
         // replace RHS with new expression
         auto newAssign = Make<Assignment>(
-            assign->getLHS(), buildReplacedExpression(rhs, oldToNew));
+            assign->getLHS(), replaceVarWithExpression(rhs, oldToNew));
         inst = inst->replaceWith(std::move(newAssign));
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
-        auto newArguments = phi->getRHS();
-        for (auto &arg : newArguments) {
-          if (oldToNew.find(arg) == oldToNew.end()) {
-            continue;
-          }
-          arg = oldToNew.at(arg);
-        }
-        auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-        inst = inst->replaceWith(std::move(newPhi));
       } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(inst)) {
         auto newReturn = Make<ReturnInst>(
-            buildReplacedExpression(returnInst->getExpr(), oldToNew));
+            replaceVarWithExpression(returnInst->getExpr(), oldToNew));
         inst = inst->replaceWith(std::move(newReturn));
       } else if (auto *branchInst = dynamic_cast<const BranchInst *>(inst)) {
         auto newBranch = Make<BranchInst>(
             branchInst->getIfTrue(), branchInst->getIfFalse(),
-            buildReplacedExpression(branchInst->getCond(), oldToNew));
+            replaceVarWithExpression(branchInst->getCond(), oldToNew));
         inst = inst->replaceWith(std::move(newBranch));
       } else {
         ERROR("Unhandled case in Function::replaceUsesWith!");
       }
+
+      newInstructions.push_back(inst);
 
       // add uses for the new instruction
       for (auto *op : inst->getOperands()) {
@@ -181,6 +246,7 @@ void Function::replaceUsesWith(
       }
     }
   }
+  return newInstructions;
 }
 
 void Function::removeBasicBlock(BasicBlock *toRemove) {
