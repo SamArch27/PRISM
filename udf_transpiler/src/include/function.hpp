@@ -265,10 +265,10 @@ public:
 
   Own<SelectExpression> bindExpression(const String &expr);
 
-  Vec<Instruction *>
+  Map<Instruction *, Instruction *>
   replaceUsesWithVar(const Map<const Variable *, const Variable *> &oldToNew,
                      const Own<UseDefs> &useDefs);
-  Vec<Instruction *> replaceUsesWithExpr(
+  Map<Instruction *, Instruction *> replaceUsesWithExpr(
       const Map<const Variable *, const SelectExpression *> &oldToNew,
       const Own<UseDefs> &useDefs);
 

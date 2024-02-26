@@ -1,8 +1,8 @@
-#include "copy_propagation.hpp"
+#include "expression_propagation.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
 
-bool CopyPropagationPass::runOnFunction(Function &f) {
+bool ExpressionPropagationPass::runOnFunction(Function &f) {
   bool changed = false;
 
   UseDefAnalysis useDefAnalysis(f);
@@ -39,12 +39,12 @@ bool CopyPropagationPass::runOnFunction(Function &f) {
 
       // get RHS as a variable
       changed = true;
-      auto *rhsVar = f.getBinding(assign->getRHS()->getRawSQL());
-      Map<const Variable *, const Variable *> oldToNew{
-          {assign->getLHS(), rhsVar}};
+      Map<const Variable *, const SelectExpression *> oldToNew{
+          {assign->getLHS(), assign->getRHS()}};
 
       // replace uses of RHS with LHS and add to the worklist
-      for (auto &[oldInst, newInst] : f.replaceUsesWithVar(oldToNew, useDefs)) {
+      for (auto &[oldInst, newInst] :
+           f.replaceUsesWithExpr(oldToNew, useDefs)) {
         worklist.erase(oldInst);
         worklist.insert(newInst);
       }

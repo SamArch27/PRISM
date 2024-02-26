@@ -139,11 +139,11 @@ Own<SelectExpression> Function::bindExpression(const String &expr) {
                                 usedVariables);
 }
 
-Vec<Instruction *> Function::replaceUsesWithVar(
+Map<Instruction *, Instruction *> Function::replaceUsesWithVar(
     const Map<const Variable *, const Variable *> &oldToNew,
     const Own<UseDefs> &useDefs) {
 
-  Vec<Instruction *> newInstructions;
+  Map<Instruction *, Instruction *> newInstructions;
   for (auto &[oldVar, newVar] : oldToNew) {
     Set<Instruction *> toReplace;
     for (auto *use : useDefs->getUses(oldVar)) {
@@ -161,7 +161,8 @@ Vec<Instruction *> Function::replaceUsesWithVar(
         // replace RHS with new expression
         auto newAssign = Make<Assignment>(assign->getLHS(),
                                           renameVarInExpression(rhs, oldToNew));
-        inst = inst->replaceWith(std::move(newAssign));
+        newInstructions[inst] = inst->replaceWith(std::move(newAssign));
+        inst = newInstructions[inst];
       } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
         auto newArguments = phi->getRHS();
         for (auto &arg : newArguments) {
@@ -171,21 +172,22 @@ Vec<Instruction *> Function::replaceUsesWithVar(
           arg = oldToNew.at(arg);
         }
         auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-        inst = inst->replaceWith(std::move(newPhi));
+        newInstructions[inst] = inst->replaceWith(std::move(newPhi));
+        inst = newInstructions[inst];
       } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(inst)) {
         auto newReturn = Make<ReturnInst>(
             renameVarInExpression(returnInst->getExpr(), oldToNew));
-        inst = inst->replaceWith(std::move(newReturn));
+        newInstructions[inst] = inst->replaceWith(std::move(newReturn));
+        inst = newInstructions[inst];
       } else if (auto *branchInst = dynamic_cast<const BranchInst *>(inst)) {
         auto newBranch = Make<BranchInst>(
             branchInst->getIfTrue(), branchInst->getIfFalse(),
             renameVarInExpression(branchInst->getCond(), oldToNew));
-        inst = inst->replaceWith(std::move(newBranch));
+        newInstructions[inst] = inst->replaceWith(std::move(newBranch));
+        inst = newInstructions[inst];
       } else {
         ERROR("Unhandled case in Function::replaceUsesWith!");
       }
-
-      newInstructions.push_back(inst);
 
       // add uses for the new instruction
       for (auto *op : inst->getOperands()) {
@@ -199,11 +201,11 @@ Vec<Instruction *> Function::replaceUsesWithVar(
   return newInstructions;
 }
 
-Vec<Instruction *> Function::replaceUsesWithExpr(
+Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
     const Map<const Variable *, const SelectExpression *> &oldToNew,
     const Own<UseDefs> &useDefs) {
 
-  Vec<Instruction *> newInstructions;
+  Map<Instruction *, Instruction *> newInstructions;
   for (auto &[oldVar, newVar] : oldToNew) {
     Set<Instruction *> toReplace;
     for (auto *use : useDefs->getUses(oldVar)) {
@@ -221,21 +223,22 @@ Vec<Instruction *> Function::replaceUsesWithExpr(
         // replace RHS with new expression
         auto newAssign = Make<Assignment>(
             assign->getLHS(), replaceVarWithExpression(rhs, oldToNew));
-        inst = inst->replaceWith(std::move(newAssign));
+        newInstructions[inst] = inst->replaceWith(std::move(newAssign));
+        inst = newInstructions[inst];
       } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(inst)) {
         auto newReturn = Make<ReturnInst>(
             replaceVarWithExpression(returnInst->getExpr(), oldToNew));
-        inst = inst->replaceWith(std::move(newReturn));
+        newInstructions[inst] = inst->replaceWith(std::move(newReturn));
+        inst = inst;
       } else if (auto *branchInst = dynamic_cast<const BranchInst *>(inst)) {
         auto newBranch = Make<BranchInst>(
             branchInst->getIfTrue(), branchInst->getIfFalse(),
             replaceVarWithExpression(branchInst->getCond(), oldToNew));
-        inst = inst->replaceWith(std::move(newBranch));
+        newInstructions[inst] = inst->replaceWith(std::move(newBranch));
+        inst = newInstructions[inst];
       } else {
         ERROR("Unhandled case in Function::replaceUsesWith!");
       }
-
-      newInstructions.push_back(inst);
 
       // add uses for the new instruction
       for (auto *op : inst->getOperands()) {

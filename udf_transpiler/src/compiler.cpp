@@ -9,6 +9,7 @@
 #include "dominator_dataflow.hpp"
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
+#include "expression_propagation.hpp"
 #include "file.hpp"
 #include "fixpoint_pass.hpp"
 #include "function.hpp"
@@ -78,11 +79,15 @@ json Compiler::parseJson() const {
 void Compiler::optimize(Function &f) {
   auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
       Make<MergeBasicBlocksPass>(), Make<CopyPropagationPass>(),
-      Make<DeadCodeEliminationPass>()));
+      Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
+
+  auto cleanupPasses = Make<FixpointPass>(Make<PipelinePass>(
+      Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
+
   auto pipeline = Make<PipelinePass>(
       Make<MergeBasicBlocksPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
-      Make<SSADestructionPass>());
+      std::move(cleanupPasses), Make<SSADestructionPass>());
 
   std::cout << f << std::endl;
   pipeline->runOnFunction(f);
