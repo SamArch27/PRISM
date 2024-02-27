@@ -12,6 +12,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <chrono>
 
 static String filePath(__FILE__); // Get the path of the current source file
 static std::filesystem::path path(filePath);
@@ -193,4 +194,20 @@ void loadUDAF(duckdb::Connection &connection) {
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
+}
+
+void drawGraph(const String &dot) {
+  // create a hidden file in GRAPH_OUTPUT_DIR
+  // the name should be the current time .dot
+  String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + ".dot";
+  std::ofstream out(filename);
+  if (out.fail()) {
+    ERROR("Cannot open the file for writing: " + filename);
+  }
+  out << dot;
+  out.close();
+
+  // run the dot command
+  String cmd = "dot -Tpdf -O " + filename;
+  std::cout << exec(cmd.c_str()) << std::endl;
 }
