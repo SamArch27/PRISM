@@ -6,6 +6,7 @@
 #include "file.hpp"
 #include "utils.hpp"
 #include <array>
+#include <chrono>
 #include <cstdio>
 #include <iostream>
 #include <memory>
@@ -152,19 +153,21 @@ void compileUDAF() {
 
 /**
  * will load the udf*.duckdb_extension file that is last created
-*/
+ */
 void loadUDF(duckdb::Connection &connection) {
   // find the current udfCount
-  String cmd = "cd " + current_dir + "/../build/udfs/extension/udf1/;ls -t | grep -o '^udf.*\\.duckdb_extension$'";
+  String cmd = "cd " + current_dir +
+               "/../build/udfs/extension/udf1/;ls -t | grep -o "
+               "'^udf.*\\.duckdb_extension$'";
   String filename = exec(cmd.c_str());
-  filename = filename.substr(0, filename.find("\n"));                                                           
+  filename = filename.substr(0, filename.find("\n"));
   String install = "install '" + current_dir +
-                        "/../build/udfs/extension/udf1/" 
-                        // + "udf" + std::to_string(udfCount) + ".duckdb_extension'";
-                        + filename + "'";
+                   "/../build/udfs/extension/udf1/"
+                   // + "udf" + std::to_string(udfCount) + ".duckdb_extension'";
+                   + filename + "'";
   String load = "load '" + current_dir + "/../build/udfs/extension/udf1/" +
-                    //  "udf" + std::to_string(udfCount) + ".duckdb_extension'";
-                      filename + "'";
+                //  "udf" + std::to_string(udfCount) + ".duckdb_extension'";
+                filename + "'";
   COUT << "Running: " << install << ENDL;
   auto res = connection.Query(install);
   if (res->HasError()) {
@@ -193,4 +196,19 @@ void loadUDAF(duckdb::Connection &connection) {
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
+}
+
+void drawGraph(const String &dot, String name) {
+  // create a hidden file in GRAPH_OUTPUT_DIR
+  String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + name;
+  std::ofstream out(filename + ".dot");
+  if (out.fail()) {
+    ERROR("Cannot open the file for writing: " + filename);
+  }
+  out << dot;
+  out.close();
+
+  // run the dot command
+  String cmd = "dot -Tpdf " + filename + ".dot > " + filename + ".pdf";
+  std::cout << exec(cmd.c_str()) << std::endl;
 }

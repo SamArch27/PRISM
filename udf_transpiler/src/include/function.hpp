@@ -263,7 +263,7 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  Own<SelectExpression> bindExpression(const String &expr);
+  Own<SelectExpression> bindExpression(const String &expr, bool needContext = true);
 
   Map<Instruction *, Instruction *>
   replaceUsesWithVar(const Map<const Variable *, const Variable *> &oldToNew,
@@ -271,6 +271,20 @@ public:
   Map<Instruction *, Instruction *> replaceUsesWithExpr(
       const Map<const Variable *, const SelectExpression *> &oldToNew,
       const Own<UseDefs> &useDefs);
+
+  String getCFGString(){
+    std::stringstream ss;
+    ss << "digraph cfg {" << std::endl;
+    for (const auto &block : basicBlocks) {
+      ss << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
+      for (auto *succ : block->getSuccessors()) {
+        ss << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
+           << std::endl;
+      }
+    }
+    ss << "}" << std::endl;
+    return ss.str();
+  }
 
 protected:
   void print(std::ostream &os) const {
