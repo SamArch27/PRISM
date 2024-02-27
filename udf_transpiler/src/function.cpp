@@ -27,6 +27,11 @@ void Function::makeDuckDBContext() {
     insertTableString << "(NULL) ";
     insertTableSecondRow << type.getDefaultValue(true);
   }
+  if(bindings.empty()){
+    createTableString << "dummy INT";
+    insertTableString << "(NULL)";
+    insertTableSecondRow << "0";
+  }
   createTableString << ");";
   insertTableString << "),";
   insertTableSecondRow << ");";
@@ -82,14 +87,19 @@ Own<SelectExpression> Function::replaceVarWithExpression(
   return bindExpression(replacedText)->clone();
 }
 
-Own<SelectExpression> Function::bindExpression(const String &expr) {
-  destroyDuckDBContext();
-  makeDuckDBContext();
-
+Own<SelectExpression> Function::bindExpression(const String &expr, bool needContext) {
+  if(needContext){
+    destroyDuckDBContext();
+    makeDuckDBContext();
+  }
+  
   String selectExpressionCommand;
   if (toUpper(expr).find("SELECT") == String::npos)
-    selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
-  else {
+    if(needContext)
+      selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
+    else
+      selectExpressionCommand = "SELECT " + expr;
+  else if (needContext){
     // insert tmp to the from clause
     auto fromPos = expr.find(" FROM ");
     selectExpressionCommand = expr;
