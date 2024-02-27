@@ -209,6 +209,6 @@ void drawGraph(const String &dot, String name) {
   out.close();
 
   // run the dot command
-  String cmd = "dot -Tpdf " + filename + ".dot > " + filename + ".pdf";
+  String cmd = "dot -Tpdf -O " + filename;
   std::cout << exec(cmd.c_str()) << std::endl;
 }

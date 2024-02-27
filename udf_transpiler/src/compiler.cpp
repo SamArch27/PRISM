@@ -90,7 +90,10 @@ void Compiler::optimize(Function &f) {
 
   // std::cout << f << std::endl;
   drawGraph(f.getCFGString(), "begin");
+  // drawGraph(f.getRegionString(), "region");
+
   pipeline->runOnFunction(f);
+
   // std::cout << f << std::endl;
   drawGraph(f.getCFGString(), "end");
 }

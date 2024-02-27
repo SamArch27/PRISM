@@ -19,6 +19,8 @@ struct Continuations {
 using StringPair = Pair<String, String>;
 using WidthScale = Pair<int, int>;
 
+class Region;
+
 class AstToCFG {
 public:
   AstToCFG(duckdb::Connection *conn, const String &programText)
@@ -33,47 +35,47 @@ private:
   void buildCursorLoopCFG(Function &function, const json &ast);
   void buildCFG(Function &function, const json &ast);
 
-  BasicBlock *constructAssignmentCFG(const json &assignment, Function &function,
+  Own<Region> constructAssignmentCFG(const json &assignment, Function &function,
                                      List<json> &statements,
                                      const Continuations &continuations);
 
-  BasicBlock *constructReturnCFG(const json &returnJson, Function &function,
+  Own<Region> constructReturnCFG(const json &returnJson, Function &function,
                                  List<json> &statements,
                                  const Continuations &continuations);
 
-  BasicBlock *constructIfCFG(const json &ifJson, Function &function,
+  Own<Region> constructIfCFG(const json &ifJson, Function &function,
                              List<json> &statements,
                              const Continuations &continuations);
 
-  BasicBlock *constructIfElseCFG(const json &ifElseJson, Function &function,
+  Own<Region> constructIfElseCFG(const json &ifElseJson, Function &function,
                                  List<json> &statements,
                                  const Continuations &continuations);
 
-  BasicBlock *constructIfElseIfCFG(const json &ifElseIfJson, Function &function,
+  Own<Region> constructIfElseIfCFG(const json &ifElseIfJson, Function &function,
                                    List<json> &statements,
                                    const Continuations &continuations);
 
-  BasicBlock *constructWhileCFG(const json &whileJson, Function &function,
+  Own<Region> constructWhileCFG(const json &whileJson, Function &function,
                                 List<json> &statements,
                                 const Continuations &continuations);
 
-  BasicBlock *constructLoopCFG(const json &loopJson, Function &function,
+  Own<Region> constructLoopCFG(const json &loopJson, Function &function,
                                List<json> &statements,
                                const Continuations &continuations);
 
-  BasicBlock *constructForLoopCFG(const json &forJson, Function &function,
+  Own<Region> constructForLoopCFG(const json &forJson, Function &function,
                                   List<json> &statements,
                                   const Continuations &continuations);
 
-  BasicBlock *constructExitCFG(const json &exitJson, Function &function,
+  Own<Region> constructExitCFG(const json &exitJson, Function &function,
                                List<json> &statements,
                                const Continuations &continuations);
 
-  BasicBlock *constructCursorLoopCFG(const json &cursorLoopJson,
+  Own<Region> constructCursorLoopCFG(const json &cursorLoopJson,
                                      Function &function, List<json> &statements,
                                      const Continuations &continuations);
 
-  BasicBlock *constructCFG(Function &function, List<json> &statements,
+  Own<Region> constructCFG(Function &function, List<json> &statements,
                            const Continuations &continuations);
 
   json parseJson() const;

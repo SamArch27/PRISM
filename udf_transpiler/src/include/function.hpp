@@ -2,6 +2,7 @@
 
 #include "basic_block.hpp"
 #include "instructions.hpp"
+#include "region.hpp"
 #include "use_def.hpp"
 #include "utils.hpp"
 
@@ -157,6 +158,9 @@ public:
     return label;
   }
 
+  void setRegion(Own<Region> region) { functionRegion = std::move(region); }
+  Region *getRegion() const { return functionRegion.get(); }
+
   void addArgument(const String &name, Type type) {
     auto cleanedName = getCleanedVariableName(name);
     auto var = Make<Variable>(cleanedName, type);
@@ -263,7 +267,8 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  Own<SelectExpression> bindExpression(const String &expr, bool needContext = true);
+  Own<SelectExpression> bindExpression(const String &expr,
+                                       bool needContext = true);
 
   Map<Instruction *, Instruction *>
   replaceUsesWithVar(const Map<const Variable *, const Variable *> &oldToNew,
@@ -272,7 +277,7 @@ public:
       const Map<const Variable *, const SelectExpression *> &oldToNew,
       const Own<UseDefs> &useDefs);
 
-  String getCFGString(){
+  String getCFGString() const {
     std::stringstream ss;
     ss << "digraph cfg {" << std::endl;
     for (const auto &block : basicBlocks) {
@@ -282,6 +287,14 @@ public:
            << std::endl;
       }
     }
+    ss << "}" << std::endl;
+    return ss.str();
+  }
+
+  String getRegionString() const {
+    std::stringstream ss;
+    ss << "digraph region {";
+    ss << *functionRegion << std::endl;
     ss << "}" << std::endl;
     return ss.str();
   }
@@ -304,16 +317,10 @@ protected:
     }
 
     os << "Control Flow Graph: \n" << std::endl;
+    os << getCFGString() << std::endl;
 
-    os << "digraph cfg {" << std::endl;
-    for (const auto &block : basicBlocks) {
-      os << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
-      for (auto *succ : block->getSuccessors()) {
-        os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
-           << std::endl;
-      }
-    }
-    os << "}" << std::endl;
+    // os << "Regions: \n" << std::endl;
+    // os << getRegionString() << std::endl;
   }
 
 private:
@@ -341,4 +348,5 @@ private:
   Map<String, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
   Map<String, BasicBlock *> labelToBasicBlock;
+  Own<Region> functionRegion;
 };

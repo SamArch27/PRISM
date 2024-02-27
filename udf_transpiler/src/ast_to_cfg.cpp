@@ -1,4 +1,5 @@
 #include "ast_to_cfg.hpp"
+#include "region.hpp"
 #include "utils.hpp"
 #include <regex>
 
@@ -86,58 +87,89 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
 
   // Finally, jump to the "declare" block from the "entry" BasicBlock
   auto initialContinuations = Continuations(nullptr, nullptr, nullptr);
-  declareBlock->addInstruction(
-      Make<BranchInst>(constructCFG(f, statements, initialContinuations)));
+
+  // Build the CFG as a hierarchy of regions
+  auto bodyRegion = constructCFG(f, statements, initialContinuations);
+
+  // Link the declare block to the returned result
+  declareBlock->addInstruction(Make<BranchInst>(bodyRegion->getHeader()));
+
+  // Create a SequentialRegion containing declare and body
+  auto declareBody =
+      Make<SequentialRegion>(declareBlock, std::move(bodyRegion));
+
+  // Create a SequentialRegion containing the entire function
+  auto functionRegion =
+      Make<SequentialRegion>(entryBlock, std::move(declareBody));
+
+  // Set this region for the function
+  f.setRegion(std::move(functionRegion));
+
+  std::cout << "FINISHED CONSTRUCTING FUNCTION!" << std::endl;
+  std::cout << f << std::endl;
 }
 
-BasicBlock *AstToCFG::constructCFG(Function &f, List<json> &statements,
+Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
                                    const Continuations &continuations) {
   if (statements.empty()) {
-    return continuations.fallthrough;
+    // TODO: Investigate whether this is a valid assumption
+    return Make<SequentialRegion>(continuations.fallthrough,
+                                  Make<EmptyRegion>());
+    // return continuations.fallthrough;
   }
 
   auto statement = statements.front();
   statements.pop_front();
 
   if (statement.contains("PLpgSQL_stmt_assign")) {
+    std::cout << "constructAssignmentCFG" << std::endl;
     return constructAssignmentCFG(statement["PLpgSQL_stmt_assign"], f,
                                   statements, continuations);
   }
   if (statement.contains("PLpgSQL_stmt_return")) {
+    std::cout << "constructReturnCFG" << std::endl;
     return constructReturnCFG(statement["PLpgSQL_stmt_return"], f, statements,
                               continuations);
   }
   if (statement.contains("PLpgSQL_stmt_if")) {
+    std::cout << "constructIfCFG" << std::endl;
     return constructIfCFG(statement["PLpgSQL_stmt_if"], f, statements,
                           continuations);
   }
   if (statement.contains("PLpgSQL_if_else")) {
+    std::cout << "constructIfElseCFG" << std::endl;
     return constructIfElseCFG(statement["PLpgSQL_if_else"], f, statements,
                               continuations);
   }
   if (statement.contains("PLpgSQL_if_elsif")) {
+    std::cout << "constructIfElseIfCFG" << std::endl;
     return constructIfElseIfCFG(statement["PLpgSQL_if_elsif"], f, statements,
                                 continuations);
   }
   if (statement.contains("PLpgSQL_stmt_while")) {
+    std::cout << "constructWhileCFG" << std::endl;
     return constructWhileCFG(statement["PLpgSQL_stmt_while"], f, statements,
                              continuations);
   }
   if (statement.contains("PLpgSQL_stmt_loop")) {
+    std::cout << "constructLoopCFG" << std::endl;
     return constructLoopCFG(statement["PLpgSQL_stmt_loop"], f, statements,
                             continuations);
   }
   if (statement.contains("PLpgSQL_stmt_fori")) {
+    std::cout << "constructForLoopCFG" << std::endl;
     return constructForLoopCFG(statement["PLpgSQL_stmt_fori"], f, statements,
                                continuations);
   }
 
   if (statement.contains("PLpgSQL_stmt_exit")) {
+    std::cout << "constructExitCFG" << std::endl;
     return constructExitCFG(statement["PLpgSQL_stmt_exit"], f, statements,
                             continuations);
   }
 
   if (statement.contains("PLpgSQL_stmt_fors")) {
+    std::cout << "constructCursorLoopCFG" << std::endl;
     return constructCursorLoopCFG(statement["PLpgSQL_stmt_fors"], f, statements,
                                   continuations);
   }
@@ -147,7 +179,7 @@ BasicBlock *AstToCFG::constructCFG(Function &f, List<json> &statements,
   return nullptr;
 }
 
-BasicBlock *
+Own<Region>
 AstToCFG::constructAssignmentCFG(const json &assignmentJson, Function &f,
                                  List<json> &statements,
                                  const Continuations &continuations) {
@@ -159,19 +191,23 @@ AstToCFG::constructAssignmentCFG(const json &assignmentJson, Function &f,
 
   bool isSQLExpression = expr->isSQLExpression();
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
-  newBlock->addInstruction(
-      Make<BranchInst>(constructCFG(f, statements, continuations)));
-  if (isSQLExpression) {
-    // add a pre-header
-    auto preHeader = f.makeBasicBlock();
-    preHeader->addInstruction(Make<BranchInst>(newBlock));
-    return preHeader;
-  } else {
-    return newBlock;
+
+  auto nestedRegion = constructCFG(f, statements, continuations);
+  newBlock->addInstruction(Make<BranchInst>(nestedRegion->getHeader()));
+
+  auto assignmentRegion =
+      Make<SequentialRegion>(newBlock, std::move(nestedRegion));
+  if (!isSQLExpression) {
+    return assignmentRegion;
   }
+
+  // add a pre-header
+  auto preHeader = f.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
+  return Make<SequentialRegion>(preHeader, std::move(assignmentRegion));
 }
 
-BasicBlock *AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
+Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
                                          List<json> &statements,
                                          const Continuations &continuations) {
   if (!returnJson.contains("expr")) {
@@ -182,21 +218,22 @@ BasicBlock *AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
   auto newBlock = f.makeBasicBlock();
   String ret = getJsonExpr(returnJson["expr"]);
   newBlock->addInstruction(Make<ReturnInst>(f.bindExpression(ret)));
-  return newBlock;
+  return Make<SequentialRegion>(newBlock, Make<EmptyRegion>());
 }
 
-BasicBlock *AstToCFG::constructIfCFG(const json &ifJson, Function &f,
+Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
                                      List<json> &statements,
                                      const Continuations &continuations) {
   auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(ifJson["cond"]);
   auto cond = f.bindExpression(condString);
-  auto *afterIfBlock = constructCFG(f, statements, continuations);
+  auto afterIfRegion = constructCFG(f, statements, continuations);
   auto thenStatements = getJsonList(ifJson["then_body"]);
 
-  auto newContinuations = Continuations(afterIfBlock, continuations.fallthrough,
-                                        continuations.loopExit);
-  auto *thenBlock = constructCFG(f, thenStatements, newContinuations);
+  auto newContinuations =
+      Continuations(afterIfRegion->getHeader(), continuations.fallthrough,
+                    continuations.loopExit);
+  auto ifRegion = constructCFG(f, thenStatements, newContinuations);
 
   List<json> elseIfStatements;
   if (ifJson.contains("elsif_list")) {
@@ -210,82 +247,99 @@ BasicBlock *AstToCFG::constructIfCFG(const json &ifJson, Function &f,
     elseIfStatements.push_back(j);
   }
 
+  auto elseRegion = constructCFG(f, elseIfStatements, newContinuations);
   newBlock->addInstruction(Make<BranchInst>(
-      thenBlock, constructCFG(f, elseIfStatements, newContinuations),
-      std::move(cond)));
+      ifRegion->getHeader(), elseRegion->getHeader(), std::move(cond)));
 
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return preHeader;
+  return Make<SequentialRegion>(preHeader,
+                                Make<ConditionalRegion>(newBlock,
+                                                        std::move(ifRegion),
+                                                        std::move(elseRegion)),
+                                std::move(afterIfRegion));
 }
 
-BasicBlock *AstToCFG::constructIfElseCFG(const json &ifElseJson, Function &f,
+Own<Region> AstToCFG::constructIfElseCFG(const json &ifElseJson, Function &f,
                                          List<json> &statements,
                                          const Continuations &continuations) {
+  // TODO: Understand wtf is going on here
   auto newBlock = f.makeBasicBlock();
   auto thenStatements = getJsonList(ifElseJson);
-  auto *thenBlock = constructCFG(f, thenStatements, continuations);
-  newBlock->addInstruction(Make<BranchInst>(thenBlock));
+  auto ifRegion = constructCFG(f, thenStatements, continuations);
+  newBlock->addInstruction(Make<BranchInst>(ifRegion->getHeader()));
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return preHeader;
+  return Make<SequentialRegion>(
+      preHeader, Make<SequentialRegion>(newBlock, std::move(ifRegion)));
 }
 
-BasicBlock *AstToCFG::constructIfElseIfCFG(const json &ifElseIfJson,
+Own<Region> AstToCFG::constructIfElseIfCFG(const json &ifElseIfJson,
                                            Function &f, List<json> &statements,
                                            const Continuations &continuations) {
+  // TODO: Understand wtf is going on here
   auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(ifElseIfJson["cond"]);
   auto cond = f.bindExpression(condString);
   auto thenStatements = getJsonList(ifElseIfJson["stmts"]);
-  auto *thenBlock = constructCFG(f, thenStatements, continuations);
+  auto ifRegion = constructCFG(f, thenStatements, continuations);
+  auto fallthroughRegion = constructCFG(f, statements, continuations);
   newBlock->addInstruction(Make<BranchInst>(
-      thenBlock, constructCFG(f, statements, continuations), std::move(cond)));
+      ifRegion->getHeader(), fallthroughRegion->getHeader(), std::move(cond)));
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return preHeader;
+  return Make<SequentialRegion>(
+      preHeader, Make<ConditionalRegion>(newBlock, std::move(ifRegion)),
+      std::move(fallthroughRegion));
 }
 
-BasicBlock *AstToCFG::constructWhileCFG(const json &whileJson, Function &f,
+Own<Region> AstToCFG::constructWhileCFG(const json &whileJson, Function &f,
                                         List<json> &statements,
                                         const Continuations &continuations) {
   auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(whileJson["cond"]);
   auto cond = f.bindExpression(condString);
 
-  auto *afterLoopBlock = constructCFG(f, statements, continuations);
+  auto afterLoopRegion = constructCFG(f, statements, continuations);
   auto bodyStatements = getJsonList(whileJson["body"]);
 
-  auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock);
-  auto *bodyBlock = constructCFG(f, bodyStatements, newContinuations);
+  auto newContinuations =
+      Continuations(newBlock, newBlock, afterLoopRegion->getHeader());
+  auto bodyRegion = constructCFG(f, bodyStatements, newContinuations);
 
   // create a block for the condition
   auto condBlock = f.makeBasicBlock();
-  condBlock->addInstruction(
-      Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
+  condBlock->addInstruction(Make<BranchInst>(
+      bodyRegion->getHeader(), afterLoopRegion->getHeader(), std::move(cond)));
   // the block jumps immediately to the cond block
   newBlock->addInstruction(Make<BranchInst>(condBlock));
 
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return preHeader;
+  return Make<SequentialRegion>(
+      preHeader,
+      Make<LoopRegion>(
+          newBlock, Make<ConditionalRegion>(condBlock, std::move(bodyRegion))),
+      std::move(afterLoopRegion));
 }
 
-BasicBlock *AstToCFG::constructLoopCFG(const json &loopJson, Function &f,
+Own<Region> AstToCFG::constructLoopCFG(const json &loopJson, Function &f,
                                        List<json> &statements,
                                        const Continuations &continuations) {
   auto newBlock = f.makeBasicBlock();
-  auto *afterLoopBlock = constructCFG(f, statements, continuations);
+  auto afterLoopRegion = constructCFG(f, statements, continuations);
   auto bodyStatements = getJsonList(loopJson["body"]);
-  auto newContinuations = Continuations(newBlock, newBlock, afterLoopBlock);
-  auto *bodyBlock = constructCFG(f, bodyStatements, newContinuations);
-  newBlock->addInstruction(Make<BranchInst>(bodyBlock));
+  auto newContinuations =
+      Continuations(newBlock, newBlock, afterLoopRegion->getHeader());
+  auto bodyRegion = constructCFG(f, bodyStatements, newContinuations);
+  newBlock->addInstruction(Make<BranchInst>(bodyRegion->getHeader()));
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return preHeader;
+  return Make<SequentialRegion>(
+      preHeader, Make<LoopRegion>(newBlock, std::move(bodyRegion)));
 }
 
-BasicBlock *AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
+Own<Region> AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
                                           List<json> &statements,
                                           const Continuations &continuations) {
   auto newBlock = f.makeBasicBlock();
@@ -325,16 +379,17 @@ BasicBlock *AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
   String condString =
       fmt::format("{} {} {}", left, (reverse ? " > " : " < "), upperString);
   auto cond = f.bindExpression(condString);
-  auto *afterLoopBlock = constructCFG(f, statements, continuations);
+  auto afterLoopRegion = constructCFG(f, statements, continuations);
   auto bodyStatements = getJsonList(bodyJson);
 
-  auto newContinuations = Continuations(latchBlock, latchBlock, afterLoopBlock);
-  auto *bodyBlock = constructCFG(f, bodyStatements, newContinuations);
+  auto newContinuations =
+      Continuations(latchBlock, latchBlock, afterLoopRegion->getHeader());
+  auto bodyRegion = constructCFG(f, bodyStatements, newContinuations);
 
   // create a block for the condition
   auto condBlock = f.makeBasicBlock();
-  condBlock->addInstruction(
-      Make<BranchInst>(bodyBlock, afterLoopBlock, std::move(cond)));
+  condBlock->addInstruction(Make<BranchInst>(
+      bodyRegion->getHeader(), afterLoopRegion->getHeader(), std::move(cond)));
   // the block jumps immediately to the cond block
   headerBlock->addInstruction(Make<BranchInst>(condBlock));
 
@@ -343,43 +398,41 @@ BasicBlock *AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
 
   // Unconditional from newBlock to header block
   newBlock->addInstruction(Make<BranchInst>(headerBlock));
-  return newBlock;
+
+  // TODO: Assume that the latch block isn't part of any region
+  return Make<SequentialRegion>(
+      newBlock,
+      Make<LoopRegion>(headerBlock, Make<ConditionalRegion>(
+                                        condBlock, std::move(bodyRegion))),
+      std::move(afterLoopRegion));
 }
 
-BasicBlock *AstToCFG::constructExitCFG(const json &exitJson, Function &f,
+Own<Region> AstToCFG::constructExitCFG(const json &exitJson, Function &f,
                                        List<json> &statements,
                                        const Continuations &continuations) {
   auto newBlock = f.makeBasicBlock();
+
   // continue
   if (!exitJson.contains("is_exit")) {
     newBlock->addInstruction(Make<BranchInst>(continuations.loopHeader));
-    return newBlock;
+    return Make<SequentialRegion>(newBlock, Make<EmptyRegion>());
   } else {
     newBlock->addInstruction(Make<BranchInst>(continuations.loopExit));
-    return newBlock;
+    return Make<SequentialRegion>(newBlock, Make<EmptyRegion>());
   }
 }
 
-BasicBlock *
+Own<Region>
 AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson, Function &f,
                                  List<json> &statements,
                                  const Continuations &continuations) {
   ERROR("Cursor loops are not currently supported.");
-  auto newBlock = f.makeBasicBlock();
-  return newBlock;
+  return Make<EmptyRegion>();
 }
 
 void AstToCFG::buildCursorLoopCFG(Function &f, const json &ast) {
-  const auto &body = ast["body"];
-  auto *entryBlock = f.makeBasicBlock("entry");
-
-  // Get the statements from the body
-  auto statements = getJsonList(body);
-
-  // Connect "entry" block to initial block
-  auto initialContinuations = Continuations(nullptr, nullptr, nullptr);
-  entryBlock->addInstruction(
-      Make<BranchInst>(constructCFG(f, statements, initialContinuations)));
+  ERROR("Cursor loops are not currently supported.");
+  return;
 }
 
 StringPair AstToCFG::unpackAssignment(const String &assignment) {
