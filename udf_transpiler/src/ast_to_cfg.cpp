@@ -104,9 +104,8 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
 
   // Set this region for the function
   f.setRegion(std::move(functionRegion));
-
-  std::cout << "FINISHED CONSTRUCTING FUNCTION!" << std::endl;
   std::cout << f << std::endl;
+  std::cout << f.getRegionString() << std::endl;
 }
 
 Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
@@ -122,54 +121,44 @@ Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
   statements.pop_front();
 
   if (statement.contains("PLpgSQL_stmt_assign")) {
-    std::cout << "constructAssignmentCFG" << std::endl;
     return constructAssignmentCFG(statement["PLpgSQL_stmt_assign"], f,
                                   statements, continuations);
   }
   if (statement.contains("PLpgSQL_stmt_return")) {
-    std::cout << "constructReturnCFG" << std::endl;
     return constructReturnCFG(statement["PLpgSQL_stmt_return"], f, statements,
                               continuations);
   }
   if (statement.contains("PLpgSQL_stmt_if")) {
-    std::cout << "constructIfCFG" << std::endl;
     return constructIfCFG(statement["PLpgSQL_stmt_if"], f, statements,
                           continuations);
   }
   if (statement.contains("PLpgSQL_if_else")) {
-    std::cout << "constructIfElseCFG" << std::endl;
     return constructIfElseCFG(statement["PLpgSQL_if_else"], f, statements,
                               continuations);
   }
   if (statement.contains("PLpgSQL_if_elsif")) {
-    std::cout << "constructIfElseIfCFG" << std::endl;
     return constructIfElseIfCFG(statement["PLpgSQL_if_elsif"], f, statements,
                                 continuations);
   }
   if (statement.contains("PLpgSQL_stmt_while")) {
-    std::cout << "constructWhileCFG" << std::endl;
     return constructWhileCFG(statement["PLpgSQL_stmt_while"], f, statements,
                              continuations);
   }
   if (statement.contains("PLpgSQL_stmt_loop")) {
-    std::cout << "constructLoopCFG" << std::endl;
     return constructLoopCFG(statement["PLpgSQL_stmt_loop"], f, statements,
                             continuations);
   }
   if (statement.contains("PLpgSQL_stmt_fori")) {
-    std::cout << "constructForLoopCFG" << std::endl;
     return constructForLoopCFG(statement["PLpgSQL_stmt_fori"], f, statements,
                                continuations);
   }
 
   if (statement.contains("PLpgSQL_stmt_exit")) {
-    std::cout << "constructExitCFG" << std::endl;
     return constructExitCFG(statement["PLpgSQL_stmt_exit"], f, statements,
                             continuations);
   }
 
   if (statement.contains("PLpgSQL_stmt_fors")) {
-    std::cout << "constructCursorLoopCFG" << std::endl;
     return constructCursorLoopCFG(statement["PLpgSQL_stmt_fors"], f, statements,
                                   continuations);
   }

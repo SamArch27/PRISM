@@ -89,13 +89,13 @@ void Compiler::optimize(Function &f) {
       Make<SSADestructionPass>());
 
   // std::cout << f << std::endl;
-  drawGraph(f.getCFGString(), "begin");
+  // drawGraph(f.getCFGString(), "begin");
   // drawGraph(f.getRegionString(), "region");
 
   pipeline->runOnFunction(f);
 
   // std::cout << f << std::endl;
-  drawGraph(f.getCFGString(), "end");
+  // drawGraph(f.getCFGString(), "end");
 }
 
 /**

@@ -4,8 +4,6 @@
 
 bool MergeBasicBlocksPass::runOnFunction(Function &f) {
 
-  std::cout << "Running mergeBasicBlocks!" << std::endl;
-
   bool changed = false;
 
   // visit the CFG in a BFS fashion, merging blocks as we go

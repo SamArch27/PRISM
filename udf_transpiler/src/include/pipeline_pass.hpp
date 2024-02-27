@@ -18,7 +18,6 @@ public:
   bool runOnFunction(Function &f) override {
     bool changed = false;
     for (auto &pass : pipeline) {
-      std::cout << "Running pass: " << pass->getPassName() << std::endl;
       changed |= pass->runOnFunction(f);
     }
     return changed;

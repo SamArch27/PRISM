@@ -6,9 +6,6 @@
 bool ExpressionPropagationPass::runOnFunction(Function &f) {
   bool changed = false;
 
-  std::cout << "Printing before disaster" << std::endl;
-  std::cout << f << std::endl;
-
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
   auto &useDefs = useDefAnalysis.getUseDefs();
