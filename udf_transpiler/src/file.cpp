@@ -6,13 +6,13 @@
 #include "file.hpp"
 #include "utils.hpp"
 #include <array>
+#include <chrono>
 #include <cstdio>
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <chrono>
 
 static String filePath(__FILE__); // Get the path of the current source file
 static std::filesystem::path path(filePath);
@@ -153,19 +153,21 @@ void compileUDAF() {
 
 /**
  * will load the udf*.duckdb_extension file that is last created
-*/
+ */
 void loadUDF(duckdb::Connection &connection) {
   // find the current udfCount
-  String cmd = "cd " + current_dir + "/../build/udfs/extension/udf1/;ls -t | grep -o '^udf.*\\.duckdb_extension$'";
+  String cmd = "cd " + current_dir +
+               "/../build/udfs/extension/udf1/;ls -t | grep -o "
+               "'^udf.*\\.duckdb_extension$'";
   String filename = exec(cmd.c_str());
-  filename = filename.substr(0, filename.find("\n"));                                                           
+  filename = filename.substr(0, filename.find("\n"));
   String install = "install '" + current_dir +
-                        "/../build/udfs/extension/udf1/" 
-                        // + "udf" + std::to_string(udfCount) + ".duckdb_extension'";
-                        + filename + "'";
+                   "/../build/udfs/extension/udf1/"
+                   // + "udf" + std::to_string(udfCount) + ".duckdb_extension'";
+                   + filename + "'";
   String load = "load '" + current_dir + "/../build/udfs/extension/udf1/" +
-                    //  "udf" + std::to_string(udfCount) + ".duckdb_extension'";
-                      filename + "'";
+                //  "udf" + std::to_string(udfCount) + ".duckdb_extension'";
+                filename + "'";
   COUT << "Running: " << install << ENDL;
   auto res = connection.Query(install);
   if (res->HasError()) {
@@ -196,11 +198,10 @@ void loadUDAF(duckdb::Connection &connection) {
   }
 }
 
-void drawGraph(const String &dot) {
+void drawGraph(const String &dot, String name) {
   // create a hidden file in GRAPH_OUTPUT_DIR
-  // the name should be the current time .dot
-  String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + ".dot";
-  std::ofstream out(filename);
+  String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + name;
+  std::ofstream out(filename + ".dot");
   if (out.fail()) {
     ERROR("Cannot open the file for writing: " + filename);
   }
@@ -208,6 +209,6 @@ void drawGraph(const String &dot) {
   out.close();
 
   // run the dot command
-  String cmd = "dot -Tpdf -O " + filename;
+  String cmd = "dot -Tpdf " + filename + ".dot > " + filename + ".pdf";
   std::cout << exec(cmd.c_str()) << std::endl;
 }

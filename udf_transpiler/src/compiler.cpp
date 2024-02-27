@@ -81,19 +81,18 @@ void Compiler::optimize(Function &f) {
       Make<MergeBasicBlocksPass>(), Make<CopyPropagationPass>(),
       Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
 
-  auto cleanupPasses = Make<FixpointPass>(Make<PipelinePass>(
-      Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
+  // TODO: Add cleanup to the BreakPhiInterferencePass to eliminate copies
 
   auto pipeline = Make<PipelinePass>(
       Make<MergeBasicBlocksPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
-      std::move(cleanupPasses), Make<SSADestructionPass>());
+      Make<SSADestructionPass>());
 
   // std::cout << f << std::endl;
-  drawGraph(f.getCFGString());
+  drawGraph(f.getCFGString(), "begin");
   pipeline->runOnFunction(f);
   // std::cout << f << std::endl;
-  drawGraph(f.getCFGString());
+  drawGraph(f.getCFGString(), "end");
 }
 
 /**

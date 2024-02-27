@@ -1,9 +1,13 @@
 #include "expression_propagation.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
+#include <iostream>
 
 bool ExpressionPropagationPass::runOnFunction(Function &f) {
   bool changed = false;
+
+  std::cout << "Printing before disaster" << std::endl;
+  std::cout << f << std::endl;
 
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
