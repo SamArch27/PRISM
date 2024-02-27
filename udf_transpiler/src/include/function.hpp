@@ -153,7 +153,7 @@ public:
   }
 
   String getNextLabel() {
-    auto label = String("L") + std::to_string(labelNumber);
+    auto label = String("B") + std::to_string(labelNumber);
     ++labelNumber;
     return label;
   }
