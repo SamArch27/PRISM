@@ -185,7 +185,7 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &f) {
       fmt::runtime(config.function["fbodyshell"].Scalar()),
       fmt::arg("function_name", f.getFunctionName()),
       fmt::arg("fbody_args", fbody_args),
-      fmt::arg("check_null", joinVector(check_null, " or ")),
+      fmt::arg("check_null", check_null.empty() ? "false" : joinVector(check_null, " or ")),
       fmt::arg("vars_init", vars_init),
       fmt::arg("action", joinVector(container.basicBlockCodes, "\n")));
 
