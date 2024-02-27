@@ -98,11 +98,11 @@ Own<SelectExpression> Function::bindExpression(const String &expr) {
   auto clientContext = conn->context.get();
   clientContext->config.enable_optimizer = true;
   auto &config = duckdb::DBConfig::GetConfig(*clientContext);
-  std::set<duckdb::OptimizerType> disable_optimizers_should_delete;
+  std::set<duckdb::OptimizerType> flagsShouldDelete;
 
   if (config.options.disabled_optimizers.count(
           duckdb::OptimizerType::STATISTICS_PROPAGATION) == 0)
-    disable_optimizers_should_delete.insert(
+    flagsShouldDelete.insert(
         duckdb::OptimizerType::STATISTICS_PROPAGATION);
   config.options.disabled_optimizers.insert(
       duckdb::OptimizerType::STATISTICS_PROPAGATION);
@@ -114,11 +114,11 @@ Own<SelectExpression> Function::bindExpression(const String &expr) {
     boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
                                                  plannerBinder);
 
-    for (auto &type : disable_optimizers_should_delete) {
+    for (auto &type : flagsShouldDelete) {
       config.options.disabled_optimizers.erase(type);
     }
   } catch (const std::exception &e) {
-    for (auto &type : disable_optimizers_should_delete) {
+    for (auto &type : flagsShouldDelete) {
       config.options.disabled_optimizers.erase(type);
     }
 
@@ -131,7 +131,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr) {
 
   // for each used variable, bind it to a Variable*
   Vec<const Variable *> usedVariables;
-  for (const auto &varName : usedVariableFinder.usedVariables) {
+  for (const auto &varName : usedVariableFinder.getUsedVariables()) {
     usedVariables.push_back(getBinding(varName));
   }
 

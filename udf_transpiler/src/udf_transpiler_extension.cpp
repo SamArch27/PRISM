@@ -139,12 +139,12 @@ inline String LOCodeGenPragmaFun(ClientContext &_context,
   context->config.enable_optimizer = enable_optimizer;
   // if(enable_optimizer) context->config.disableStatisticsPropagation = true;
   auto &config = DBConfig::GetConfig(*context);
-  std::set<OptimizerType> disable_optimizers_should_delete;
+  std::set<OptimizerType> flagsShouldDelete;
 
   if (enable_optimizer) {
     if (config.options.disabled_optimizers.count(
             OptimizerType::STATISTICS_PROPAGATION) == 0)
-      disable_optimizers_should_delete.insert(
+      flagsShouldDelete.insert(
           OptimizerType::STATISTICS_PROPAGATION);
     config.options.disabled_optimizers.insert(
         OptimizerType::STATISTICS_PROPAGATION);
@@ -153,11 +153,11 @@ inline String LOCodeGenPragmaFun(ClientContext &_context,
   try {
     auto plan = context->ExtractPlan(sql);
     locg.VisitOperator(*plan);
-    for (auto &type : disable_optimizers_should_delete) {
+    for (auto &type : flagsShouldDelete) {
       config.options.disabled_optimizers.erase(type);
     }
   } catch (Exception &e) {
-    for (auto &type : disable_optimizers_should_delete) {
+    for (auto &type : flagsShouldDelete) {
       config.options.disabled_optimizers.erase(type);
     }
     EXCEPTION(e.what());

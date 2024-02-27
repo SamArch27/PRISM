@@ -120,16 +120,16 @@ void DataflowFramework<T, forward>::runBackwards() {
     auto prevInst = lastInst;
 
     // iterate the remaining instructions
-    for (auto &inst : reverse(*basicBlock)) {
-      auto *currentInst = &inst;
-      if (currentInst == lastInst) {
-        continue;
-      }
-      results[currentInst].in = transfer(results[currentInst].out, currentInst);
-      results[currentInst].out = results[prevInst].in;
+    // for (auto &inst : reverse(*basicBlock)) {
+    //   auto *currentInst = &inst;
+    //   if (currentInst == lastInst) {
+    //     continue;
+    //   }
+    //   results[currentInst].in = transfer(results[currentInst].out, currentInst);
+    //   results[currentInst].out = results[prevInst].in;
 
-      prevInst = currentInst;
-    }
+    //   prevInst = currentInst;
+    // }
 
     if (results[basicBlock->getInitiator()].in != oldIn) {
       for (auto *pred : basicBlock->getPredecessors()) {

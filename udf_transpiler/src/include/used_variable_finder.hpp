@@ -8,14 +8,14 @@ public:
   UsedVariableFinder(String _targetTableName,
                      std::shared_ptr<Binder> _plannerBinder)
       : targetTableName(_targetTableName), plannerBinder(_plannerBinder) {}
-
-public:
+      
   //! Update each operator of the plan
   void VisitOperator(LogicalOperator &op) override;
   //! Visit an expression and update its column bindings
   void VisitExpression(unique_ptr<Expression> *expression) override;
+  Vec<String> getUsedVariables() { return usedVariables; }
 
-public:
+private:
   String targetTableName;
   Vec<String> usedVariables;
   std::shared_ptr<Binder> plannerBinder;
