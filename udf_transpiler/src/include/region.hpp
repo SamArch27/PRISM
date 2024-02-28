@@ -48,18 +48,19 @@ protected:
 // A SequentialRegion has a header and a nested region
 class SequentialRegion : public Region {
 public:
-  SequentialRegion(BasicBlock *header, VecOwn<Region> inputRegions)
-      : Region(header), nestedRegions(std::move(inputRegions)) {
-    for (std::size_t i = 0; i < nestedRegions.size(); i++) {
-      nestedRegions[i]->setParent(this);
-    }
+  SequentialRegion(BasicBlock *header, Own<Region> inputRegion)
+      : Region(header), nestedRegions() {
+    nestedRegions.emplace_back(std::move(inputRegion));
+    nestedRegions[0]->setParent(this);
   }
 
   template <typename... Args>
   SequentialRegion(BasicBlock *header, Args... args) : Region(header) {
     Own<Region> tmp[] = {std::move(args)...};
     for (auto &region : tmp) {
-      nestedRegions.emplace_back(std::move(region));
+      if (region) {
+        nestedRegions.emplace_back(std::move(region));
+      }
     }
     for (std::size_t i = 0; i < nestedRegions.size(); i++) {
       nestedRegions[i]->setParent(this);
