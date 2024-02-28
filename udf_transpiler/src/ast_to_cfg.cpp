@@ -113,9 +113,7 @@ Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
                                    const Continuations &continuations,
                                    bool attachFallthrough) {
   if (statements.empty()) {
-    // TODO: Investigate whether this is a valid assumption
-    return Make<SequentialRegion>(continuations.fallthrough,
-                                  Make<EmptyRegion>());
+    return Make<LeafRegion>(continuations.fallthrough);
   }
 
   auto statement = statements.front();
@@ -171,11 +169,6 @@ Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
   return nullptr;
 }
 
-Own<Region> AstToCFG::getFallthroughRegion(bool attachFallthrough,
-                                           Own<Region> fallthrough) {
-  return attachFallthrough ? std::move(fallthrough) : Make<EmptyRegion>();
-}
-
 Own<Region> AstToCFG::constructAssignmentCFG(const json &assignmentJson,
                                              Function &f,
                                              List<json> &statements,
@@ -194,9 +187,12 @@ Own<Region> AstToCFG::constructAssignmentCFG(const json &assignmentJson,
       constructCFG(f, statements, continuations, attachFallthrough);
   newBlock->addInstruction(Make<BranchInst>(nestedRegion->getHeader()));
 
-  auto assignmentRegion = Make<SequentialRegion>(
-      newBlock,
-      getFallthroughRegion(attachFallthrough, std::move(nestedRegion)));
+  Own<Region> assignmentRegion =
+      Make<SequentialRegion>(newBlock, std::move(nestedRegion));
+
+  if (!attachFallthrough) {
+    assignmentRegion = Make<LeafRegion>(newBlock);
+  }
 
   if (!isSQLExpression) {
     return assignmentRegion;
@@ -220,7 +216,7 @@ Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
   auto newBlock = f.makeBasicBlock();
   String ret = getJsonExpr(returnJson["expr"]);
   newBlock->addInstruction(Make<ReturnInst>(f.bindExpression(ret)));
-  return Make<SequentialRegion>(newBlock, Make<EmptyRegion>());
+  return Make<LeafRegion>(newBlock);
 }
 
 Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
@@ -261,11 +257,9 @@ Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
 
-  auto conditionalRegion =
-      elseIfStatements.empty()
-          ? Make<ConditionalRegion>(newBlock, std::move(ifRegion))
-          : Make<ConditionalRegion>(newBlock, std::move(ifRegion),
-                                    std::move(elseIfRegion));
+  auto conditionalRegion = Make<ConditionalRegion>(
+      newBlock, std::move(ifRegion),
+      elseIfStatements.empty() ? nullptr : std::move(elseIfRegion));
 
   auto sequentialRegion =
       attachFallthrough
@@ -482,10 +476,10 @@ Own<Region> AstToCFG::constructExitCFG(const json &exitJson, Function &f,
   // continue
   if (!exitJson.contains("is_exit")) {
     newBlock->addInstruction(Make<BranchInst>(continuations.loopHeader));
-    return Make<SequentialRegion>(newBlock, Make<EmptyRegion>());
+    return Make<LeafRegion>(newBlock);
   } else {
     newBlock->addInstruction(Make<BranchInst>(continuations.loopExit));
-    return Make<SequentialRegion>(newBlock, Make<EmptyRegion>());
+    return Make<LeafRegion>(newBlock);
   }
 }
 
@@ -495,7 +489,7 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
                                              const Continuations &continuations,
                                              bool attachFallthrough) {
   ERROR("Cursor loops are not currently supported.");
-  return Make<EmptyRegion>();
+  return Make<LeafRegion>(nullptr);
 }
 
 void AstToCFG::buildCursorLoopCFG(Function &f, const json &ast) {

@@ -29,15 +29,20 @@ private:
   BasicBlock *header;
 };
 
-// An EmptyRegion signifies the end of the current region
-class EmptyRegion : public Region {
+// A LeafRegion represents a single basic block
+class LeafRegion : public Region {
 public:
-  EmptyRegion() : Region(nullptr) {}
+  LeafRegion(BasicBlock *header) : Region(header) {}
 
-  String getRegionLabel() const override { return "ER"; }
+  String getRegionLabel() const override {
+    return "L" + getHeader()->getLabel().substr(1);
+  }
 
 protected:
-  void print(std::ostream &os) const override {}
+  void print(std::ostream &os) const override {
+    os << "\t" << getHeader()->getLabel() << " [label=\""
+       << getHeader()->getLabel() << "\"];";
+  }
 };
 
 // A SequentialRegion has a header and a nested region
