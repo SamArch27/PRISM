@@ -35,6 +35,9 @@ private:
   void buildCursorLoopCFG(Function &function, const json &ast);
   void buildCFG(Function &function, const json &ast);
 
+  Own<Region> getFallthroughRegion(bool attachFallthrough,
+                                   Own<Region> fallthrough);
+
   Own<Region> constructAssignmentCFG(const json &assignment, Function &function,
                                      List<json> &statements,
                                      const Continuations &continuations);
@@ -47,9 +50,9 @@ private:
                              List<json> &statements,
                              const Continuations &continuations);
 
-  Own<Region> constructIfElseCFG(const json &ifElseJson, Function &function,
-                                 List<json> &statements,
-                                 const Continuations &continuations);
+  Own<Region> constructElseCFG(const json &ifElseJson, Function &function,
+                               List<json> &statements,
+                               const Continuations &continuations);
 
   Own<Region> constructIfElseIfCFG(const json &ifElseIfJson, Function &function,
                                    List<json> &statements,
