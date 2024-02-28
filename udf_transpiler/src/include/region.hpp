@@ -8,7 +8,11 @@
 class Region {
 protected:
   // Make the constructor protected to ensure no one is creating raw regions
-  Region(BasicBlock *header) : header(header) {}
+  Region(BasicBlock *header, bool attach = true) : header(header) {
+    if (attach) {
+      header->setParentRegion(this);
+    }
+  }
 
 public:
   friend std::ostream &operator<<(std::ostream &os, const Region &region) {
@@ -45,15 +49,25 @@ protected:
   }
 };
 
+// A DummyRegion holds a basic block but is never part of the region hierarchy
+class DummyRegion : public Region {
+public:
+  DummyRegion(BasicBlock *header) : Region(header, false) {}
+
+  String getRegionLabel() const override {
+    return "D" + getHeader()->getLabel().substr(1);
+  }
+
+protected:
+  void print(std::ostream &os) const override {
+    os << "\t" << getHeader()->getLabel() << " [label=\""
+       << getHeader()->getLabel() << "\"];";
+  }
+};
+
 // A SequentialRegion has a header and a nested region
 class SequentialRegion : public Region {
 public:
-  SequentialRegion(BasicBlock *header, Own<Region> inputRegion)
-      : Region(header), nestedRegions() {
-    nestedRegions.emplace_back(std::move(inputRegion));
-    nestedRegions[0]->setParent(this);
-  }
-
   template <typename... Args>
   SequentialRegion(BasicBlock *header, Args... args) : Region(header) {
     Own<Region> tmp[] = {std::move(args)...};

@@ -63,6 +63,13 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
         }
       }
 
+      std::cout << "For blocks: " << block->getLabel() << " and "
+                << uniqueSucc->getLabel() << std::endl;
+      std::cout << "For regions:" << block->getParentRegion()->getRegionLabel()
+                << " and " << uniqueSucc->getParentRegion()->getRegionLabel()
+                << std::endl
+                << std::endl;
+
       // merge the two blocks
       block->appendBasicBlock(uniqueSucc);
 
