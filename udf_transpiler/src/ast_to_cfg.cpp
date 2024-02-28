@@ -260,11 +260,19 @@ Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
 
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return Make<SequentialRegion>(
-      preHeader,
-      Make<ConditionalRegion>(newBlock, std::move(ifRegion),
-                              std::move(elseIfRegion)),
-      getFallthroughRegion(attachFallthrough, std::move(afterIfRegion)));
+
+  auto conditionalRegion =
+      elseIfStatements.empty()
+          ? Make<ConditionalRegion>(newBlock, std::move(ifRegion))
+          : Make<ConditionalRegion>(newBlock, std::move(ifRegion),
+                                    std::move(elseIfRegion));
+
+  auto sequentialRegion =
+      attachFallthrough
+          ? Make<SequentialRegion>(preHeader, std::move(conditionalRegion),
+                                   std::move(afterIfRegion))
+          : Make<SequentialRegion>(preHeader, std::move(conditionalRegion));
+  return std::move(sequentialRegion);
 }
 
 Own<Region> AstToCFG::constructElseCFG(const json &elseJson, Function &f,
@@ -299,9 +307,18 @@ Own<Region> AstToCFG::constructIfElseIfCFG(const json &ifElseIfJson,
       ifRegion->getHeader(), fallthroughRegion->getHeader(), std::move(cond)));
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return Make<SequentialRegion>(
-      preHeader, Make<ConditionalRegion>(newBlock, std::move(ifRegion)),
-      getFallthroughRegion(attachFallthrough, std::move(fallthroughRegion)));
+
+  auto sequentialRegion =
+      attachFallthrough
+          ? Make<SequentialRegion>(
+                preHeader,
+                Make<ConditionalRegion>(newBlock, std::move(ifRegion)),
+                std::move(fallthroughRegion))
+          : Make<SequentialRegion>(
+                preHeader,
+                Make<ConditionalRegion>(newBlock, std::move(ifRegion)));
+
+  return std::move(sequentialRegion);
 }
 
 Own<Region> AstToCFG::constructWhileCFG(const json &whileJson, Function &f,
@@ -331,11 +348,21 @@ Own<Region> AstToCFG::constructWhileCFG(const json &whileJson, Function &f,
 
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return Make<SequentialRegion>(
-      preHeader,
-      Make<LoopRegion>(
-          newBlock, Make<ConditionalRegion>(condBlock, std::move(bodyRegion))),
-      getFallthroughRegion(attachFallthrough, std::move(afterLoopRegion)));
+
+  auto sequentialRegion =
+      attachFallthrough
+          ? Make<SequentialRegion>(
+                preHeader,
+                Make<LoopRegion>(
+                    newBlock,
+                    Make<ConditionalRegion>(condBlock, std::move(bodyRegion))),
+                std::move(afterLoopRegion))
+          : Make<SequentialRegion>(
+                preHeader,
+                Make<LoopRegion>(
+                    newBlock,
+                    Make<ConditionalRegion>(condBlock, std::move(bodyRegion))));
+  return std::move(sequentialRegion);
 }
 
 Own<Region> AstToCFG::constructLoopCFG(const json &loopJson, Function &f,
@@ -354,9 +381,15 @@ Own<Region> AstToCFG::constructLoopCFG(const json &loopJson, Function &f,
   newBlock->addInstruction(Make<BranchInst>(bodyRegion->getHeader()));
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return Make<SequentialRegion>(
-      preHeader, Make<LoopRegion>(newBlock, std::move(bodyRegion)),
-      getFallthroughRegion(attachFallthrough, std::move(afterLoopRegion)));
+
+  auto sequentialRegion =
+      attachFallthrough
+          ? Make<SequentialRegion>(
+                preHeader, Make<LoopRegion>(newBlock, std::move(bodyRegion)),
+                std::move(afterLoopRegion))
+          : Make<SequentialRegion>(
+                preHeader, Make<LoopRegion>(newBlock, std::move(bodyRegion)));
+  return std::move(sequentialRegion);
 }
 
 Own<Region> AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
@@ -424,11 +457,20 @@ Own<Region> AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
   newBlock->addInstruction(Make<BranchInst>(headerBlock));
 
   // TODO: Assume that the latch block isn't part of any region
-  return Make<SequentialRegion>(
-      newBlock,
-      Make<LoopRegion>(headerBlock, Make<ConditionalRegion>(
-                                        condBlock, std::move(bodyRegion))),
-      getFallthroughRegion(attachFallthrough, std::move(afterLoopRegion)));
+  auto sequentialRegion =
+      attachFallthrough
+          ? Make<SequentialRegion>(
+                newBlock,
+                Make<LoopRegion>(
+                    headerBlock,
+                    Make<ConditionalRegion>(condBlock, std::move(bodyRegion))),
+                std::move(afterLoopRegion))
+          : Make<SequentialRegion>(
+                newBlock,
+                Make<LoopRegion>(
+                    headerBlock,
+                    Make<ConditionalRegion>(condBlock, std::move(bodyRegion))));
+  return std::move(sequentialRegion);
 }
 
 Own<Region> AstToCFG::constructExitCFG(const json &exitJson, Function &f,
