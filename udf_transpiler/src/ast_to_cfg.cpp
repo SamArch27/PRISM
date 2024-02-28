@@ -89,7 +89,7 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
   auto initialContinuations = Continuations(nullptr, nullptr, nullptr);
 
   // Build the CFG as a hierarchy of regions
-  auto bodyRegion = constructCFG(f, statements, initialContinuations);
+  auto bodyRegion = constructCFG(f, statements, initialContinuations, true);
 
   // Link the declare block to the returned result
   declareBlock->addInstruction(Make<BranchInst>(bodyRegion->getHeader()));
@@ -110,7 +110,8 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
 }
 
 Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
-                                   const Continuations &continuations) {
+                                   const Continuations &continuations,
+                                   bool attachFallthrough) {
   if (statements.empty()) {
     // TODO: Investigate whether this is a valid assumption
     return Make<SequentialRegion>(continuations.fallthrough,
@@ -120,47 +121,49 @@ Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
   auto statement = statements.front();
   statements.pop_front();
 
+  attachFallthrough = !statements.empty();
+
   if (statement.contains("PLpgSQL_stmt_assign")) {
     return constructAssignmentCFG(statement["PLpgSQL_stmt_assign"], f,
-                                  statements, continuations);
+                                  statements, continuations, attachFallthrough);
   }
   if (statement.contains("PLpgSQL_stmt_return")) {
     return constructReturnCFG(statement["PLpgSQL_stmt_return"], f, statements,
-                              continuations);
+                              continuations, attachFallthrough);
   }
   if (statement.contains("PLpgSQL_stmt_if")) {
     return constructIfCFG(statement["PLpgSQL_stmt_if"], f, statements,
-                          continuations);
+                          continuations, attachFallthrough);
   }
   if (statement.contains("PLpgSQL_if_else")) {
     return constructElseCFG(statement["PLpgSQL_if_else"], f, statements,
-                            continuations);
+                            continuations, attachFallthrough);
   }
   if (statement.contains("PLpgSQL_if_elsif")) {
     return constructIfElseIfCFG(statement["PLpgSQL_if_elsif"], f, statements,
-                                continuations);
+                                continuations, attachFallthrough);
   }
   if (statement.contains("PLpgSQL_stmt_while")) {
     return constructWhileCFG(statement["PLpgSQL_stmt_while"], f, statements,
-                             continuations);
+                             continuations, attachFallthrough);
   }
   if (statement.contains("PLpgSQL_stmt_loop")) {
     return constructLoopCFG(statement["PLpgSQL_stmt_loop"], f, statements,
-                            continuations);
+                            continuations, attachFallthrough);
   }
   if (statement.contains("PLpgSQL_stmt_fori")) {
     return constructForLoopCFG(statement["PLpgSQL_stmt_fori"], f, statements,
-                               continuations);
+                               continuations, attachFallthrough);
   }
 
   if (statement.contains("PLpgSQL_stmt_exit")) {
     return constructExitCFG(statement["PLpgSQL_stmt_exit"], f, statements,
-                            continuations);
+                            continuations, attachFallthrough);
   }
 
   if (statement.contains("PLpgSQL_stmt_fors")) {
     return constructCursorLoopCFG(statement["PLpgSQL_stmt_fors"], f, statements,
-                                  continuations);
+                                  continuations, attachFallthrough);
   }
 
   // We don't have an assignment so we are starting a new basic block
@@ -173,10 +176,11 @@ Own<Region> AstToCFG::getFallthroughRegion(bool attachFallthrough,
   return attachFallthrough ? std::move(fallthrough) : Make<EmptyRegion>();
 }
 
-Own<Region>
-AstToCFG::constructAssignmentCFG(const json &assignmentJson, Function &f,
-                                 List<json> &statements,
-                                 const Continuations &continuations) {
+Own<Region> AstToCFG::constructAssignmentCFG(const json &assignmentJson,
+                                             Function &f,
+                                             List<json> &statements,
+                                             const Continuations &continuations,
+                                             bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
   String assignmentText = getJsonExpr(assignmentJson["expr"]);
   const auto &[left, right] = unpackAssignment(assignmentText);
@@ -186,8 +190,8 @@ AstToCFG::constructAssignmentCFG(const json &assignmentJson, Function &f,
   bool isSQLExpression = expr->isSQLExpression();
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
 
-  bool attachFallthrough = !statements.empty();
-  auto nestedRegion = constructCFG(f, statements, continuations);
+  auto nestedRegion =
+      constructCFG(f, statements, continuations, attachFallthrough);
   newBlock->addInstruction(Make<BranchInst>(nestedRegion->getHeader()));
 
   auto assignmentRegion = Make<SequentialRegion>(
@@ -206,7 +210,8 @@ AstToCFG::constructAssignmentCFG(const json &assignmentJson, Function &f,
 
 Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
                                          List<json> &statements,
-                                         const Continuations &continuations) {
+                                         const Continuations &continuations,
+                                         bool attachFallthrough) {
   if (!returnJson.contains("expr")) {
     f.destroyDuckDBContext();
     EXCEPTION("There is a path without return value.");
@@ -220,18 +225,21 @@ Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
 
 Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
                                      List<json> &statements,
-                                     const Continuations &continuations) {
+                                     const Continuations &continuations,
+                                     bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(ifJson["cond"]);
   auto cond = f.bindExpression(condString);
-  bool attachFallthrough = !statements.empty();
-  auto afterIfRegion = constructCFG(f, statements, continuations);
+
+  auto afterIfRegion =
+      constructCFG(f, statements, continuations, attachFallthrough);
   auto thenStatements = getJsonList(ifJson["then_body"]);
 
   auto newContinuations =
       Continuations(afterIfRegion->getHeader(), continuations.fallthrough,
                     continuations.loopExit);
-  auto ifRegion = constructCFG(f, thenStatements, newContinuations);
+  auto ifRegion =
+      constructCFG(f, thenStatements, newContinuations, attachFallthrough);
 
   List<json> elseIfStatements;
   if (ifJson.contains("elsif_list")) {
@@ -245,7 +253,8 @@ Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
     elseIfStatements.push_back(j);
   }
 
-  auto elseIfRegion = constructCFG(f, elseIfStatements, newContinuations);
+  auto elseIfRegion =
+      constructCFG(f, elseIfStatements, newContinuations, attachFallthrough);
   newBlock->addInstruction(Make<BranchInst>(
       ifRegion->getHeader(), elseIfRegion->getHeader(), std::move(cond)));
 
@@ -260,10 +269,12 @@ Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
 
 Own<Region> AstToCFG::constructElseCFG(const json &elseJson, Function &f,
                                        List<json> &statements,
-                                       const Continuations &continuations) {
+                                       const Continuations &continuations,
+                                       bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
   auto elseStatements = getJsonList(elseJson);
-  auto elseRegion = constructCFG(f, elseStatements, continuations);
+  auto elseRegion =
+      constructCFG(f, elseStatements, continuations, attachFallthrough);
   newBlock->addInstruction(Make<BranchInst>(elseRegion->getHeader()));
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
@@ -273,14 +284,17 @@ Own<Region> AstToCFG::constructElseCFG(const json &elseJson, Function &f,
 
 Own<Region> AstToCFG::constructIfElseIfCFG(const json &ifElseIfJson,
                                            Function &f, List<json> &statements,
-                                           const Continuations &continuations) {
+                                           const Continuations &continuations,
+                                           bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(ifElseIfJson["cond"]);
   auto cond = f.bindExpression(condString);
   auto thenStatements = getJsonList(ifElseIfJson["stmts"]);
-  bool attachFallthrough = !statements.empty();
-  auto ifRegion = constructCFG(f, thenStatements, continuations);
-  auto fallthroughRegion = constructCFG(f, statements, continuations);
+
+  auto ifRegion =
+      constructCFG(f, thenStatements, continuations, attachFallthrough);
+  auto fallthroughRegion =
+      constructCFG(f, statements, continuations, attachFallthrough);
   newBlock->addInstruction(Make<BranchInst>(
       ifRegion->getHeader(), fallthroughRegion->getHeader(), std::move(cond)));
   auto preHeader = f.makeBasicBlock();
@@ -292,18 +306,20 @@ Own<Region> AstToCFG::constructIfElseIfCFG(const json &ifElseIfJson,
 
 Own<Region> AstToCFG::constructWhileCFG(const json &whileJson, Function &f,
                                         List<json> &statements,
-                                        const Continuations &continuations) {
+                                        const Continuations &continuations,
+                                        bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(whileJson["cond"]);
   auto cond = f.bindExpression(condString);
 
-  bool attachFallthrough = !statements.empty();
-  auto afterLoopRegion = constructCFG(f, statements, continuations);
+  auto afterLoopRegion =
+      constructCFG(f, statements, continuations, attachFallthrough);
   auto bodyStatements = getJsonList(whileJson["body"]);
 
   auto newContinuations =
       Continuations(newBlock, newBlock, afterLoopRegion->getHeader());
-  auto bodyRegion = constructCFG(f, bodyStatements, newContinuations);
+  auto bodyRegion =
+      constructCFG(f, bodyStatements, newContinuations, attachFallthrough);
 
   // create a block for the condition
   auto condBlock = f.makeBasicBlock();
@@ -324,14 +340,17 @@ Own<Region> AstToCFG::constructWhileCFG(const json &whileJson, Function &f,
 
 Own<Region> AstToCFG::constructLoopCFG(const json &loopJson, Function &f,
                                        List<json> &statements,
-                                       const Continuations &continuations) {
+                                       const Continuations &continuations,
+                                       bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
-  bool attachFallthrough = !statements.empty();
-  auto afterLoopRegion = constructCFG(f, statements, continuations);
+
+  auto afterLoopRegion =
+      constructCFG(f, statements, continuations, attachFallthrough);
   auto bodyStatements = getJsonList(loopJson["body"]);
   auto newContinuations =
       Continuations(newBlock, newBlock, afterLoopRegion->getHeader());
-  auto bodyRegion = constructCFG(f, bodyStatements, newContinuations);
+  auto bodyRegion =
+      constructCFG(f, bodyStatements, newContinuations, attachFallthrough);
   newBlock->addInstruction(Make<BranchInst>(bodyRegion->getHeader()));
   auto preHeader = f.makeBasicBlock();
   preHeader->addInstruction(Make<BranchInst>(newBlock));
@@ -342,7 +361,8 @@ Own<Region> AstToCFG::constructLoopCFG(const json &loopJson, Function &f,
 
 Own<Region> AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
                                           List<json> &statements,
-                                          const Continuations &continuations) {
+                                          const Continuations &continuations,
+                                          bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
   auto &bodyJson = forJson["body"];
 
@@ -380,13 +400,15 @@ Own<Region> AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
   String condString =
       fmt::format("{} {} {}", left, (reverse ? " > " : " < "), upperString);
   auto cond = f.bindExpression(condString);
-  bool attachFallthrough = !statements.empty();
-  auto afterLoopRegion = constructCFG(f, statements, continuations);
+
+  auto afterLoopRegion =
+      constructCFG(f, statements, continuations, attachFallthrough);
   auto bodyStatements = getJsonList(bodyJson);
 
   auto newContinuations =
       Continuations(latchBlock, latchBlock, afterLoopRegion->getHeader());
-  auto bodyRegion = constructCFG(f, bodyStatements, newContinuations);
+  auto bodyRegion =
+      constructCFG(f, bodyStatements, newContinuations, attachFallthrough);
 
   // create a block for the condition
   auto condBlock = f.makeBasicBlock();
@@ -411,7 +433,8 @@ Own<Region> AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
 
 Own<Region> AstToCFG::constructExitCFG(const json &exitJson, Function &f,
                                        List<json> &statements,
-                                       const Continuations &continuations) {
+                                       const Continuations &continuations,
+                                       bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
 
   // continue
@@ -424,10 +447,11 @@ Own<Region> AstToCFG::constructExitCFG(const json &exitJson, Function &f,
   }
 }
 
-Own<Region>
-AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson, Function &f,
-                                 List<json> &statements,
-                                 const Continuations &continuations) {
+Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
+                                             Function &f,
+                                             List<json> &statements,
+                                             const Continuations &continuations,
+                                             bool attachFallthrough) {
   ERROR("Cursor loops are not currently supported.");
   return Make<EmptyRegion>();
 }

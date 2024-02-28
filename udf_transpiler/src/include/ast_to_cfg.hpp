@@ -40,46 +40,57 @@ private:
 
   Own<Region> constructAssignmentCFG(const json &assignment, Function &function,
                                      List<json> &statements,
-                                     const Continuations &continuations);
+                                     const Continuations &continuations,
+                                     bool attachFallthrough);
 
   Own<Region> constructReturnCFG(const json &returnJson, Function &function,
                                  List<json> &statements,
-                                 const Continuations &continuations);
+                                 const Continuations &continuations,
+                                 bool attachFallthrough);
 
   Own<Region> constructIfCFG(const json &ifJson, Function &function,
                              List<json> &statements,
-                             const Continuations &continuations);
+                             const Continuations &continuations,
+                             bool attachFallthrough);
 
   Own<Region> constructElseCFG(const json &ifElseJson, Function &function,
                                List<json> &statements,
-                               const Continuations &continuations);
+                               const Continuations &continuations,
+                               bool attachFallthrough);
 
   Own<Region> constructIfElseIfCFG(const json &ifElseIfJson, Function &function,
                                    List<json> &statements,
-                                   const Continuations &continuations);
+                                   const Continuations &continuations,
+                                   bool attachFallthrough);
 
   Own<Region> constructWhileCFG(const json &whileJson, Function &function,
                                 List<json> &statements,
-                                const Continuations &continuations);
+                                const Continuations &continuations,
+                                bool attachFallthrough);
 
   Own<Region> constructLoopCFG(const json &loopJson, Function &function,
                                List<json> &statements,
-                               const Continuations &continuations);
+                               const Continuations &continuations,
+                               bool attachFallthrough);
 
   Own<Region> constructForLoopCFG(const json &forJson, Function &function,
                                   List<json> &statements,
-                                  const Continuations &continuations);
+                                  const Continuations &continuations,
+                                  bool attachFallthrough);
 
   Own<Region> constructExitCFG(const json &exitJson, Function &function,
                                List<json> &statements,
-                               const Continuations &continuations);
+                               const Continuations &continuations,
+                               bool attachFallthrough);
 
   Own<Region> constructCursorLoopCFG(const json &cursorLoopJson,
                                      Function &function, List<json> &statements,
-                                     const Continuations &continuations);
+                                     const Continuations &continuations,
+                                     bool attachFallthrough);
 
   Own<Region> constructCFG(Function &function, List<json> &statements,
-                           const Continuations &continuations);
+                           const Continuations &continuations,
+                           bool attachFallthrough);
 
   json parseJson() const;
   String getJsonExpr(const json &json);
