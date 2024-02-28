@@ -188,11 +188,10 @@ Own<Region> AstToCFG::constructAssignmentCFG(const json &assignmentJson,
       constructCFG(f, statements, continuations, attachFallthrough);
   newBlock->addInstruction(Make<BranchInst>(nestedRegion->getHeader()));
 
-  Own<Region> assignmentRegion =
-      Make<SequentialRegion>(newBlock, std::move(nestedRegion));
-
-  if (!attachFallthrough) {
-    assignmentRegion = Make<LeafRegion>(newBlock);
+  Own<Region> assignmentRegion = Make<LeafRegion>(newBlock);
+  if (attachFallthrough) {
+    assignmentRegion =
+        Make<SequentialRegion>(newBlock, std::move(nestedRegion));
   }
 
   if (!isSQLExpression) {

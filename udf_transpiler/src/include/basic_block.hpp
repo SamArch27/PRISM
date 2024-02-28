@@ -103,6 +103,8 @@ private:
   ListOwn<Instruction>::const_iterator iter;
 };
 
+class Region;
+
 class BasicBlock {
 public:
   BasicBlock(const String &label)
@@ -142,6 +144,9 @@ public:
   Instruction *getInitiator();
   Instruction *getTerminator();
 
+  void setParentRegion(Region *region) { parentRegion = region; }
+  Region *getParentRegion() { return parentRegion; }
+
   String getLabel() const;
   bool isConditional() const;
 
@@ -153,4 +158,5 @@ private:
   ListOwn<Instruction> instructions;
   Vec<BasicBlock *> predecessors;
   Vec<BasicBlock *> successors;
+  Region *parentRegion;
 };
