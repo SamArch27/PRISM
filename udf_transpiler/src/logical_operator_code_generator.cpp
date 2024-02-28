@@ -354,6 +354,9 @@ template <>
 String
 BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp,
                                         CodeGenInfo &insert) {
+  if(exp.GetName().find("(") != std::string::npos){
+    return fmt::format("[BoundReferenceExpression: {}]", exp.GetName());
+  }                              
   return toLower(exp.GetName());
 }
 
@@ -361,6 +364,7 @@ template <>
 String
 BoundExpressionCodeGenerator::Transpile(const BoundColumnRefExpression &exp,
                                         CodeGenInfo &insert) {
+  COUT<<"BoundColumnRefExpression "<<exp.GetName()<<std::endl;
   return toLower(exp.GetName());
 }
 

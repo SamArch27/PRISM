@@ -101,7 +101,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr, bool needCont
       selectExpressionCommand = "SELECT " + expr;
   else if (needContext){
     // insert tmp to the from clause
-    auto fromPos = expr.find(" FROM ");
+    auto fromPos = toUpper(expr).find(" FROM ");
     selectExpressionCommand = expr;
     selectExpressionCommand.insert(fromPos + 6, " tmp, ");
   }
