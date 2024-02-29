@@ -114,7 +114,7 @@ Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
                                    const Continuations &continuations,
                                    bool attachFallthrough) {
   if (statements.empty()) {
-    return Make<LeafRegion>(continuations.fallthrough);
+    return Make<DummyRegion>(continuations.fallthrough);
   }
 
   auto statement = statements.front();

@@ -8,8 +8,10 @@
 class Region {
 protected:
   // Make the constructor protected to ensure no one is creating raw regions
-  Region(BasicBlock *header) : header(header) {
-    header->setParentRegion(this);
+  Region(BasicBlock *header, bool attach = true) : header(header) {
+    if (attach) {
+      header->setParentRegion(this);
+    }
   }
 
 public:
@@ -47,26 +49,32 @@ protected:
   }
 };
 
+// A DummyRegion holds a basic block but is never part of the region hierarchy
+class DummyRegion : public Region {
+public:
+  DummyRegion(BasicBlock *header) : Region(header, false) {}
+
+  String getRegionLabel() const override {
+    return "D" + getHeader()->getLabel().substr(1);
+  }
+
+protected:
+  void print(std::ostream &os) const override {
+    os << "\t" << getHeader()->getLabel() << " [label=\""
+       << getHeader()->getLabel() << "\"];";
+  }
+};
+
 // A SequentialRegion has a header and a nested region
 class SequentialRegion : public Region {
 public:
-  SequentialRegion(BasicBlock *header, Own<Region> inputRegion)
-      : Region(header), nestedRegions() {
-    nestedRegions.emplace_back(std::move(inputRegion));
-    nestedRegions[0]->setParent(this);
-  }
-
-  template <typename... Args>
-  SequentialRegion(BasicBlock *header, Args... args)
-      : Region(header), nestedRegions() {
-    Own<Region> tmp[] = {std::move(args)...};
-    for (auto &region : tmp) {
-      if (region) {
-        nestedRegions.emplace_back(std::move(region));
-      }
-    }
-    for (std::size_t i = 0; i < nestedRegions.size(); i++) {
-      nestedRegions[i]->setParent(this);
+  SequentialRegion(BasicBlock *header, Own<Region> nested,
+                   Own<Region> fallthrough = nullptr)
+      : Region(header), nestedRegion(std::move(nested)),
+        fallthroughRegion(std::move(fallthrough)) {
+    nestedRegion->setParent(this);
+    if (fallthroughRegion) {
+      fallthroughRegion->setParent(this);
     }
   }
 
@@ -74,36 +82,35 @@ public:
     return "SR" + getHeader()->getLabel().substr(1);
   }
 
-  Vec<Region *> getNestedRegions() const {
-    Vec<Region *> result;
-    for (auto &nestedRegion : nestedRegions) {
-      result.push_back(nestedRegion.get());
-    }
-    return result;
-  }
+  Region *getNestedRegion() const { return nestedRegion.get(); }
+  Region *getFallthroughRegion() const { return fallthroughRegion.get(); }
 
 protected:
   void print(std::ostream &os) const override {
     os << "\t" << getHeader()->getLabel() << " [label=\""
        << getHeader()->getLabel() << "\"];";
-    for (auto &nestedRegion : nestedRegions) {
+    os << "\t" << nestedRegion->getRegionLabel() << " [label=\""
+       << nestedRegion->getRegionLabel() << "\"];";
+    if (fallthroughRegion) {
       os << "\t" << nestedRegion->getRegionLabel() << " [label=\""
          << nestedRegion->getRegionLabel() << "\"];";
     }
     os << "\t" << getHeader()->getLabel() << " -> "
-       << nestedRegions[0]->getRegionLabel() << ";\n";
-    for (std::size_t i = 1; i < nestedRegions.size(); ++i) {
-      os << "\t" << nestedRegions[i - 1]->getRegionLabel() << " -> "
-         << nestedRegions[i]->getRegionLabel() << ";\n";
+       << nestedRegion->getRegionLabel() << ";\n";
+    if (fallthroughRegion) {
+      os << "\t" << nestedRegion->getRegionLabel() << " -> "
+         << fallthroughRegion->getRegionLabel() << ";\n";
     }
 
-    for (auto &nestedRegion : nestedRegions) {
-      os << *nestedRegion;
+    os << *nestedRegion;
+    if (fallthroughRegion) {
+      os << *fallthroughRegion;
     }
   }
 
 private:
-  VecOwn<Region> nestedRegions;
+  Own<Region> nestedRegion;
+  Own<Region> fallthroughRegion;
 };
 
 // A ConditionalRegion has a header (the condition block) and two nested regions

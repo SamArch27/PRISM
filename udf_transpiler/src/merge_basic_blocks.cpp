@@ -23,7 +23,7 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
 
     while (true) {
 
-      // skip if we are entry or exit
+      // skip if we are entry
       if (block == f.getEntryBlock()) {
         break;
       }
@@ -35,7 +35,7 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
       }
       auto *uniqueSucc = *successors.begin();
 
-      // that isn't entry/exit
+      // that isn't entry
       if (uniqueSucc == f.getEntryBlock()) {
         break;
       }
@@ -62,6 +62,13 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
           break;
         }
       }
+
+      std::cout << "For blocks: " << block->getLabel() << " and "
+                << uniqueSucc->getLabel() << std::endl;
+      std::cout << "For regions: " << block->getParentRegion()->getRegionLabel()
+                << " and " << uniqueSucc->getParentRegion()->getRegionLabel()
+                << std::endl
+                << std::endl;
 
       // merge the two blocks
       block->appendBasicBlock(uniqueSucc);
