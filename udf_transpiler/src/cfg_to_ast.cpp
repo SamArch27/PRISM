@@ -12,7 +12,6 @@ const LoopRegion *findCurrentLoopRegion(const BasicBlock *bb){
     ASSERT(bb->getParentRegion(), "Basic block should have a parent region");
     auto parentRegion = bb->getParentRegion();
     while(parentRegion){
-        COUT<<"parent region "<<parentRegion->getRegionLabel()<<ENDL;
         if(auto loopRegion = dynamic_cast<const LoopRegion *>(parentRegion)){
             return loopRegion;
         }
@@ -26,10 +25,8 @@ const LoopRegion *findCurrentLoopRegion(const BasicBlock *bb){
 */
 bool belongToLoopRegion(const BasicBlock *bb, const LoopRegion *loopRegion){
     ASSERT(bb->getParentRegion(), "Basic block should have a parent region");
-    COUT<<"belongToLoopRegion "<<bb->getLabel()<<ENDL;
     Region *parentRegion = bb->getParentRegion();
     while(parentRegion){
-        COUT<<"parent region "<<parentRegion->getRegionLabel()<<ENDL;
         if(parentRegion == (Region *)loopRegion){
             return true;
         }
@@ -44,15 +41,9 @@ bool belongToLoopRegion(const BasicBlock *bb, const LoopRegion *loopRegion){
 bool ifInsertBreak(const BasicBlock *currBlock, const BasicBlock *nextBlock){
     auto loopRegion = findCurrentLoopRegion(currBlock);
     if(loopRegion == nullptr){
-        COUT<<currBlock->getLabel()<<" does not belong to any loop region"<<ENDL;
         return false;
     }
-
-    COUT<<"ifInsertBreak"<<ENDL;
-    COUT<<"current block"<<currBlock->getLabel()<<ENDL;
-    COUT<<"next block"<<nextBlock->getLabel()<<ENDL;
-    COUT<<"loop header"<<loopRegion->getHeader()->getLabel()<<ENDL;
-
+    
     if(belongToLoopRegion(nextBlock, loopRegion)){
         return false;
     }
@@ -67,14 +58,8 @@ bool ifInsertBreak(const BasicBlock *currBlock, const BasicBlock *nextBlock){
 bool ifInsertContinue(const BasicBlock *currBlock, const BasicBlock *nextBlock){
     auto loopRegion = findCurrentLoopRegion(currBlock);
     if(loopRegion == nullptr){
-        COUT<<currBlock->getLabel()<<" does not belong to any loop region"<<ENDL;
         return false;
     }
-
-    COUT<<"ifInsertContinue"<<ENDL;
-    COUT<<"current block"<<currBlock->getLabel()<<ENDL;
-    COUT<<"next block"<<nextBlock->getLabel()<<ENDL;
-    COUT<<"header"<<loopRegion->getHeader()->getLabel()<<ENDL;
 
     // if the next block is the header of the loop region
     // insert the continue statement
@@ -184,7 +169,7 @@ void PLpgSQLGenerator::regionCodeGenerator(const Function &function, PLpgSQLCont
             PLpgSQLContainer trueContainer, falseContainer;
             regionCodeGenerator(function, trueContainer, currentRegion->getTrueRegion(), indent);
             regionCodeGenerator(function, falseContainer, currentRegion->getFalseRegion(), indent);
-            auto ifElseCode = fmt::format("IF {} THEN\n{}ELSE\n{}END IF;\n", condCode, joinCode(trueContainer), joinCode(falseContainer));
+            auto ifElseCode = fmt::format("IF {} THEN\n{}ELSE\n{}END IF;", condCode, joinCode(trueContainer), joinCode(falseContainer));
             container.regionCodes.push_back(ifElseCode);
         }
     } else {
