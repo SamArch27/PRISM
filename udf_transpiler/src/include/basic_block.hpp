@@ -139,8 +139,6 @@ public:
   InstIterator removeInst(InstIterator targetInst);
   InstIterator replaceInst(InstIterator targetInst, Own<Instruction> newInst);
 
-  void appendBasicBlock(BasicBlock *toAppend);
-
   Instruction *getInitiator();
   Instruction *getTerminator();
 

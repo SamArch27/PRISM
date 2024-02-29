@@ -94,7 +94,7 @@ void Compiler::optimize(Function &f) {
 
   pipeline->runOnFunction(f);
 
-  // std::cout << f << std::endl;
+  std::cout << f << std::endl;
   // drawGraph(f.getCFGString(), "end");
 }
 

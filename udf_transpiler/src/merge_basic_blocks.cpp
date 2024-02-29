@@ -3,87 +3,63 @@
 #include "utils.hpp"
 
 bool MergeBasicBlocksPass::runOnFunction(Function &f) {
-
   bool changed = false;
 
   // visit the CFG in a BFS fashion, merging blocks as we go
-  Queue<BasicBlock *> q;
-  Set<BasicBlock *> visited;
-  q.push(f.getEntryBlock());
-  while (!q.empty()) {
+  Set<BasicBlock *> worklist;
+  for (auto &block : f) {
+    worklist.insert(&block);
+  }
 
-    auto *block = q.front();
-    q.pop();
+  while (!worklist.empty()) {
+    auto *top = *worklist.begin();
+    worklist.erase(top);
 
-    if (visited.find(block) != visited.end()) {
+    // skip if we are entry
+    if (top == f.getEntryBlock()) {
       continue;
     }
 
-    visited.insert(block);
+    // if we have an unique successor
+    auto successors = top->getSuccessors();
+    if (successors.size() != 1) {
+      continue;
+    }
+    auto *bottom = *successors.begin();
 
-    while (true) {
-
-      // skip if we are entry
-      if (block == f.getEntryBlock()) {
-        break;
-      }
-
-      // if we have an unique successor
-      auto successors = block->getSuccessors();
-      if (successors.size() != 1) {
-        break;
-      }
-      auto *uniqueSucc = *successors.begin();
-
-      // that isn't entry
-      if (uniqueSucc == f.getEntryBlock()) {
-        break;
-      }
-      // and we are the unique predecessor
-      if (uniqueSucc->getPredecessors().size() != 1) {
-        break;
-      }
-
-      // special: don't merge conditionals
-      if (uniqueSucc->getSuccessors().size() != 1) {
-        break;
-      }
-
-      // special: don't merge blocks containing SELECT
-      if (auto *assign =
-              dynamic_cast<const Assignment *>(block->getInitiator())) {
-        if (assign->getRHS()->isSQLExpression()) {
-          break;
-        }
-      }
-      if (auto *assign =
-              dynamic_cast<const Assignment *>(uniqueSucc->getInitiator())) {
-        if (assign->getRHS()->isSQLExpression()) {
-          break;
-        }
-      }
-
-      std::cout << "For blocks: " << block->getLabel() << " and "
-                << uniqueSucc->getLabel() << std::endl;
-      std::cout << "For regions: " << block->getParentRegion()->getRegionLabel()
-                << " and " << uniqueSucc->getParentRegion()->getRegionLabel()
-                << std::endl
-                << std::endl;
-
-      // merge the two blocks
-      block->appendBasicBlock(uniqueSucc);
-
-      // finally remove the basic block from the function
-      f.removeBasicBlock(uniqueSucc);
-
-      // mark change
-      changed = true;
+    // that isn't entry
+    if (bottom == f.getEntryBlock()) {
+      continue;
+    }
+    // and we are the unique predecessor
+    if (bottom->getPredecessors().size() != 1) {
+      continue;
     }
 
-    // try merging successor blocks
-    for (auto &succ : block->getSuccessors()) {
-      q.push(succ);
+    // special: don't merge conditionals
+    if (bottom->getSuccessors().size() != 1) {
+      continue;
     }
+
+    // special: don't merge blocks containing SELECT
+    if (auto *assign = dynamic_cast<const Assignment *>(top->getInitiator())) {
+      if (assign->getRHS()->isSQLExpression()) {
+        continue;
+      }
+    }
+    if (auto *assign =
+            dynamic_cast<const Assignment *>(bottom->getInitiator())) {
+      if (assign->getRHS()->isSQLExpression()) {
+        continue;
+      }
+    }
+
+    // mark change
+    changed = true;
+    f.mergeBasicBlocks(top, bottom);
+
+    worklist.insert(bottom);
   }
+
   return changed;
 }
