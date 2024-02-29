@@ -16,7 +16,7 @@
 #include "duckdb/common/exception.hpp"
 #include <algorithm>
 #include <regex>
-#include <yaml-cpp/yaml.h>
+#include "yaml-cpp/yaml.h"
 
 template <class A> using Own = std::unique_ptr<A>;
 template <class A> using Shared = std::shared_ptr<A>;
@@ -179,5 +179,6 @@ public:
   YAML::Node function;
   YAML::Node control;
   YAML::Node aggify;
+  YAML::Node plpgsql;
   YAMLConfig();
 };

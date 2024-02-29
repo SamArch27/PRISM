@@ -8,7 +8,9 @@
 class Region {
 protected:
   // Make the constructor protected to ensure no one is creating raw regions
-  Region(BasicBlock *header) : header(header) {}
+  Region(BasicBlock *header) : header(header) {
+    header->setParentRegion(this);
+  }
 
 public:
   friend std::ostream &operator<<(std::ostream &os, const Region &region) {
@@ -25,7 +27,7 @@ public:
   Region *getParent() const { return parentRegion; }
 
 private:
-  Region *parentRegion;
+  Region *parentRegion = nullptr;
   BasicBlock *header;
 };
 
@@ -55,7 +57,8 @@ public:
   }
 
   template <typename... Args>
-  SequentialRegion(BasicBlock *header, Args... args) : Region(header) {
+  SequentialRegion(BasicBlock *header, Args... args)
+      : Region(header), nestedRegions() {
     Own<Region> tmp[] = {std::move(args)...};
     for (auto &region : tmp) {
       if (region) {

@@ -18,8 +18,8 @@ struct CompilationResult : CFGCodeGeneratorResult {
 class Compiler {
 public:
   Compiler(duckdb::Connection *conn, const String &programText,
-           size_t &udfCount)
-      : conn(conn), programText(programText), udfCount(udfCount) {}
+           const YAMLConfig &config, size_t &udfCount)
+      : conn(conn), programText(programText), config(config), udfCount(udfCount) {}
 
   CompilationResult run();
 
@@ -40,6 +40,6 @@ private:
 
   duckdb::Connection *conn;
   String programText;
-  YAMLConfig config;
+  const YAMLConfig &config;
   size_t &udfCount;
 };

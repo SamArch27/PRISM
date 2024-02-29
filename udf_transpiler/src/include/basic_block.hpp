@@ -43,7 +43,7 @@ public:
   }
 
   friend bool operator==(const InstIterator &a, const InstIterator &b) {
-    return a.iter->get() == b.iter->get();
+    return a.iter == b.iter;
   };
   friend bool operator!=(const InstIterator &a, const InstIterator &b) {
     return !(a == b);
@@ -92,7 +92,7 @@ public:
 
   friend bool operator==(const ConstInstIterator &a,
                          const ConstInstIterator &b) {
-    return a.iter->get() == b.iter->get();
+    return a.iter == b.iter;
   };
   friend bool operator!=(const ConstInstIterator &a,
                          const ConstInstIterator &b) {
@@ -145,10 +145,12 @@ public:
   Instruction *getTerminator();
 
   void setParentRegion(Region *region) { parentRegion = region; }
-  Region *getParentRegion() { return parentRegion; }
+  Region *getParentRegion() const { return parentRegion; }
 
   String getLabel() const;
   bool isConditional() const;
+
+  size_t size() const { return instructions.size(); }
 
 protected:
   void print(std::ostream &os) const;
@@ -158,5 +160,5 @@ private:
   ListOwn<Instruction> instructions;
   Vec<BasicBlock *> predecessors;
   Vec<BasicBlock *> successors;
-  Region *parentRegion;
+  Region *parentRegion = nullptr;
 };

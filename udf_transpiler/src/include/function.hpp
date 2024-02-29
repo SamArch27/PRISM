@@ -43,7 +43,7 @@ public:
 
   friend bool operator==(const BasicBlockIterator &a,
                          const BasicBlockIterator &b) {
-    return a.iter->get() == b.iter->get();
+    return a.iter == b.iter;
   };
   friend bool operator!=(const BasicBlockIterator &a,
                          const BasicBlockIterator &b) {
@@ -92,7 +92,7 @@ public:
 
   friend bool operator==(const ConstBasicBlockIterator &a,
                          const ConstBasicBlockIterator &b) {
-    return a.iter->get() == b.iter->get();
+    return a.iter == b.iter;
   };
   friend bool operator!=(const ConstBasicBlockIterator &a,
                          const ConstBasicBlockIterator &b) {
