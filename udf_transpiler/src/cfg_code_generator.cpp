@@ -122,8 +122,8 @@ String CFGCodeGenerator::extractVarFromChunk(const Function &func) {
 }
 
 CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &f) {
-  COUT << fmt::format("Generating code for function {}", f.getFunctionName())
-       << ENDL;
+  // COUT << fmt::format("Generating code for function {}", f.getFunctionName())
+  //      << ENDL;
   CodeGenInfo function_info;
 
   for (auto &bbUniq : f) {
@@ -208,9 +208,9 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &f) {
       fmt::arg("return_logical_type", f.getReturnType().getDuckDBLogicalType()),
       fmt::arg("args_logical_types", joinVector(args_logical_types, ", ")));
 
-  std::cout << container.body << std::endl;
-  std::cout << container.main << std::endl;
-  std::cout << container.registration << std::endl;
+  // std::cout << container.body << std::endl;
+  // std::cout << container.main << std::endl;
+  // std::cout << container.registration << std::endl;
 
   return {container.body + "\n" + container.main, container.registration};
 }

@@ -1,4 +1,10 @@
 #include "compiler.hpp"
+#include <algorithm>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <utility>
+#include "utils.hpp"
 #include "aggify_code_generator.hpp"
 #include "aggify_dfa.hpp"
 #include "ast_to_cfg.hpp"
@@ -19,12 +25,7 @@
 #include "pipeline_pass.hpp"
 #include "ssa_construction.hpp"
 #include "ssa_destruction.hpp"
-#include "utils.hpp"
-#include <algorithm>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <utility>
+#include "cfg_to_ast.hpp"
 
 std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr) {
   ExpressionPrinter printer(os);
@@ -86,14 +87,21 @@ void Compiler::optimize(Function &f) {
   auto pipeline = Make<PipelinePass>(
       Make<MergeBasicBlocksPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
-      Make<SSADestructionPass>());
+      Make<SSADestructionPass>()
+      );
 
   // std::cout << f << std::endl;
   // drawGraph(f.getCFGString(), "begin");
   // drawGraph(f.getRegionString(), "region");
 
-  pipeline->runOnFunction(f);
+  // pipeline->runOnFunction(f);
 
+  
+  PLpgSQLGenerator plpgsqlGenerator(config);
+  auto plpgsqlRes = plpgsqlGenerator.run(f);
+  COUT<<"----------- PLpgSQL code start -----------\n";
+  COUT<<plpgsqlRes.code<<ENDL;
+  COUT<<"----------- PLpgSQL code end-----------\n";
   // std::cout << f << std::endl;
   // drawGraph(f.getCFGString(), "end");
 }
