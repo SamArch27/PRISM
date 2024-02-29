@@ -69,15 +69,6 @@ InstIterator BasicBlock::replaceInst(InstIterator targetInst,
   return it;
 }
 
-void BasicBlock::appendBasicBlock(BasicBlock *toAppend) {
-  // delete my terminator
-  instructions.pop_back();
-  // copy all instructions over from other basic block
-  for (const auto &inst : *toAppend) {
-    addInstruction(inst.clone());
-  }
-}
-
 Instruction *BasicBlock::getInitiator() { return instructions.begin()->get(); }
 
 Instruction *BasicBlock::getTerminator() {

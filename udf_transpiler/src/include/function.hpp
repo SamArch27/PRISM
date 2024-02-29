@@ -255,6 +255,7 @@ public:
     variables.erase(it);
   }
 
+  void mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom);
   void removeBasicBlock(BasicBlock *toRemove);
   void makeDuckDBContext();
   void destroyDuckDBContext();

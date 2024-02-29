@@ -27,7 +27,7 @@ void Function::makeDuckDBContext() {
     insertTableString << "(NULL) ";
     insertTableSecondRow << type.getDefaultValue(true);
   }
-  if(bindings.empty()){
+  if (bindings.empty()) {
     createTableString << "dummy INT";
     insertTableString << "(NULL)";
     insertTableSecondRow << "0";
@@ -87,19 +87,20 @@ Own<SelectExpression> Function::replaceVarWithExpression(
   return bindExpression(replacedText)->clone();
 }
 
-Own<SelectExpression> Function::bindExpression(const String &expr, bool needContext) {
-  if(needContext){
+Own<SelectExpression> Function::bindExpression(const String &expr,
+                                               bool needContext) {
+  if (needContext) {
     destroyDuckDBContext();
     makeDuckDBContext();
   }
-  
+
   String selectExpressionCommand;
   if (toUpper(expr).find("SELECT") == String::npos)
-    if(needContext)
+    if (needContext)
       selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
     else
       selectExpressionCommand = "SELECT " + expr;
-  else if (needContext){
+  else if (needContext) {
     // insert tmp to the from clause
     auto fromPos = expr.find(" FROM ");
     selectExpressionCommand = expr;
@@ -263,6 +264,50 @@ Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
     }
   }
   return newInstructions;
+}
+
+void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
+
+  // copy instructions from top into bottom (in reverse order)
+  Vec<Instruction *> topInstructions;
+  for (auto &inst : *top) {
+    topInstructions.push_back(&inst);
+  }
+  std::reverse(topInstructions.begin(), topInstructions.end());
+
+  for (auto *inst : topInstructions) {
+    if (!inst->isTerminator()) {
+      bottom->insertBefore(bottom->begin(), inst->clone());
+    }
+  }
+
+  // update predecessors of bottom to jump to top
+  for (auto *pred : top->getPredecessors()) {
+    if (auto *terminator = dynamic_cast<BranchInst *>(pred->getTerminator())) {
+      // replace the branch instruction to target the bottom block
+      if (terminator->isUnconditional()) {
+        terminator->replaceWith(Make<BranchInst>(bottom));
+      } else {
+        auto *newTrue = terminator->getIfTrue();
+        newTrue = (newTrue == top) ? bottom : newTrue;
+
+        auto *newFalse = terminator->getIfFalse();
+        newFalse = (newFalse == top) ? bottom : newFalse;
+
+        terminator->replaceWith(Make<BranchInst>(
+            newTrue, newFalse, terminator->getCond()->clone()));
+      }
+      // update the predecessors "successors"
+      pred->removeSuccessor(top);
+      pred->addSuccessor(bottom);
+
+      // add this predecessor as a predecessor to the bottom block
+      bottom->addPredecessor(pred);
+    }
+  }
+
+  // finally remove the basic block from the function
+  removeBasicBlock(top);
 }
 
 void Function::removeBasicBlock(BasicBlock *toRemove) {

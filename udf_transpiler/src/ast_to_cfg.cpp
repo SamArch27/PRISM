@@ -105,9 +105,6 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
 
   // Set this region for the function
   f.setRegion(std::move(functionRegion));
-  std::cout << ast << std::endl;
-  std::cout << f << std::endl;
-  std::cout << f.getRegionString() << std::endl;
 }
 
 Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
