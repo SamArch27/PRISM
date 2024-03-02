@@ -84,7 +84,7 @@ void Compiler::optimize(Function &f) {
   auto pipeline = Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
-      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
+      Make<SSADestructionPass>());
 
   std::cout << f << std::endl;
 

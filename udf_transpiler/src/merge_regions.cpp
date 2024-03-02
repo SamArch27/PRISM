@@ -5,9 +5,6 @@
 bool MergeRegionsPass::runOnFunction(Function &f) {
   bool changed = false;
 
-  std::cout << "mergePreheaders is: " << (mergePreheaders ? "true" : "false")
-            << std::endl;
-
   // visit the CFG in a BFS fashion, merging blocks as we go
   Set<BasicBlock *> worklist;
   for (auto &block : f) {
@@ -39,30 +36,25 @@ bool MergeRegionsPass::runOnFunction(Function &f) {
         continue;
       }
 
-      if (!mergePreheaders) {
-        // don't merge conditionals
-        if (dynamic_cast<ConditionalRegion *>(bottom->getRegion())) {
-          continue;
-        }
-
-        // don't merge loops
-        if (dynamic_cast<LoopRegion *>(bottom->getRegion())) {
-          continue;
-        }
-
-        // special: don't merge a SELECT region with other regions
-        auto *topRegion = top->getRegion();
-        auto *bottomRegion = bottom->getRegion();
-        if (topRegion->containsSELECT() && !bottomRegion->containsSELECT()) {
-          continue;
-        }
-        if (!topRegion->containsSELECT() && bottomRegion->containsSELECT()) {
-          continue;
-        }
+      // don't merge conditionals
+      if (dynamic_cast<ConditionalRegion *>(bottom->getRegion())) {
+        continue;
       }
 
-      std::cout << "Merging: " << top->getLabel() << " and "
-                << bottom->getLabel() << std::endl;
+      // don't merge loops
+      if (dynamic_cast<LoopRegion *>(bottom->getRegion())) {
+        continue;
+      }
+
+      // special: don't merge a SELECT region with other regions
+      auto *topRegion = top->getRegion();
+      auto *bottomRegion = bottom->getRegion();
+      if (topRegion->containsSELECT() && !bottomRegion->containsSELECT()) {
+        continue;
+      }
+      if (!topRegion->containsSELECT() && bottomRegion->containsSELECT()) {
+        continue;
+      }
 
       // mark change, merge the basic blocks, and update the worklist
       changed = true;
