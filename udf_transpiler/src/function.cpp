@@ -268,6 +268,12 @@ Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
 
 void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
 
+  // Replace the top region with the bottom region
+  auto *bottomRegion = bottom->getParentRegion();
+  auto *topRegion = bottomRegion->getParent();
+  auto *parent = topRegion->getParent();
+  parent->replaceNestedRegion(topRegion, bottomRegion);
+
   // copy instructions from top into bottom (in reverse order)
   Vec<Instruction *> topInstructions;
   for (auto &inst : *top) {

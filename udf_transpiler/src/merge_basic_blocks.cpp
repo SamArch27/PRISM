@@ -20,12 +20,22 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
       continue;
     }
 
-    // if we have an unique successor
+    // must be a sequential region without a fallthrough
+    auto *sequentialRegion =
+        dynamic_cast<SequentialRegion *>(top->getParentRegion());
+    if (!sequentialRegion) {
+      continue;
+    }
+    if (sequentialRegion->getFallthroughRegion()) {
+      continue;
+    }
+
+    // must have an unique successor
     auto successors = top->getSuccessors();
     if (successors.size() != 1) {
       continue;
     }
-    auto *bottom = *successors.begin();
+    auto *bottom = successors.front();
 
     // that isn't entry
     if (bottom == f.getEntryBlock()) {
@@ -57,9 +67,7 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
     // mark change
     changed = true;
     f.mergeBasicBlocks(top, bottom);
-
     worklist.insert(bottom);
   }
-
   return changed;
 }

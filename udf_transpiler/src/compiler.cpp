@@ -81,8 +81,6 @@ void Compiler::optimize(Function &f) {
       Make<MergeBasicBlocksPass>(), Make<CopyPropagationPass>(),
       Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
 
-  // TODO: Add cleanup to the BreakPhiInterferencePass to eliminate copies
-
   auto pipeline = Make<PipelinePass>(
       Make<MergeBasicBlocksPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),

@@ -158,6 +158,8 @@ public:
     return label;
   }
 
+  void removeNestedRegion(Region *nestedRegion);
+
   void setRegion(Own<Region> region) { functionRegion = std::move(region); }
   Region *getRegion() const { return functionRegion.get(); }
 
@@ -320,8 +322,8 @@ protected:
     os << "Control Flow Graph: \n" << std::endl;
     os << getCFGString() << std::endl;
 
-    // os << "Regions: \n" << std::endl;
-    // os << getRegionString() << std::endl;
+    os << "Regions: \n" << std::endl;
+    os << getRegionString() << std::endl;
   }
 
 private:
