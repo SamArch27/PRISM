@@ -14,7 +14,7 @@
 #include "fixpoint_pass.hpp"
 #include "function.hpp"
 #include "liveness_dataflow.hpp"
-#include "merge_basic_blocks.hpp"
+#include "merge_regions.hpp"
 #include "pg_query.h"
 #include "pipeline_pass.hpp"
 #include "ssa_construction.hpp"
@@ -78,13 +78,15 @@ json Compiler::parseJson() const {
 
 void Compiler::optimize(Function &f) {
   auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
-      Make<MergeBasicBlocksPass>(), Make<CopyPropagationPass>(),
+      Make<MergeRegionsPass>(), Make<CopyPropagationPass>(),
       Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
 
   auto pipeline = Make<PipelinePass>(
-      Make<MergeBasicBlocksPass>(), Make<SSAConstructionPass>(),
+      Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
-      Make<SSADestructionPass>());
+      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
+
+  std::cout << f << std::endl;
 
   pipeline->runOnFunction(f);
 

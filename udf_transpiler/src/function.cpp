@@ -268,9 +268,9 @@ Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
 
 void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
   // Replace the top region with the bottom region
-  auto *bottomRegion = bottom->getParentRegion();
-  auto *topRegion = bottomRegion->getParent();
-  auto *parent = topRegion->getParent();
+  auto *bottomRegion = bottom->getRegion();
+  auto *topRegion = bottomRegion->getParentRegion();
+  auto *parent = topRegion->getParentRegion();
   parent->replaceNestedRegion(topRegion, bottomRegion);
 
   // copy instructions from top into bottom (in reverse order)

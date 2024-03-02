@@ -12,7 +12,7 @@ protected:
   // Make the constructor protected to ensure no one is creating raw regions
   Region(BasicBlock *header, bool attach) : header(header) {
     if (attach) {
-      header->setParentRegion(this);
+      header->setRegion(this);
     }
   }
 
@@ -26,9 +26,19 @@ public:
   virtual void print(std::ostream &os) const = 0;
   virtual String getRegionLabel() const = 0;
 
+  bool containsSELECT() const {
+    for (auto &inst : *header) {
+      if (auto *assign = dynamic_cast<Assignment *>(&inst)) {
+        if (assign->getRHS()->isSQLExpression()) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
   BasicBlock *getHeader() const { return header; }
-  void setParent(RecursiveRegion *parent) { parentRegion = parent; }
-  RecursiveRegion *getParent() const { return parentRegion; }
+  void setParentRegion(RecursiveRegion *parent) { parentRegion = parent; }
+  RecursiveRegion *getParentRegion() const { return parentRegion; }
 
 private:
   RecursiveRegion *parentRegion;
@@ -54,7 +64,7 @@ protected:
     Own<Region> tmp[] = {std::move(args)...};
     for (auto &region : tmp) {
       if (region) {
-        region->setParent(this);
+        region->setParentRegion(this);
       }
       nestedRegions.push_back(std::move(region));
     }
@@ -75,7 +85,7 @@ public:
     toReplace->releaseNestedRegions();
     for (auto &region : nestedRegions) {
       if (region.get() == toReplace) {
-        newRegion->setParent(this);
+        newRegion->setParentRegion(this);
         region.reset(newRegion);
       }
     }

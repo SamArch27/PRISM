@@ -1,9 +1,12 @@
-#include "merge_basic_blocks.hpp"
+#include "merge_regions.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
 
-bool MergeBasicBlocksPass::runOnFunction(Function &f) {
+bool MergeRegionsPass::runOnFunction(Function &f) {
   bool changed = false;
+
+  std::cout << "mergePreheaders is: " << (mergePreheaders ? "true" : "false")
+            << std::endl;
 
   // visit the CFG in a BFS fashion, merging blocks as we go
   Set<BasicBlock *> worklist;
@@ -19,7 +22,7 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
 
     // must be a sequential region with no fallthrough
     if (auto *sequentialRegion =
-            dynamic_cast<SequentialRegion *>(top->getParentRegion())) {
+            dynamic_cast<SequentialRegion *>(top->getRegion())) {
       if (sequentialRegion->getFallthroughRegion()) {
         continue;
       }
@@ -36,24 +39,30 @@ bool MergeBasicBlocksPass::runOnFunction(Function &f) {
         continue;
       }
 
-      // special: don't merge conditionals
-      if (bottom->getSuccessors().size() != 1) {
-        continue;
+      if (!mergePreheaders) {
+        // don't merge conditionals
+        if (dynamic_cast<ConditionalRegion *>(bottom->getRegion())) {
+          continue;
+        }
+
+        // don't merge loops
+        if (dynamic_cast<LoopRegion *>(bottom->getRegion())) {
+          continue;
+        }
+
+        // special: don't merge a SELECT region with other regions
+        auto *topRegion = top->getRegion();
+        auto *bottomRegion = bottom->getRegion();
+        if (topRegion->containsSELECT() && !bottomRegion->containsSELECT()) {
+          continue;
+        }
+        if (!topRegion->containsSELECT() && bottomRegion->containsSELECT()) {
+          continue;
+        }
       }
 
-      // special: don't merge blocks containing SELECT
-      if (auto *assign =
-              dynamic_cast<const Assignment *>(top->getInitiator())) {
-        if (assign->getRHS()->isSQLExpression()) {
-          continue;
-        }
-      }
-      if (auto *assign =
-              dynamic_cast<const Assignment *>(bottom->getInitiator())) {
-        if (assign->getRHS()->isSQLExpression()) {
-          continue;
-        }
-      }
+      std::cout << "Merging: " << top->getLabel() << " and "
+                << bottom->getLabel() << std::endl;
 
       // mark change, merge the basic blocks, and update the worklist
       changed = true;

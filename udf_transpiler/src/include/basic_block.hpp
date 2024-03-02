@@ -142,8 +142,8 @@ public:
   Instruction *getInitiator();
   Instruction *getTerminator();
 
-  void setParentRegion(Region *region) { parentRegion = region; }
-  Region *getParentRegion() { return parentRegion; }
+  void setRegion(Region *region) { parentRegion = region; }
+  Region *getRegion() { return parentRegion; }
 
   String getLabel() const;
   bool isConditional() const;
