@@ -33,10 +33,6 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
         continue;
       }
 
-      if (!f.hasBinding(assign->getRHS()->getRawSQL())) {
-        continue;
-      }
-
       // get RHS as a variable
       Map<const Variable *, const SelectExpression *> oldToNew{
           {assign->getLHS(), assign->getRHS()}};
@@ -50,5 +46,6 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
       }
     }
   }
+
   return changed;
 }

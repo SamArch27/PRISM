@@ -79,7 +79,7 @@ json Compiler::parseJson() const {
 void Compiler::optimize(Function &f) {
   auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<CopyPropagationPass>(),
-      Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
+      /*Make<ExpressionPropagationPass>(),*/ Make<DeadCodeEliminationPass>()));
 
   auto pipeline = Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
