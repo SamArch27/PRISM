@@ -46,8 +46,8 @@ private:
   void invalidateSingletons(CongruenceClasses &phiCongruent);
 
   const Variable *createUpdatedVariable(Function &f, const Variable *x);
-  Own<PhiNode> createUpdatedPhi(const Variable *x, const Variable *xPrime,
-                                const PhiNode *oldPhi,
+  Own<PhiNode> createUpdatedPhi(Function &f, const Variable *x,
+                                const Variable *xPrime, const PhiNode *oldPhi,
                                 CongruenceClasses &phiCongruent);
 
   void processResultConflict(Function &f, const Variable *x,

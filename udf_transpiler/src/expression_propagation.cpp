@@ -22,18 +22,26 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
     // Replace phi functions with identical arguments
     if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
       if (phi->hasIdenticalArguments()) {
-        inst = inst->replaceWith(Make<Assignment>(
-            phi->getLHS(), f.bindExpression(phi->getRHS().front()->getName())));
+        inst = inst->replaceWith(
+            Make<Assignment>(phi->getLHS(), phi->getRHS().front()->clone()));
       }
     }
 
-    // check for x = y assignment
+    // check for x = <expr> assignment
     if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+
+      // skip if there are no uses
       if (useDefs->getUses(assign->getLHS()).empty()) {
         continue;
       }
 
-      // get RHS as a variable
+      // skip if <expr> references x (to avoid infinite recursion)
+      auto usedVariables = assign->getRHS()->getUsedVariables();
+      if (usedVariables.find(assign->getLHS()) != usedVariables.end()) {
+        continue;
+      }
+
+      // replace all occurrences of LHS with RHS
       Map<const Variable *, const SelectExpression *> oldToNew{
           {assign->getLHS(), assign->getRHS()}};
 

@@ -49,7 +49,7 @@ private:
 class SelectExpression {
 public:
   SelectExpression(const String &rawSQL, Shared<LogicalPlan> logicalPlan,
-                   const Vec<const Variable *> &usedVariables)
+                   const Set<const Variable *> &usedVariables)
 
       : rawSQL(rawSQL), logicalPlan(logicalPlan), usedVariables(usedVariables) {
   }
@@ -81,7 +81,7 @@ public:
   }
 
   const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
-  const Vec<const Variable *> &getUsedVariables() const {
+  const Set<const Variable *> &getUsedVariables() const {
     return usedVariables;
   }
 
@@ -92,7 +92,7 @@ private:
   String rawSQL;
   Shared<LogicalPlan> logicalPlan;
   duckdb::ClientContext *clientContext;
-  Vec<const Variable *> usedVariables;
+  Set<const Variable *> usedVariables;
 };
 
 class BasicBlock;
@@ -111,7 +111,7 @@ public:
   virtual bool isTerminator() const = 0;
 
   virtual const Variable *getResultOperand() const = 0;
-  virtual Vec<const Variable *> getOperands() const = 0;
+  virtual Set<const Variable *> getOperands() const = 0;
   virtual Vec<BasicBlock *> getSuccessors() const = 0;
   Instruction *replaceWith(Own<Instruction> replacement);
   void eraseFromParent();
@@ -127,28 +127,47 @@ private:
 
 class PhiNode : public Instruction {
 public:
-  PhiNode(const Variable *var, const Vec<const Variable *> &arguments)
-      : Instruction(), var(var), arguments(arguments) {}
+  PhiNode(const Variable *var, VecOwn<SelectExpression> arguments)
+      : Instruction(), var(var), arguments(std::move(arguments)) {}
 
   ~PhiNode() override = default;
 
   Own<Instruction> clone() const override {
-    return Make<PhiNode>(var, arguments);
+    VecOwn<SelectExpression> newArguments;
+    for (auto &arg : arguments) {
+      newArguments.emplace_back(arg->clone());
+    }
+    return Make<PhiNode>(var, std::move(newArguments));
   }
 
   const Variable *getResultOperand() const override { return var; }
 
-  Vec<const Variable *> getOperands() const override { return arguments; }
+  Set<const Variable *> getOperands() const override {
+    Set<const Variable *> operands;
+    for (auto &arg : arguments) {
+      for (auto *var : arg->getUsedVariables()) {
+        operands.insert(var);
+      }
+    }
+    return operands;
+  }
 
   const Variable *getLHS() const { return var; }
 
-  const Vec<const Variable *> &getRHS() const { return arguments; }
+  Vec<const SelectExpression *> getRHS() const {
+    Vec<const SelectExpression *> result;
+    for (auto &arg : arguments) {
+      result.push_back(arg.get());
+    }
+    return result;
+  }
 
   bool hasIdenticalArguments() const {
-    auto *firstArgument = arguments.front();
-    return std::all_of(
-        arguments.begin(), arguments.end(),
-        [&](const Variable *arg) { return arg == firstArgument; });
+    auto &firstArgument = *arguments.begin();
+    return std::all_of(arguments.begin(), arguments.end(),
+                       [&](const Own<SelectExpression> &arg) {
+                         return arg->getRawSQL() == firstArgument->getRawSQL();
+                       });
   }
 
   bool isTerminator() const override { return false; }
@@ -164,7 +183,7 @@ protected:
   void print(std::ostream &os) const override {
     os << *var << " = Φ(";
     bool first = true;
-    for (auto *arg : arguments) {
+    for (auto &arg : arguments) {
       if (first) {
         first = false;
       } else {
@@ -177,7 +196,7 @@ protected:
 
 private:
   const Variable *var;
-  Vec<const Variable *> arguments;
+  VecOwn<SelectExpression> arguments;
 };
 
 class Assignment : public Instruction {
@@ -193,7 +212,7 @@ public:
 
   const Variable *getResultOperand() const override { return var; }
 
-  Vec<const Variable *> getOperands() const override {
+  Set<const Variable *> getOperands() const override {
     return expr->getUsedVariables();
   }
 
@@ -228,7 +247,7 @@ public:
 
   const Variable *getResultOperand() const override { return nullptr; }
 
-  Vec<const Variable *> getOperands() const override {
+  Set<const Variable *> getOperands() const override {
     return expr->getUsedVariables();
   }
 
@@ -271,8 +290,8 @@ public:
 
   const Variable *getResultOperand() const override { return nullptr; }
 
-  Vec<const Variable *> getOperands() const override {
-    return conditional ? cond->getUsedVariables() : Vec<const Variable *>{};
+  Set<const Variable *> getOperands() const override {
+    return conditional ? cond->getUsedVariables() : Set<const Variable *>{};
   }
 
   friend std::ostream &operator<<(std::ostream &os,

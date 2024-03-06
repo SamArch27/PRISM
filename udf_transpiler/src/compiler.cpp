@@ -4,7 +4,6 @@
 #include "ast_to_cfg.hpp"
 #include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
-#include "copy_propagation.hpp"
 #include "dead_code_elimination.hpp"
 #include "dominator_dataflow.hpp"
 #include "duckdb/main/connection.hpp"
@@ -78,19 +77,19 @@ json Compiler::parseJson() const {
 
 void Compiler::optimize(Function &f) {
   auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
-      Make<MergeRegionsPass>(), Make<CopyPropagationPass>(),
-      /*Make<ExpressionPropagationPass>(),*/ Make<DeadCodeEliminationPass>()));
+      Make<MergeRegionsPass>(), Make<ExpressionPropagationPass>(),
+      Make<DeadCodeEliminationPass>()));
 
   auto pipeline = Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
       Make<SSADestructionPass>());
 
-  std::cout << f << std::endl;
+  // std::cout << f << std::endl;
 
   pipeline->runOnFunction(f);
 
-  std::cout << f << std::endl;
+  // std::cout << f << std::endl;
 }
 
 /**
