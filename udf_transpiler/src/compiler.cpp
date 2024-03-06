@@ -85,11 +85,11 @@ void Compiler::optimize(Function &f) {
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
       Make<SSADestructionPass>());
 
-  // std::cout << f << std::endl;
+  std::cout << f << std::endl;
 
   pipeline->runOnFunction(f);
 
-  // std::cout << f << std::endl;
+  std::cout << f << std::endl;
 }
 
 /**

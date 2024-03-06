@@ -35,12 +35,6 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
         continue;
       }
 
-      // skip if <expr> references x (to avoid infinite recursion)
-      auto usedVariables = assign->getRHS()->getUsedVariables();
-      if (usedVariables.find(assign->getLHS()) != usedVariables.end()) {
-        continue;
-      }
-
       // replace all occurrences of LHS with RHS
       Map<const Variable *, const SelectExpression *> oldToNew{
           {assign->getLHS(), assign->getRHS()}};
