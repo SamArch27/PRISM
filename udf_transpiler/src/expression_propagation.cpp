@@ -35,6 +35,11 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
         continue;
       }
 
+      // don't do expression propagation for SQL statements
+      if (assign->getRHS()->isSQLExpression()) {
+        continue;
+      }
+
       // replace all occurrences of LHS with RHS
       Map<const Variable *, const SelectExpression *> oldToNew{
           {assign->getLHS(), assign->getRHS()}};

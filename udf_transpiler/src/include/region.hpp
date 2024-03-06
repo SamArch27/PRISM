@@ -75,6 +75,16 @@ public:
   virtual void print(std::ostream &os) const override = 0;
   virtual String getRegionLabel() const override = 0;
 
+  Vec<const Region *> getNestedRegions() const {
+    Vec<const Region *> result;
+    for (auto &region : nestedRegions) {
+      if (region) {
+        result.push_back(region.get());
+      }
+    }
+    return result;
+  }
+
   void releaseNestedRegions() {
     for (auto &region : nestedRegions) {
       region.release();

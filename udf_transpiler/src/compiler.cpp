@@ -16,6 +16,7 @@
 #include "merge_regions.hpp"
 #include "pg_query.h"
 #include "pipeline_pass.hpp"
+#include "query_motion.hpp"
 #include "ssa_construction.hpp"
 #include "ssa_destruction.hpp"
 #include "utils.hpp"
@@ -54,7 +55,6 @@ CompilationResult Compiler::run() {
 
   for (auto &f : functions) {
     optimize(*f);
-    std::cout << *f << std::endl;
     auto res = generateCode(*f);
     codeRes.code += res.code;
     codeRes.registration += res.registration;
@@ -78,18 +78,18 @@ json Compiler::parseJson() const {
 void Compiler::optimize(Function &f) {
   auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<ExpressionPropagationPass>(),
-      Make<DeadCodeEliminationPass>()));
+      Make<DeadCodeEliminationPass>(), Make<QueryMotionPass>()));
 
   auto pipeline = Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
-      std::move(corePasses), Make<BreakPhiInterferencePass>(),
-      Make<SSADestructionPass>());
+      Make<DeadCodeEliminationPass>(), std::move(corePasses),
+      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>());
 
-  std::cout << f << std::endl;
+  // std::cout << f << std::endl;
 
   pipeline->runOnFunction(f);
 
-  std::cout << f << std::endl;
+  // std::cout << f << std::endl;
 }
 
 /**
