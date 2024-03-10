@@ -16,13 +16,14 @@ void SSADestructionPass::removePhis(Function &f) {
         for (auto *pred : block.getPredecessors()) {
           auto predNumber = f.getPredNumber(&block, pred);
           auto *arg = phi->getRHS()[predNumber];
-          // Elide the assignment if the source and destination are the same
-          if (f.getOriginalName(arg->getName()) ==
+
+          // Elide the assignment if the src and dest are the same variable
+          if (f.getOriginalName(arg->getRawSQL()) ==
               f.getOriginalName(phi->getLHS()->getName())) {
             continue;
           }
-          auto newAssignment =
-              Make<Assignment>(phi->getLHS(), f.bindExpression(arg->getName()));
+
+          auto newAssignment = Make<Assignment>(phi->getLHS(), arg->clone());
           if (pred->isConditional()) {
             ASSERT(pred->getPredecessors().size() == 1,
                    "Must have unique predecessor for conditional block!!");
@@ -66,12 +67,12 @@ void SSADestructionPass::removeSSANames(Function &f) {
 
       // rewrite all instructions
       if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
-        Vec<const Variable *> newRHS = phi->getRHS();
-        for (auto &var : newRHS) {
-          var = oldToNew.at(var);
+        VecOwn<SelectExpression> newRHS;
+        for (auto &op : phi->getRHS()) {
+          newRHS.emplace_back(f.renameVarInExpression(op, oldToNew));
         }
         it = block.replaceInst(
-            it, Make<PhiNode>(oldToNew.at(phi->getLHS()), newRHS));
+            it, Make<PhiNode>(oldToNew.at(phi->getLHS()), std::move(newRHS)));
       } else if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         it = block.replaceInst(
             it, Make<Assignment>(

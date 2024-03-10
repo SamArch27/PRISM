@@ -105,9 +105,6 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
 
   // Set this region for the function
   f.setRegion(std::move(functionRegion));
-  std::cout << ast << std::endl;
-  std::cout << f << std::endl;
-  std::cout << f.getRegionString() << std::endl;
 }
 
 Own<Region> AstToCFG::constructCFG(Function &f, List<json> &statements,
@@ -181,7 +178,6 @@ Own<Region> AstToCFG::constructAssignmentCFG(const json &assignmentJson,
   auto *var = f.getBinding(left);
   auto expr = f.bindExpression(right);
 
-  bool isSQLExpression = expr->isSQLExpression();
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
 
   auto nestedRegion =
@@ -194,14 +190,7 @@ Own<Region> AstToCFG::constructAssignmentCFG(const json &assignmentJson,
         Make<SequentialRegion>(newBlock, std::move(nestedRegion));
   }
 
-  if (!isSQLExpression) {
-    return assignmentRegion;
-  }
-
-  // add a pre-header
-  auto preHeader = f.makeBasicBlock();
-  preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return Make<SequentialRegion>(preHeader, std::move(assignmentRegion));
+  return assignmentRegion;
 }
 
 Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,

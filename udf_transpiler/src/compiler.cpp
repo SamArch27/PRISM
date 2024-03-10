@@ -10,7 +10,6 @@
 #include "ast_to_cfg.hpp"
 #include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
-#include "copy_propagation.hpp"
 #include "dead_code_elimination.hpp"
 #include "dominator_dataflow.hpp"
 #include "duckdb/main/connection.hpp"
@@ -20,9 +19,10 @@
 #include "fixpoint_pass.hpp"
 #include "function.hpp"
 #include "liveness_dataflow.hpp"
-#include "merge_basic_blocks.hpp"
+#include "merge_regions.hpp"
 #include "pg_query.h"
 #include "pipeline_pass.hpp"
+#include "query_motion.hpp"
 #include "ssa_construction.hpp"
 #include "ssa_destruction.hpp"
 #include "cfg_to_ast.hpp"
@@ -56,7 +56,6 @@ CompilationResult Compiler::run() {
 
   for (auto &f : functions) {
     optimize(*f);
-    std::cout << *f << std::endl;
     auto res = generateCode(*f);
     codeRes.code += res.code;
     codeRes.registration += res.registration;
@@ -79,20 +78,16 @@ json Compiler::parseJson() const {
 
 void Compiler::optimize(Function &f) {
   auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
-      Make<MergeBasicBlocksPass>(), Make<CopyPropagationPass>(),
-      Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
-
-  // TODO: Add cleanup to the BreakPhiInterferencePass to eliminate copies
+      Make<MergeRegionsPass>(), Make<ExpressionPropagationPass>(),
+      Make<DeadCodeEliminationPass>(), Make<QueryMotionPass>()));
 
   auto pipeline = Make<PipelinePass>(
-      Make<MergeBasicBlocksPass>(), Make<SSAConstructionPass>(),
+      Make<MergeRegionPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
       Make<SSADestructionPass>()
       );
 
-  // std::cout << f << std::endl;
-  // drawGraph(f.getCFGString(), "begin");
-  // drawGraph(f.getRegionString(), "region");
+  std::cout << f << std::endl;
 
   // pipeline->runOnFunction(f);
 

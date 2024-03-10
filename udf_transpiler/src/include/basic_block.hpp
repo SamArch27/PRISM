@@ -139,13 +139,11 @@ public:
   InstIterator removeInst(InstIterator targetInst);
   InstIterator replaceInst(InstIterator targetInst, Own<Instruction> newInst);
 
-  void appendBasicBlock(BasicBlock *toAppend);
-
   Instruction *getInitiator();
   Instruction *getTerminator();
 
-  void setParentRegion(Region *region) { parentRegion = region; }
-  Region *getParentRegion() const { return parentRegion; }
+  void setRegion(Region *region) { parentRegion = region; }
+  Region *getRegion() { return parentRegion; }
 
   String getLabel() const;
   bool isConditional() const;
