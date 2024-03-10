@@ -108,8 +108,8 @@ class UseDefs;
 class Function {
 public:
   Function(duckdb::Connection *conn, const String &name, const Type &returnType)
-      : conn(conn), labelNumber(0), functionName(name), returnType(returnType) {
-  }
+      : conn(conn), labelNumber(0), tempVariableCounter(0), functionName(name),
+        returnType(returnType) {}
 
   Function(const Function &other) = delete;
 
@@ -175,6 +175,13 @@ public:
     auto var = Make<Variable>(cleanedName, type, isNULL);
     auto [it, _] = variables.insert(std::move(var));
     bindings.emplace(cleanedName, it->get());
+  }
+
+  const Variable *createTempVariable(Type type, bool isNULL) {
+    auto newName = "temp_" + std::to_string(tempVariableCounter) + "_";
+    addVariable(newName, type, isNULL);
+    ++tempVariableCounter;
+    return getBinding(newName);
   }
 
   void addVarInitialization(const Variable *var, Own<SelectExpression> expr) {
@@ -343,6 +350,7 @@ private:
 
   duckdb::Connection *conn;
   std::size_t labelNumber;
+  std::size_t tempVariableCounter;
   String functionName;
   Type returnType;
   VecOwn<Variable> arguments;

@@ -24,34 +24,76 @@ RegionDefs QueryMotionPass::computeDefs(const Region *root) const {
 
 bool QueryMotionPass::runOnFunction(Function &f) {
 
-  std::cout << "QUERY MOTION" << std::endl;
-  std::cout << f << std::endl;
-  auto defs = computeDefs(f.getRegion());
+  bool changed = false;
+  auto regionDefinitions = computeDefs(f.getRegion());
 
-  for (auto &[region, regionDefs] : defs) {
-    std::cout << "Region " << region->getRegionLabel() << " has defs: ";
-    std::cout << "{";
-    bool first = true;
-    for (auto *def : regionDefs) {
-      if (first) {
-        first = false;
-      } else {
-        std::cout << ", ";
+  Set<Assignment *> worklist;
+  for (auto &block : f) {
+    for (auto &inst : block) {
+      if (auto *assign = dynamic_cast<Assignment *>(&inst)) {
+        if (assign->getRHS()->isSQLExpression()) {
+          // Try hoisting the SQL expression
+          worklist.insert(assign);
+        }
       }
-      std::cout << def->getName();
     }
-    std::cout << "}" << std::endl;
   }
 
-  // TODO:
-  // 1. For each SELECT statement in the program
-  // 2. Check if the SELECT statement is loop-invariant
-  // 2a. Loop-invariant means that it only uses variables outside of the region
-  // 2b. If so then create a temporary variable at the pre-header
-  // of the region and assign the SELECT with a WHERE predicate added
-  // 2c. Replace the original assignment with the assignment to temporary
+  while (!worklist.empty()) {
+    auto *assign = *worklist.begin();
+    worklist.erase(assign);
 
-  // Data structure:
-  // Map<Region*, Set<Variable*>> definitions;
-  return false;
+    // Now we want to check that every variable that we are using is defined
+    // outside of the current region
+    auto usedVariables = assign->getRHS()->getUsedVariables();
+    auto *currentRegion = assign->getParent()->getRegion();
+    auto regionDefs = regionDefinitions[currentRegion];
+
+    // If any usedVariable is defined in this region then we can't hoist
+    if (std::any_of(usedVariables.begin(), usedVariables.end(),
+                    [&](const Variable *usedVar) {
+                      return regionDefs.find(usedVar) != regionDefs.end();
+                    })) {
+      continue;
+    }
+
+    // If there's no parent region to hoist to then we can't hoist
+    auto *parentRegion = currentRegion->getParentRegion();
+    if (!parentRegion) {
+      continue;
+    }
+
+    changed = true;
+    auto *parentHeader = parentRegion->getHeader();
+
+    // create the temporary variable using the LHS of the assignment
+    auto *temp = f.createTempVariable(assign->getLHS()->getType(),
+                                      assign->getLHS()->isNull());
+
+    // create the new assignment
+    auto newAssign = Make<Assignment>(temp, assign->getRHS()->clone());
+
+    // we have to add the condition if it exists
+    auto *terminator = parentHeader->getTerminator();
+    if (auto *branch = dynamic_cast<const BranchInst *>(terminator)) {
+      if (branch->isConditional()) {
+        // SELECT <SELECT ...> WHERE <cond>
+        auto newRHS = "SELECT (" + assign->getRHS()->getRawSQL() + ") WHERE " +
+                      branch->getCond()->getRawSQL();
+        newAssign = Make<Assignment>(temp, f.bindExpression(newRHS));
+      }
+    }
+
+    // add the hoisted instruction to the worklist (we may hoist it further)
+    worklist.insert(newAssign.get());
+
+    // do the hoisting
+    parentHeader->insertBefore(--parentHeader->end(), std::move(newAssign));
+
+    // finally update the old assignment
+    assign->replaceWith(
+        Make<Assignment>(assign->getLHS(), f.bindExpression(temp->getName())));
+  }
+
+  return changed;
 }

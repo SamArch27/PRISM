@@ -95,17 +95,12 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   }
 
   String selectExpressionCommand;
-  if (toUpper(expr).find("SELECT") == String::npos)
-    if (needContext)
-      selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
-    else
-      selectExpressionCommand = "SELECT " + expr;
-  else if (needContext) {
-    // insert tmp to the from clause
-    auto fromPos = expr.find(" FROM ");
-    selectExpressionCommand = expr;
-    selectExpressionCommand.insert(fromPos + 6, " tmp, ");
+  if (needContext) {
+    selectExpressionCommand = "SELECT (" + expr + ") FROM tmp;";
+  } else {
+    selectExpressionCommand = "SELECT " + expr;
   }
+
   auto clientContext = conn->context.get();
   clientContext->config.enable_optimizer = true;
   auto &config = duckdb::DBConfig::GetConfig(*clientContext);
