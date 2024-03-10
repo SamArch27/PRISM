@@ -6,9 +6,6 @@
 bool ExpressionPropagationPass::runOnFunction(Function &f) {
   bool changed = false;
 
-  std::cout << "Printing before disaster" << std::endl;
-  std::cout << f << std::endl;
-
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
   auto &useDefs = useDefAnalysis.getUseDefs();
@@ -25,22 +22,25 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
     // Replace phi functions with identical arguments
     if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
       if (phi->hasIdenticalArguments()) {
-        inst = inst->replaceWith(Make<Assignment>(
-            phi->getLHS(), f.bindExpression(phi->getRHS().front()->getName())));
+        inst = inst->replaceWith(
+            Make<Assignment>(phi->getLHS(), phi->getRHS().front()->clone()));
       }
     }
 
-    // check for x = y assignment
+    // check for x = <expr> assignment
     if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
+
+      // skip if there are no uses
       if (useDefs->getUses(assign->getLHS()).empty()) {
         continue;
       }
 
-      if (!f.hasBinding(assign->getRHS()->getRawSQL())) {
+      // don't do expression propagation for SQL statements
+      if (assign->getRHS()->isSQLExpression()) {
         continue;
       }
 
-      // get RHS as a variable
+      // replace all occurrences of LHS with RHS
       Map<const Variable *, const SelectExpression *> oldToNew{
           {assign->getLHS(), assign->getRHS()}};
 
@@ -53,5 +53,6 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
       }
     }
   }
+
   return changed;
 }

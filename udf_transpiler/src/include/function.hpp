@@ -2,6 +2,7 @@
 
 #include "basic_block.hpp"
 #include "instructions.hpp"
+#include "region.hpp"
 #include "use_def.hpp"
 #include "utils.hpp"
 
@@ -42,7 +43,7 @@ public:
 
   friend bool operator==(const BasicBlockIterator &a,
                          const BasicBlockIterator &b) {
-    return a.iter->get() == b.iter->get();
+    return a.iter == b.iter;
   };
   friend bool operator!=(const BasicBlockIterator &a,
                          const BasicBlockIterator &b) {
@@ -91,7 +92,7 @@ public:
 
   friend bool operator==(const ConstBasicBlockIterator &a,
                          const ConstBasicBlockIterator &b) {
-    return a.iter->get() == b.iter->get();
+    return a.iter == b.iter;
   };
   friend bool operator!=(const ConstBasicBlockIterator &a,
                          const ConstBasicBlockIterator &b) {
@@ -107,8 +108,8 @@ class UseDefs;
 class Function {
 public:
   Function(duckdb::Connection *conn, const String &name, const Type &returnType)
-      : conn(conn), labelNumber(0), functionName(name), returnType(returnType) {
-  }
+      : conn(conn), labelNumber(0), tempVariableCounter(0), functionName(name),
+        returnType(returnType) {}
 
   Function(const Function &other) = delete;
 
@@ -152,10 +153,15 @@ public:
   }
 
   String getNextLabel() {
-    auto label = String("L") + std::to_string(labelNumber);
+    auto label = String("B") + std::to_string(labelNumber);
     ++labelNumber;
     return label;
   }
+
+  void removeNestedRegion(Region *nestedRegion);
+
+  void setRegion(Own<Region> region) { functionRegion = std::move(region); }
+  Region *getRegion() const { return functionRegion.get(); }
 
   void addArgument(const String &name, Type type) {
     auto cleanedName = getCleanedVariableName(name);
@@ -169,6 +175,13 @@ public:
     auto var = Make<Variable>(cleanedName, type, isNULL);
     auto [it, _] = variables.insert(std::move(var));
     bindings.emplace(cleanedName, it->get());
+  }
+
+  const Variable *createTempVariable(Type type, bool isNULL) {
+    auto newName = "temp_" + std::to_string(tempVariableCounter) + "_";
+    addVariable(newName, type, isNULL);
+    ++tempVariableCounter;
+    return getBinding(newName);
   }
 
   void addVarInitialization(const Variable *var, Own<SelectExpression> expr) {
@@ -251,6 +264,7 @@ public:
     variables.erase(it);
   }
 
+  void mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom);
   void removeBasicBlock(BasicBlock *toRemove);
   void makeDuckDBContext();
   void destroyDuckDBContext();
@@ -263,7 +277,8 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  Own<SelectExpression> bindExpression(const String &expr, bool needContext = true);
+  Own<SelectExpression> bindExpression(const String &expr,
+                                       bool needContext = true);
 
   Map<Instruction *, Instruction *>
   replaceUsesWithVar(const Map<const Variable *, const Variable *> &oldToNew,
@@ -272,7 +287,7 @@ public:
       const Map<const Variable *, const SelectExpression *> &oldToNew,
       const Own<UseDefs> &useDefs);
 
-  String getCFGString(){
+  String getCFGString() const {
     std::stringstream ss;
     ss << "digraph cfg {" << std::endl;
     for (const auto &block : basicBlocks) {
@@ -282,6 +297,14 @@ public:
            << std::endl;
       }
     }
+    ss << "}" << std::endl;
+    return ss.str();
+  }
+
+  String getRegionString() const {
+    std::stringstream ss;
+    ss << "digraph region {";
+    ss << *functionRegion << std::endl;
     ss << "}" << std::endl;
     return ss.str();
   }
@@ -304,16 +327,10 @@ protected:
     }
 
     os << "Control Flow Graph: \n" << std::endl;
+    os << getCFGString() << std::endl;
 
-    os << "digraph cfg {" << std::endl;
-    for (const auto &block : basicBlocks) {
-      os << "\t" << block->getLabel() << " [label=\"" << *block << "\"];";
-      for (auto *succ : block->getSuccessors()) {
-        os << "\t" << block->getLabel() << " -> " << succ->getLabel() << ";"
-           << std::endl;
-      }
-    }
-    os << "}" << std::endl;
+    os << "Regions: \n" << std::endl;
+    os << getRegionString() << std::endl;
   }
 
 private:
@@ -333,6 +350,7 @@ private:
 
   duckdb::Connection *conn;
   std::size_t labelNumber;
+  std::size_t tempVariableCounter;
   String functionName;
   Type returnType;
   VecOwn<Variable> arguments;
@@ -341,4 +359,5 @@ private:
   Map<String, Variable *> bindings;
   VecOwn<BasicBlock> basicBlocks;
   Map<String, BasicBlock *> labelToBasicBlock;
+  Own<Region> functionRegion;
 };

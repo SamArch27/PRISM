@@ -43,7 +43,7 @@ static String UdfTranspilerMain(String udfString){
   YAMLConfig config;
   Connection con(*db_instance);
 
-  auto compiler = Compiler(&con, udfString, udfCount);
+  auto compiler = Compiler(&con, udfString, config, udfCount);
   auto res = compiler.run();
   udfCount++;
   COUT << "Transpiling the UDF..." << ENDL;
@@ -94,7 +94,7 @@ inline String UdfCodeGeneratorPragmaFun(ClientContext &context,
   YAMLConfig config;
   Connection con(*db_instance);
   String code, registration;
-  auto compiler = Compiler(&con, buffer.str(), udfCount);
+  auto compiler = Compiler(&con, buffer.str(), config, udfCount);
   auto res = compiler.run();
   udfCount++;
   COUT << "Transpiling the UDF..." << ENDL;
