@@ -179,6 +179,5 @@ public:
   YAML::Node function;
   YAML::Node control;
   YAML::Node aggify;
-  YAML::Node plpgsql;
   YAMLConfig();
 };

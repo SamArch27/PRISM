@@ -56,5 +56,4 @@ YAMLConfig::YAMLConfig() {
   function = YAML::LoadFile(current_dir + "/../templates/function.yaml");
   control = YAML::LoadFile(current_dir + "/../templates/control.yaml");
   aggify = YAML::LoadFile(current_dir + "/../templates/aggify.yaml");
-  plpgsql = YAML::LoadFile(current_dir + "/../templates/plpgsql.yaml");
 }
