@@ -95,17 +95,12 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   }
 
   String selectExpressionCommand;
-  if (toUpper(expr).find("SELECT") == String::npos)
-    if (needContext)
-      selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
-    else
-      selectExpressionCommand = "SELECT " + expr;
-  else if (needContext) {
-    // insert tmp to the from clause
-    auto fromPos = expr.find(" FROM ");
-    selectExpressionCommand = expr;
-    selectExpressionCommand.insert(fromPos + 6, " tmp, ");
+  if (needContext) {
+    selectExpressionCommand = "SELECT (" + expr + ") FROM tmp;";
+  } else {
+    selectExpressionCommand = "SELECT " + expr;
   }
+
   auto clientContext = conn->context.get();
   clientContext->config.enable_optimizer = true;
   auto &config = duckdb::DBConfig::GetConfig(*clientContext);
@@ -141,75 +136,13 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   usedVariableFinder.VisitOperator(*boundExpression);
 
   // for each used variable, bind it to a Variable*
-  Vec<const Variable *> usedVariables;
+  Set<const Variable *> usedVariables;
   for (const auto &varName : usedVariableFinder.usedVariables) {
-    usedVariables.push_back(getBinding(varName));
+    usedVariables.insert(getBinding(varName));
   }
 
   return Make<SelectExpression>(expr, std::move(boundExpression),
                                 usedVariables);
-}
-
-Map<Instruction *, Instruction *> Function::replaceUsesWithVar(
-    const Map<const Variable *, const Variable *> &oldToNew,
-    const Own<UseDefs> &useDefs) {
-
-  Map<Instruction *, Instruction *> newInstructions;
-  for (auto &[oldVar, newVar] : oldToNew) {
-    Set<Instruction *> toReplace;
-    for (auto *use : useDefs->getUses(oldVar)) {
-      for (auto *op : use->getOperands()) {
-        useDefs->removeUse(op, use);
-      }
-      if (auto *def = use->getResultOperand()) {
-        useDefs->removeDef(def, use);
-      }
-      toReplace.insert(use);
-    }
-    for (auto *inst : toReplace) {
-      if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
-        auto *rhs = assign->getRHS();
-        // replace RHS with new expression
-        auto newAssign = Make<Assignment>(assign->getLHS(),
-                                          renameVarInExpression(rhs, oldToNew));
-        newInstructions[inst] = inst->replaceWith(std::move(newAssign));
-        inst = newInstructions[inst];
-      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
-        auto newArguments = phi->getRHS();
-        for (auto &arg : newArguments) {
-          if (oldToNew.find(arg) == oldToNew.end()) {
-            continue;
-          }
-          arg = oldToNew.at(arg);
-        }
-        auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
-        newInstructions[inst] = inst->replaceWith(std::move(newPhi));
-        inst = newInstructions[inst];
-      } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(inst)) {
-        auto newReturn = Make<ReturnInst>(
-            renameVarInExpression(returnInst->getExpr(), oldToNew));
-        newInstructions[inst] = inst->replaceWith(std::move(newReturn));
-        inst = newInstructions[inst];
-      } else if (auto *branchInst = dynamic_cast<const BranchInst *>(inst)) {
-        auto newBranch = Make<BranchInst>(
-            branchInst->getIfTrue(), branchInst->getIfFalse(),
-            renameVarInExpression(branchInst->getCond(), oldToNew));
-        newInstructions[inst] = inst->replaceWith(std::move(newBranch));
-        inst = newInstructions[inst];
-      } else {
-        ERROR("Unhandled case in Function::replaceUsesWith!");
-      }
-
-      // add uses for the new instruction
-      for (auto *op : inst->getOperands()) {
-        useDefs->addUse(op, inst);
-      }
-      if (auto *def = inst->getResultOperand()) {
-        useDefs->addDef(def, inst);
-      }
-    }
-  }
-  return newInstructions;
 }
 
 Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
@@ -247,8 +180,14 @@ Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
             replaceVarWithExpression(branchInst->getCond(), oldToNew));
         newInstructions[inst] = inst->replaceWith(std::move(newBranch));
         inst = newInstructions[inst];
-      } else if (dynamic_cast<const PhiNode *>(inst)) {
-        // do nothing for phi functions
+      } else if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
+        VecOwn<SelectExpression> newRHS;
+        for (auto *op : phi->getRHS()) {
+          newRHS.emplace_back(replaceVarWithExpression(op, oldToNew));
+        }
+        auto newPhi = Make<PhiNode>(phi->getLHS(), std::move(newRHS));
+        newInstructions[inst] = inst->replaceWith(std::move(newPhi));
+        inst = newInstructions[inst];
       } else {
         std::cout << *inst << std::endl;
         ERROR("Unhandled case in Function::replaceUsesWith!");
@@ -267,6 +206,11 @@ Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
 }
 
 void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
+  // Replace the top region with the bottom region
+  auto *bottomRegion = bottom->getRegion();
+  auto *topRegion = bottomRegion->getParentRegion();
+  auto *parent = topRegion->getParentRegion();
+  parent->replaceNestedRegion(topRegion, bottomRegion);
 
   // copy instructions from top into bottom (in reverse order)
   Vec<Instruction *> topInstructions;

@@ -53,8 +53,11 @@ void SSAConstructionPass::insertPhiFunctions(
         if (inserted[m] != var) {
           // place a phi instruction for var at m
           auto numPreds = m->getPredecessors().size();
-          auto args = Vec<const Variable *>(numPreds, var);
-          auto phiInst = Make<PhiNode>(var, args);
+          VecOwn<SelectExpression> args;
+          for (std::size_t i = 0; i < numPreds; ++i) {
+            args.emplace_back(f.bindExpression(var->getName()));
+          }
+          auto phiInst = Make<PhiNode>(var, std::move(args));
           m->insertBefore(m->begin(), std::move(phiInst));
           // update worklists
           inserted[m] = var;
@@ -139,8 +142,12 @@ void SSAConstructionPass::renameVariablesToSSA(
       for (auto it = block->begin(); it != block->end(); ++it) {
         auto &inst = *it;
         if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
-          auto newPhi =
-              Make<PhiNode>(renameVariable(phi->getLHS(), true), phi->getRHS());
+          VecOwn<SelectExpression> clonedRHS;
+          for (auto *op : phi->getRHS()) {
+            clonedRHS.emplace_back(op->clone());
+          }
+          auto newPhi = Make<PhiNode>(renameVariable(phi->getLHS(), true),
+                                      std::move(clonedRHS));
           it = block->replaceInst(it, std::move(newPhi));
         } else if (auto *returnInst = dynamic_cast<const ReturnInst *>(&inst)) {
           auto newReturn =
@@ -171,9 +178,18 @@ void SSAConstructionPass::renameVariablesToSSA(
       for (auto it = succ->begin(); it != succ->end(); ++it) {
         auto &inst = *it;
         if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
-          auto newArguments = phi->getRHS();
-          newArguments[j] = renameVariable(phi->getRHS()[j], false);
-          auto newPhi = Make<PhiNode>(phi->getLHS(), newArguments);
+          VecOwn<SelectExpression> newArguments;
+          for (auto &arg : phi->getRHS()) {
+            newArguments.emplace_back(arg->clone());
+          }
+          // collect all of the new variables
+          Map<const Variable *, const Variable *> oldToNew;
+          auto *op = phi->getRHS()[j];
+          for (auto *var : op->getUsedVariables()) {
+            oldToNew.insert({var, renameVariable(var, false)});
+          }
+          newArguments[j] = f.renameVarInExpression(op, oldToNew);
+          auto newPhi = Make<PhiNode>(phi->getLHS(), std::move(newArguments));
           it = succ->replaceInst(it, std::move(newPhi));
         }
       }
