@@ -82,7 +82,7 @@ void Compiler::optimize(Function &f) {
       Make<DeadCodeEliminationPass>(), Make<QueryMotionPass>()));
 
   auto pipeline = Make<PipelinePass>(
-      Make<MergeRegionPass>(), Make<SSAConstructionPass>(),
+      Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
       Make<SSADestructionPass>()
       );

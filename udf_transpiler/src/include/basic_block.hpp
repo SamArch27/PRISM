@@ -144,6 +144,7 @@ public:
 
   void setRegion(Region *region) { parentRegion = region; }
   Region *getRegion() { return parentRegion; }
+  Region *getRegionConst() const { return parentRegion; }
 
   String getLabel() const;
   bool isConditional() const;
