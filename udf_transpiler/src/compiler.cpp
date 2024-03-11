@@ -1,15 +1,10 @@
 #include "compiler.hpp"
-#include <algorithm>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <utility>
-#include "utils.hpp"
 #include "aggify_code_generator.hpp"
 #include "aggify_dfa.hpp"
 #include "ast_to_cfg.hpp"
 #include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
+#include "cfg_to_ast.hpp"
 #include "dead_code_elimination.hpp"
 #include "dominator_dataflow.hpp"
 #include "duckdb/main/connection.hpp"
@@ -25,7 +20,12 @@
 #include "query_motion.hpp"
 #include "ssa_construction.hpp"
 #include "ssa_destruction.hpp"
-#include "cfg_to_ast.hpp"
+#include "utils.hpp"
+#include <algorithm>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <utility>
 
 std::ostream &operator<<(std::ostream &os, const LogicalPlan &expr) {
   ExpressionPrinter printer(os);
@@ -84,21 +84,19 @@ void Compiler::optimize(Function &f) {
   auto pipeline = Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
-      Make<SSADestructionPass>()
-      );
+      Make<SSADestructionPass>());
 
   std::cout << f << std::endl;
 
-  // pipeline->runOnFunction(f);
+  pipeline->runOnFunction(f);
 
-  
+  std::cout << f << std::endl;
+
   PLpgSQLGenerator plpgsqlGenerator(config);
   auto plpgsqlRes = plpgsqlGenerator.run(f);
-  COUT<<"----------- PLpgSQL code start -----------\n";
-  COUT<<plpgsqlRes.code<<ENDL;
-  COUT<<"----------- PLpgSQL code end-----------\n";
-  // std::cout << f << std::endl;
-  // drawGraph(f.getCFGString(), "end");
+  COUT << "----------- PLpgSQL code start -----------\n";
+  COUT << plpgsqlRes.code << ENDL;
+  COUT << "----------- PLpgSQL code end-----------\n";
 }
 
 /**
