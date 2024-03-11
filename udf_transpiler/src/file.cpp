@@ -200,8 +200,8 @@ void loadUDAF(duckdb::Connection &connection) {
 
 void drawGraph(const String &dot, String name) {
   // create a hidden file in GRAPH_OUTPUT_DIR
-  String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + name;
-  std::ofstream out(filename + ".dot");
+  String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + name + ".dot";
+  std::ofstream out(filename);
   if (out.fail()) {
     ERROR("Cannot open the file for writing: " + filename);
   }
