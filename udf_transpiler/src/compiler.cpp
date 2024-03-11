@@ -4,6 +4,7 @@
 #include "ast_to_cfg.hpp"
 #include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
+#include "cfg_to_ast.hpp"
 #include "dead_code_elimination.hpp"
 #include "dominator_dataflow.hpp"
 #include "duckdb/main/connection.hpp"
@@ -82,14 +83,20 @@ void Compiler::optimize(Function &f) {
 
   auto pipeline = Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
-      Make<DeadCodeEliminationPass>(), std::move(corePasses),
-      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>());
+      std::move(corePasses), Make<BreakPhiInterferencePass>(),
+      Make<SSADestructionPass>());
 
   std::cout << f << std::endl;
 
   pipeline->runOnFunction(f);
 
   std::cout << f << std::endl;
+
+  PLpgSQLGenerator plpgsqlGenerator(config);
+  auto plpgsqlRes = plpgsqlGenerator.run(f);
+  COUT << "----------- PLpgSQL code start -----------\n";
+  COUT << plpgsqlRes.code << ENDL;
+  COUT << "----------- PLpgSQL code end-----------\n";
 }
 
 /**

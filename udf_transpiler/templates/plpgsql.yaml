@@ -1,0 +1,8 @@
+functionTemplate: |
+  CREATE FUNCTION {functionName}({functionArgs}) RETURNS {returnType} AS $$
+  DECLARE
+  {varDeclarations}
+  BEGIN
+      {body}
+  END;$$
+  LANGUAGE PLPGSQL;
