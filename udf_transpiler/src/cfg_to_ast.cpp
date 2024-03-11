@@ -175,7 +175,8 @@ void PLpgSQLGenerator::regionCodeGenerator(const Function &function,
                  condBlock->getSuccessors()[1] !=
                      currentRegion->getTrueRegion()->getHeader(),
              "Second successor should be the false branch");
-      auto insertBreak = ifInsertBreak(condBlock, condBlock->getSuccessors()[1]);
+      auto insertBreak =
+          ifInsertBreak(condBlock, condBlock->getSuccessors()[1]);
       auto insertContinue =
           ifInsertContinue(condBlock, condBlock->getSuccessors()[1]);
       ASSERT(!(insertBreak && insertContinue),

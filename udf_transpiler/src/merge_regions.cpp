@@ -8,9 +8,11 @@ bool MergeRegionsPass::runOnFunction(Function &f) {
   // visit the CFG in a BFS fashion, merging blocks as we go
   Set<BasicBlock *> worklist;
   for (auto &block : f) {
-    if (f.getEntryBlock() != &block) {
-      worklist.insert(&block);
+    // skip entry block
+    if (f.getEntryBlock() == &block) {
+      continue;
     }
+    worklist.insert(&block);
   }
 
   while (!worklist.empty()) {
@@ -36,14 +38,16 @@ bool MergeRegionsPass::runOnFunction(Function &f) {
         continue;
       }
 
-      // don't merge conditionals
-      if (dynamic_cast<ConditionalRegion *>(bottom->getRegion())) {
-        continue;
-      }
+      if (!aggressive) {
+        // don't merge conditionals
+        if (dynamic_cast<ConditionalRegion *>(bottom->getRegion())) {
+          continue;
+        }
 
-      // don't merge loops
-      if (dynamic_cast<LoopRegion *>(bottom->getRegion())) {
-        continue;
+        // don't merge loops
+        if (dynamic_cast<LoopRegion *>(bottom->getRegion())) {
+          continue;
+        }
       }
 
       // special: don't merge a SELECT region with other regions
