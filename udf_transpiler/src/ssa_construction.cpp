@@ -162,9 +162,10 @@ void SSAConstructionPass::renameVariablesToSSA(
               renameSelectExpression(branchInst->getCond()));
           it = block->replaceInst(it, std::move(newBranch));
         } else if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
-          auto newAssignment =
-              Make<Assignment>(renameVariable(assign->getLHS(), true),
-                               renameSelectExpression(assign->getRHS()));
+          // ORDER MATTERS
+          auto newSelect = renameSelectExpression(assign->getRHS());
+          auto newVar = renameVariable(assign->getLHS(), true);
+          auto newAssignment = Make<Assignment>(std::move(newVar), std::move(newSelect));
           it = block->replaceInst(it, std::move(newAssignment));
         } else {
           ERROR("Unhandled instruction type during SSA renaming!");

@@ -122,7 +122,7 @@ protected:
   virtual void print(std::ostream &os) const = 0;
 
 private:
-  BasicBlock *parent;
+  BasicBlock *parent = nullptr;
 };
 
 class PhiNode : public Instruction {
@@ -268,7 +268,7 @@ protected:
 
 private:
   Own<SelectExpression> expr;
-  BasicBlock *exitBlock;
+  // BasicBlock *exitBlock;
 };
 
 class BranchInst : public Instruction {
