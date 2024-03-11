@@ -9,8 +9,8 @@ String joinCode(const PLpgSQLContainer &container) {
  * find the most nested loop region that the basic block belongs to
 */
 const LoopRegion *findCurrentLoopRegion(const BasicBlock *bb){
-    ASSERT(bb->getRegionConst(), "Basic block should have a parent region");
-    auto parentRegion = bb->getRegionConst();
+    ASSERT(bb->getRegion(), "Basic block should have a parent region");
+    auto parentRegion = bb->getRegion();
     while(parentRegion){
         if(auto loopRegion = dynamic_cast<const LoopRegion *>(parentRegion)){
             return loopRegion;
@@ -24,8 +24,8 @@ const LoopRegion *findCurrentLoopRegion(const BasicBlock *bb){
  * whether the basic block belongs to the loop region
 */
 bool belongToLoopRegion(const BasicBlock *bb, const LoopRegion *loopRegion){
-    ASSERT(bb->getRegionConst(), "Basic block should have a parent region");
-    Region *parentRegion = bb->getRegionConst();
+    ASSERT(bb->getRegion(), "Basic block should have a parent region");
+    Region *parentRegion = bb->getRegion();
     while(parentRegion){
         if(parentRegion == (Region *)loopRegion){
             return true;

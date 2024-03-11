@@ -143,8 +143,7 @@ public:
   Instruction *getTerminator();
 
   void setRegion(Region *region) { parentRegion = region; }
-  Region *getRegion() { return parentRegion; }
-  Region *getRegionConst() const { return parentRegion; }
+  Region *getRegion() const { return parentRegion; }
 
   String getLabel() const;
   bool isConditional() const;
