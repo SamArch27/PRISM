@@ -268,7 +268,6 @@ protected:
 
 private:
   Own<SelectExpression> expr;
-  // BasicBlock *exitBlock;
 };
 
 class BranchInst : public Instruction {
