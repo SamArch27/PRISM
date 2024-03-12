@@ -13,7 +13,6 @@
 #include "file.hpp"
 #include "fixpoint_pass.hpp"
 #include "function.hpp"
-#include "jump_threading.hpp"
 #include "liveness_dataflow.hpp"
 #include "merge_regions.hpp"
 #include "pg_query.h"
@@ -85,8 +84,7 @@ void Compiler::optimize(Function &f) {
   auto pipeline = Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
       std::move(corePasses), Make<BreakPhiInterferencePass>(),
-      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>(),
-      Make<JumpThreadingPass>());
+      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
 
   std::cout << f << std::endl;
 
