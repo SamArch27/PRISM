@@ -446,58 +446,65 @@ Own<Region> AstToCFG::constructExitCFG(const json &exitJson, Function &f,
   }
 }
 
-BasicBlock *
-AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson, Function &f,
-                                 List<json> &statements,
-                                 const Continuations &continuations) {
-  // ERROR("Cursor loops are not currently supported.");
-  auto newBlock = f.makeBasicBlock();
-  f.addVariable("cursorloopiter", getTypeFromPostgresName("INT"), false);
-  f.addVarInitialization(f.getBinding("cursorloopiter"), f.bindExpression("0", false));
-  // f.addVariable("cursorloopEmpty", getTypeFromPostgresName("BOOL"), false);
-  
-  // f.addVarInitialization(f.getBinding("cursorloopEmpty"),
-  //                        f.bindExpression("false", false));
-  auto iInit = f.bindExpression("0", false);
-  // auto emptyInit = f.bindExpression("false", false);
-  // f.addVarInitialization(f.getBinding("cursorloopiter"), std::move(expr));
-  newBlock->addInstruction(Make<Assignment>(f.getBinding("cursorloopiter"),
-                                           std::move(iInit)));
+Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
+                                             Function &function,
+                                             List<json> &statements,
+                                             const Continuations &continuations,
+                                             bool attachFallthrough) {
+  ERROR("Cursor loops are not currently supported.");
+  return nullptr;
+  // auto newBlock = f.makeBasicBlock();
+  // f.addVariable("cursorloopiter", getTypeFromPostgresName("INT"), false);
+  // f.addVarInitialization(f.getBinding("cursorloopiter"),
+  // f.bindExpression("0", false));
+  // // f.addVariable("cursorloopEmpty", getTypeFromPostgresName("BOOL"),
+  // false);
+
+  // // f.addVarInitialization(f.getBinding("cursorloopEmpty"),
+  // //                        f.bindExpression("false", false));
+  // auto iInit = f.bindExpression("0", false);
+  // // auto emptyInit = f.bindExpression("false", false);
+  // // f.addVarInitialization(f.getBinding("cursorloopiter"), std::move(expr));
+  // newBlock->addInstruction(Make<Assignment>(f.getBinding("cursorloopiter"),
+  //                                          std::move(iInit)));
+  // //
   // newBlock->addInstruction(Make<Assignment>(f.getBinding("cursorloopEmpty"),
-  //                                           std::move(emptyInit)));
-  
+  // //                                           std::move(emptyInit)));
 
-  auto *afterLoopBlock = constructCFG(f, statements, continuations);
-  auto condBlock = f.makeBasicBlock();
+  // auto *afterLoopBlock = constructCFG(f, statements, continuations);
+  // auto condBlock = f.makeBasicBlock();
 
-  auto newContinuations = Continuations(condBlock, condBlock, nullptr);
-  // auto &body = cursorLoopJson["body"];
-  auto bodyStatements = getJsonList(cursorLoopJson["body"]);
-  auto *loopBodyBlock = constructCFG(f, bodyStatements, newContinuations);
+  // auto newContinuations = Continuations(condBlock, condBlock, nullptr);
+  // // auto &body = cursorLoopJson["body"];
+  // auto bodyStatements = getJsonList(cursorLoopJson["body"]);
+  // auto *loopBodyBlock = constructCFG(f, bodyStatements, newContinuations);
 
-  // create a block for the condition
-  String cursorLoopWhileQuery = fmt::format("select ANY_VALUE(cursorloopiter) < count(*) from {} cursorloopEmptyTmp", cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>());
-  COUT<<cursorLoopWhileQuery<<std::endl;
-  auto condExpr = f.bindExpression(cursorLoopWhileQuery);
-  for(auto &used : condExpr->getUsedVariables()){
-    COUT<<used->getName()<<std::endl;
-  }
-  
+  // // create a block for the condition
+  // String cursorLoopWhileQuery = fmt::format("select ANY_VALUE(cursorloopiter)
+  // < count(*) from {} cursorloopEmptyTmp",
+  // cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>());
+  // COUT<<cursorLoopWhileQuery<<std::endl;
+  // auto condExpr = f.bindExpression(cursorLoopWhileQuery);
+  // for(auto &used : condExpr->getUsedVariables()){
+  //   COUT<<used->getName()<<std::endl;
+  // }
+
+  // // condBlock->addInstruction(
+  // //     Make<Assignment>(f.getBinding("cursorloopiter"),
+  // f.bindExpression("cursorloopiter + 1"))); auto incrementBlock =
+  // f.makeBasicBlock(); incrementBlock->addInstruction(
+  //     Make<Assignment>(f.getBinding("cursorloopiter"),
+  //     f.bindExpression("cursorloopiter + 1")));
+
   // condBlock->addInstruction(
-  //     Make<Assignment>(f.getBinding("cursorloopiter"), f.bindExpression("cursorloopiter + 1")));
-  auto incrementBlock = f.makeBasicBlock();
-  incrementBlock->addInstruction(
-      Make<Assignment>(f.getBinding("cursorloopiter"), f.bindExpression("cursorloopiter + 1")));
-  
-  condBlock->addInstruction(
-      Make<BranchInst>(incrementBlock, afterLoopBlock, std::move(condExpr)));
-  incrementBlock->addInstruction(Make<BranchInst>(loopBodyBlock));
-  // the block jumps immediately to the cond block
-  newBlock->addInstruction(Make<BranchInst>(condBlock));
+  //     Make<BranchInst>(incrementBlock, afterLoopBlock, std::move(condExpr)));
+  // incrementBlock->addInstruction(Make<BranchInst>(loopBodyBlock));
+  // // the block jumps immediately to the cond block
+  // newBlock->addInstruction(Make<BranchInst>(condBlock));
 
-  auto preHeader = f.makeBasicBlock();
-  preHeader->addInstruction(Make<BranchInst>(newBlock));
-  return preHeader;
+  // auto preHeader = f.makeBasicBlock();
+  // preHeader->addInstruction(Make<BranchInst>(newBlock));
+  // return preHeader;
 }
 
 void AstToCFG::buildCursorLoopCFG(Function &f, const json &ast) {

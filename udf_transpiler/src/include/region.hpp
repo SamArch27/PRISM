@@ -41,7 +41,7 @@ public:
   RecursiveRegion *getParentRegion() const { return parentRegion; }
 
 private:
-  RecursiveRegion *parentRegion;
+  RecursiveRegion *parentRegion = nullptr;
   BasicBlock *header;
 };
 

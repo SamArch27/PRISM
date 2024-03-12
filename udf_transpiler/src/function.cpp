@@ -142,9 +142,9 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   usedVariableFinder.VisitOperator(*boundExpression);
 
   // for each used variable, bind it to a Variable*
-  Vec<const Variable *> usedVariables;
+  Set<const Variable *> usedVariables;
   for (const auto &varName : usedVariableFinder.getUsedVariables()) {
-    usedVariables.push_back(getBinding(varName));
+    usedVariables.insert(getBinding(varName));
   }
 
   return Make<SelectExpression>(expr, std::move(boundExpression),
