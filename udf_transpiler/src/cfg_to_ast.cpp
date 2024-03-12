@@ -73,11 +73,25 @@ bool ifInsertContinue(const BasicBlock *currBlock,
   }
 }
 
+String condBranchCodeGenerator(const BasicBlock *bb,
+                               const Instruction *branch) {
+  // only generate the condition part of the branch instruction
+  // should also ensure that it is the only instruction in the basic block
+  ASSERT(bb->isConditional() && bb->size() == 1,
+         "Branch instruction should be the only instruction in the basic "
+         "block");
+  ASSERT(dynamic_cast<const BranchInst *>(branch),
+         "The instruction should be a branch instruction");
+  const auto *branchInst = dynamic_cast<const BranchInst *>(branch);
+  return branchInst->getCond()->getRawSQL();
+}
+
 /**
  * generate the PL/pgSQL code for a basic block
+ * do not code generate binary branch, conditional region should handle it
  */
 String basicBlockCodeGenerator(const Function &function, const BasicBlock *bb,
-                               int indent) {
+                               const Region *currentRegion, int indent) {
   Vec<String> result;
   for (const auto &inst : *bb) {
     if (auto assign = dynamic_cast<const Assignment *>(&inst)) {
@@ -92,8 +106,8 @@ String basicBlockCodeGenerator(const Function &function, const BasicBlock *bb,
       String code = fmt::format("RETURN {};", ret->getExpr()->getRawSQL());
       result.push_back(code);
     } else if (auto branch = dynamic_cast<const BranchInst *>(&inst)) {
+      // we only consider adding break and continue statement at jmp position
       if (branch->getSuccessors().size() == 1) {
-        // we only consider adding break and continue statement for conditional
         auto insertBreak = ifInsertBreak(bb, branch->getSuccessors()[0]);
         auto insertContinue = ifInsertContinue(bb, branch->getSuccessors()[0]);
         ASSERT(!(insertBreak && insertContinue),
@@ -105,13 +119,7 @@ String basicBlockCodeGenerator(const Function &function, const BasicBlock *bb,
           result.push_back("CONTINUE;");
         }
       } else {
-        // if it is a binary branch
-        // only generate the condition part of the branch instruction
-        // should also ensure that it is the only instruction in the basic block
-        ASSERT(bb->isConditional() && bb->size() == 1,
-               "Branch instruction should be the only instruction in the basic "
-               "block");
-        return branch->getCond()->getRawSQL();
+        // do nothing for the binary branch
       }
     } else {
       ERROR("Unexpected instruction type");
@@ -129,8 +137,8 @@ void PLpgSQLGenerator::regionCodeGenerator(const Function &function,
   // switch the region type
   if (auto currentRegion = dynamic_cast<const SequentialRegion *>(region)) {
     // generate code for the header
-    auto headerCode =
-        basicBlockCodeGenerator(function, currentRegion->getHeader(), indent);
+    auto headerCode = basicBlockCodeGenerator(
+        function, currentRegion->getHeader(), currentRegion, indent);
     container.regionCodes.push_back(headerCode);
 
     // then generate code for the nested regions in order
@@ -142,13 +150,13 @@ void PLpgSQLGenerator::regionCodeGenerator(const Function &function,
     }
   } else if (auto currentRegion = dynamic_cast<const LeafRegion *>(region)) {
     // if the region is a leaf region, generate the code for the basic block
-    auto headerCode =
-        basicBlockCodeGenerator(function, currentRegion->getHeader(), indent);
+    auto headerCode = basicBlockCodeGenerator(
+        function, currentRegion->getHeader(), currentRegion, indent);
     container.regionCodes.push_back(headerCode);
   } else if (auto currentRegion = dynamic_cast<const LoopRegion *>(region)) {
     // if the region is a loop region, generate the code for the loop
-    auto headerCode =
-        basicBlockCodeGenerator(function, currentRegion->getHeader(), indent);
+    auto headerCode = basicBlockCodeGenerator(
+        function, currentRegion->getHeader(), currentRegion, indent);
     PLpgSQLContainer loopContainer;
     regionCodeGenerator(function, loopContainer, currentRegion->getBodyRegion(),
                         indent);
@@ -161,7 +169,11 @@ void PLpgSQLGenerator::regionCodeGenerator(const Function &function,
     auto condBlock = currentRegion->getHeader();
     // if the region is a conditional region, generate the code for the
     // conditional
-    auto condCode = basicBlockCodeGenerator(function, condBlock, indent);
+    auto headerCode =
+        basicBlockCodeGenerator(function, condBlock, currentRegion, indent);
+    container.regionCodes.push_back(headerCode);
+    auto condCode =
+        condBranchCodeGenerator(condBlock, condBlock->getTerminator());
     if (currentRegion->getFalseRegion() == nullptr) {
       // if the conditional region does not have a false region, it is a if
       // statement
@@ -171,13 +183,18 @@ void PLpgSQLGenerator::regionCodeGenerator(const Function &function,
 
       // other kind of jmp is already handled in the basic block code generator
       String insert = "";
+      BasicBlock *falseBlock = nullptr;
+      for (auto &succ : condBlock->getSuccessors()) {
+        if (succ != currentRegion->getTrueRegion()->getHeader()) {
+          falseBlock = succ;
+          break;
+        }
+      }
       ASSERT(condBlock->getSuccessors().size() == 2 &&
-                 condBlock->getSuccessors()[1] !=
-                     currentRegion->getTrueRegion()->getHeader(),
-             "Second successor should be the false branch");
-      auto insertBreak = ifInsertBreak(condBlock, condBlock->getSuccessors()[1]);
-      auto insertContinue =
-          ifInsertContinue(condBlock, condBlock->getSuccessors()[1]);
+                 falseBlock != currentRegion->getTrueRegion()->getHeader(),
+             "Unexpected conditional region structure");
+      auto insertBreak = ifInsertBreak(condBlock, falseBlock);
+      auto insertContinue = ifInsertContinue(condBlock, falseBlock);
       ASSERT(!(insertBreak && insertContinue),
              "Cannot insert both break and continue statement");
       if (insertBreak) {
