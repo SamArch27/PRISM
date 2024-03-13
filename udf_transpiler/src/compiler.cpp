@@ -79,16 +79,18 @@ json Compiler::parseJson() const {
 }
 
 void Compiler::optimize(Function &f) {
+  auto ssaConstruction =
+      Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
+
   auto coreOptimizations = Make<FixpointPass>(Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<ExpressionPropagationPass>(),
       Make<DeadCodeEliminationPass>()));
 
-  auto ssaConstruction =
-      Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
-
-  auto outliningPipeline = Make<PipelinePass>(Make<QueryMotionPass>(),
-                                              Make<ExpressionPropagationPass>(),
-                                              Make<OutliningPass>());
+  auto beforeOutliningPipeline = Make<PipelinePass>(
+      Make<QueryMotionPass>(), Make<ExpressionPropagationPass>());
+  auto rightBeforeOutliningPipeline =
+      Make<FixpointPass>(Make<DeadCodeEliminationPass>());
+  auto outliningPipeline = Make<PipelinePass>(Make<OutliningPass>());
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
@@ -107,6 +109,8 @@ void Compiler::optimize(Function &f) {
   auto hoistedPredicates = predicateAnalysis.getPredicates();
 
   // Now perform outlining
+  beforeOutliningPipeline->runOnFunction(f);
+  rightBeforeOutliningPipeline->runOnFunction(f);
   outliningPipeline->runOnFunction(f);
 
   // Finally get out of SSA
