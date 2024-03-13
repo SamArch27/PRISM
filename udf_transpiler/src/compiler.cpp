@@ -86,8 +86,9 @@ void Compiler::optimize(Function &f) {
   auto ssaConstruction =
       Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
 
-  auto outliningPipeline =
-      Make<PipelinePass>(Make<QueryMotionPass>(), Make<OutliningPass>());
+  auto outliningPipeline = Make<PipelinePass>(Make<QueryMotionPass>(),
+                                              Make<ExpressionPropagationPass>(),
+                                              Make<OutliningPass>());
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),

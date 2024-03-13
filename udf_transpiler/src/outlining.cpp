@@ -173,6 +173,7 @@ bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
 
   // create a new function
   // auto newFunction = f
+  outlinedCount++;
   return false;
 }
 
