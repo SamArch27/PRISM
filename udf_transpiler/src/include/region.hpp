@@ -42,7 +42,7 @@ public:
 
   /**
    * return true if the region or any of its nested regions contains a SELECT
-  */
+   */
   virtual bool hasSelect() const = 0;
 
   virtual Vec<const BasicBlock *> getBasicBlocks() const = 0;
@@ -90,7 +90,7 @@ public:
   Vec<const Region *> getNestedRegions() const {
     Vec<const Region *> result;
     for (auto &region : nestedRegions) {
-      if (region) {
+      if (region != nullptr) {
         result.push_back(region.get());
       }
     }
@@ -114,12 +114,15 @@ public:
   }
 
   bool hasSelect() const override {
-    COUT<< "hasSelect: " << this->getRegionLabel() << ENDL;
+    COUT << "hasSelect: " << this->getRegionLabel() << ENDL;
     if (getHeader()->hasSelect()) {
       return true;
     }
     for (auto &region : nestedRegions) {
-      if (region && region->hasSelect()) {
+      if (region == nullptr) {
+        continue;
+      }
+      if (region->hasSelect()) {
         return true;
       }
     }

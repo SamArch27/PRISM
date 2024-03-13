@@ -71,16 +71,10 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   }
 
   String selectExpressionCommand;
-  if (toUpper(expr).find("SELECT") == String::npos)
-    if (needContext)
-      selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
-    else
-      selectExpressionCommand = "SELECT " + expr;
-  else if (needContext) {
-    // insert tmp to the from clause
-    auto fromPos = toUpper(expr).find(" FROM ");
-    selectExpressionCommand = expr;
-    selectExpressionCommand.insert(fromPos + 6, " tmp, ");
+  if (needContext) {
+    selectExpressionCommand = "SELECT (" + expr + ") FROM tmp;";
+  } else {
+    selectExpressionCommand = "SELECT " + expr;
   }
 
   auto clientContext = conn->context.get();
@@ -281,7 +275,8 @@ Own<PhiNode> FunctionCloneAndRenameHelper::cloneAndRename(const PhiNode &phi) {
     newRHS.emplace_back(cloneAndRename(*op));
   }
   ASSERT(variableMap.find(phi.getLHS()) != variableMap.end(),
-         fmt::format("Variable {} not found in variableMap", phi.getLHS()->getName()));
+         fmt::format("Variable {} not found in variableMap",
+                     phi.getLHS()->getName()));
   return Make<PhiNode>(variableMap.at(phi.getLHS()), std::move(newRHS));
 }
 
@@ -289,7 +284,8 @@ template <>
 Own<Assignment>
 FunctionCloneAndRenameHelper::cloneAndRename(const Assignment &assign) {
   ASSERT(variableMap.find(assign.getLHS()) != variableMap.end(),
-         fmt::format("Variable {} not found in variableMap", assign.getLHS()->getName()));
+         fmt::format("Variable {} not found in variableMap",
+                     assign.getLHS()->getName()));
   return Make<Assignment>(variableMap.at(assign.getLHS()),
                           cloneAndRename(*assign.getRHS()));
 }
@@ -304,10 +300,12 @@ template <>
 Own<BranchInst>
 FunctionCloneAndRenameHelper::cloneAndRename(const BranchInst &branch) {
   ASSERT(basicBlockMap.find(branch.getIfTrue()) != basicBlockMap.end(),
-         fmt::format("BasicBlock {} not found in basicBlockMap", branch.getIfTrue()->getLabel()));
+         fmt::format("BasicBlock {} not found in basicBlockMap",
+                     branch.getIfTrue()->getLabel()));
   auto trueBlock = basicBlockMap.at(branch.getIfTrue());
   ASSERT(basicBlockMap.find(branch.getIfFalse()) != basicBlockMap.end(),
-         fmt::format("BasicBlock {} not found in basicBlockMap", branch.getIfFalse()->getLabel()));
+         fmt::format("BasicBlock {} not found in basicBlockMap",
+                     branch.getIfFalse()->getLabel()));
   auto falseBlock = basicBlockMap.at(branch.getIfFalse());
   return Make<BranchInst>(trueBlock, falseBlock,
                           cloneAndRename(*branch.getCond()));
@@ -325,8 +323,9 @@ FunctionCloneAndRenameHelper::cloneAndRename(const Instruction &inst) {
   } else if (auto *branch = dynamic_cast<const BranchInst *>(&inst)) {
     return cloneAndRename(*branch);
   } else {
-    std::cout << "Unhandled case in FunctionCloneAndRenameHelper::cloneAndRename!"
-              << std::endl;
+    std::cout
+        << "Unhandled case in FunctionCloneAndRenameHelper::cloneAndRename!"
+        << std::endl;
     std::cout << inst << std::endl;
     ERROR("Unhandled case in FunctionCloneAndRenameHelper::cloneAndRename!");
   }
@@ -362,9 +361,12 @@ Own<Function> Function::partialCloneAndRename(
   }
 
   // let the entry jump to the first block of the first region
-  ASSERT(basicBlockMap.find(regions.front()->getHeader()) != basicBlockMap.end(),
-         fmt::format("BasicBlock {} not found in basicBlockMap", regions.front()->getHeader()->getLabel()));
-  newFunction->getEntryBlock()->addInstruction(Make<BranchInst>(basicBlockMap.at(regions.front()->getHeader())));
-  
+  ASSERT(basicBlockMap.find(regions.front()->getHeader()) !=
+             basicBlockMap.end(),
+         fmt::format("BasicBlock {} not found in basicBlockMap",
+                     regions.front()->getHeader()->getLabel()));
+  newFunction->getEntryBlock()->addInstruction(
+      Make<BranchInst>(basicBlockMap.at(regions.front()->getHeader())));
+
   return std::move(newFunction);
 }

@@ -1,6 +1,6 @@
 #include "outlining.hpp"
 #include "instructions.hpp"
-#include "liveness_dataflow.hpp"
+#include "liveness_analysis.hpp"
 #include "utils.hpp"
 
 template <>
@@ -148,7 +148,7 @@ bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
                                              returnType, regions);
 
   // when going out of ssa, do you need region in place?
-  COUT << "Outlind Function: " << newFunction->getFunctionName() << ENDL;
+  COUT << "Outlined Function: " << newFunction->getFunctionName() << ENDL;
   COUT << *newFunction << ENDL;
 
   // if (regions.front()->getParentRegion() == nullptr) {
@@ -160,6 +160,7 @@ bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
 
   // create a new function
   // auto newFunction = f
+  return false;
 }
 
 bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
