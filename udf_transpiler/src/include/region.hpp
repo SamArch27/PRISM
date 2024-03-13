@@ -40,6 +40,8 @@ public:
   void setParentRegion(RecursiveRegion *parent) { parentRegion = parent; }
   RecursiveRegion *getParentRegion() const { return parentRegion; }
 
+  virtual bool hasSelect() const = 0;
+
 private:
   RecursiveRegion *parentRegion = nullptr;
   BasicBlock *header;
@@ -54,6 +56,8 @@ public:
   virtual ~NonRecursiveRegion() = default;
   virtual void print(std::ostream &os) const override = 0;
   virtual String getRegionLabel() const override = 0;
+
+  bool hasSelect() const override { return getHeader()->hasSelect(); }
 };
 
 class RecursiveRegion : public Region {
@@ -99,6 +103,19 @@ public:
         region.reset(newRegion);
       }
     }
+  }
+
+  bool hasSelect() const override {
+    COUT<< "hasSelect: " << this->getRegionLabel() << ENDL;
+    if (getHeader()->hasSelect()) {
+      return true;
+    }
+    for (auto &region : nestedRegions) {
+      if (region && region->hasSelect()) {
+        return true;
+      }
+    }
+    return false;
   }
 
 protected:

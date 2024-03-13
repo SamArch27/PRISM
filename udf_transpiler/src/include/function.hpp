@@ -334,19 +334,6 @@ protected:
   }
 
 private:
-  class CompilationState {
-  public:
-    std::size_t labelNumber;
-    VecOwn<BasicBlock> basicBlocks;
-    // more things to memorize later
-    CompilationState(std::size_t _labelNumber, VecOwn<BasicBlock> &_basicBlocks)
-        : labelNumber(_labelNumber) {
-      for (auto &bb : _basicBlocks) {
-        std::cout << "Pushing: " << *bb << std::endl;
-        this->basicBlocks.push_back(std::move(bb));
-      }
-    }
-  };
 
   duckdb::Connection *conn;
   std::size_t labelNumber;

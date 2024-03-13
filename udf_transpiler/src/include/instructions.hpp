@@ -81,6 +81,8 @@ public:
   }
 
   const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
+
+  Shared<LogicalPlan> getLogicalPlanShared() const{ return logicalPlan; }
   const Set<const Variable *> &getUsedVariables() const {
     return usedVariables;
   }
@@ -117,6 +119,7 @@ public:
   void eraseFromParent();
   void setParent(BasicBlock *parentBlock) { parent = parentBlock; }
   BasicBlock *getParent() const { return parent; }
+  virtual bool hasSelect() const = 0;
 
 protected:
   virtual void print(std::ostream &os) const = 0;
@@ -179,6 +182,13 @@ public:
     return os;
   }
 
+  bool hasSelect() const override {
+    return std::any_of(arguments.begin(), arguments.end(),
+                       [](const Own<SelectExpression> &arg) {
+                         return arg->isSQLExpression();
+                       });
+  }
+
 protected:
   void print(std::ostream &os) const override {
     os << *var << " = Φ(";
@@ -226,6 +236,8 @@ public:
   bool isTerminator() const override { return false; }
   Vec<BasicBlock *> getSuccessors() const override { return {}; }
 
+  bool hasSelect() const override { return expr->isSQLExpression(); }
+
 protected:
   void print(std::ostream &os) const override { os << *var << " = " << *expr; }
 
@@ -260,6 +272,8 @@ public:
   bool isTerminator() const override { return true; }
   Vec<BasicBlock *> getSuccessors() const override { return {}; }
   const SelectExpression *getExpr() const { return expr.get(); }
+
+  bool hasSelect() const override { return expr->isSQLExpression(); }
 
 protected:
   void print(std::ostream &os) const override {
@@ -311,6 +325,10 @@ public:
   BasicBlock *getIfTrue() const { return ifTrue; }
   BasicBlock *getIfFalse() const { return ifFalse; }
   const SelectExpression *getCond() const { return cond.get(); }
+
+  bool hasSelect() const override {
+    return conditional ? cond->isSQLExpression() : false;
+  }
 
 protected:
   void print(std::ostream &os) const override;

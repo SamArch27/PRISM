@@ -15,6 +15,7 @@
 #include "function.hpp"
 #include "liveness_dataflow.hpp"
 #include "merge_regions.hpp"
+#include "outlining.hpp"
 #include "pg_query.h"
 #include "pipeline_pass.hpp"
 #include "query_motion.hpp"
@@ -83,7 +84,8 @@ void Compiler::optimize(Function &f) {
 
   auto pipeline = Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
-      std::move(corePasses), Make<BreakPhiInterferencePass>(),
+      std::move(corePasses), Make<OutliningPass>(),
+      Make<BreakPhiInterferencePass>(),
       Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
 
   std::cout << f << std::endl;
@@ -93,7 +95,6 @@ void Compiler::optimize(Function &f) {
 
   std::cout << f << std::endl;
   drawGraph(f.getCFGString(), "cfg2");
-
   // PLpgSQLGenerator plpgsqlGenerator(config);
   // auto plpgsqlRes = plpgsqlGenerator.run(f);
   // COUT << "----------- PLpgSQL code start -----------\n";

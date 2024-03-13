@@ -150,6 +150,15 @@ public:
 
   size_t size() const { return instructions.size(); }
 
+  bool hasSelect() const{
+    for (auto &inst : *this) {
+      if (inst.hasSelect()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
 protected:
   void print(std::ostream &os) const;
 
