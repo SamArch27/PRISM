@@ -77,14 +77,21 @@ json Compiler::parseJson() const {
 }
 
 void Compiler::optimize(Function &f) {
-  auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
+  auto coreOptimizations = Make<FixpointPass>(Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<ExpressionPropagationPass>(),
-      Make<DeadCodeEliminationPass>(), Make<QueryMotionPass>()));
+      Make<DeadCodeEliminationPass>()));
+
+  auto ssaConstruction =
+      Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
+
+  auto ssaDestruction = Make<PipelinePass>(Make<BreakPhiInterferencePass>(),
+                                           Make<SSADestructionPass>(),
+                                           Make<AggressiveMergeRegionsPass>());
 
   auto pipeline = Make<PipelinePass>(
-      Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
-      std::move(corePasses), Make<BreakPhiInterferencePass>(),
-      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
+      std::move(ssaConstruction), std::move(coreOptimizations),
+      Make<QueryMotionPass>(), /* Outlining, Predicate Hoisting */
+      std::move(ssaDestruction));
 
   std::cout << f << std::endl;
 

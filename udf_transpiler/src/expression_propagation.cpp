@@ -31,12 +31,13 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
     if (auto *assign = dynamic_cast<const Assignment *>(inst)) {
 
       // skip if there are no uses
-      if (useDefs->getUses(assign->getLHS()).empty()) {
+      auto uses = useDefs->getUses(assign->getLHS());
+      if (uses.empty()) {
         continue;
       }
 
-      // don't do expression propagation for SQL statements
-      if (assign->getRHS()->isSQLExpression()) {
+      // don't do duplicate SQL statements
+      if (assign->getRHS()->isSQLExpression() && uses.size() > 1) {
         continue;
       }
 
