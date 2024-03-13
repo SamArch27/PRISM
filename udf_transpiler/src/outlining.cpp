@@ -109,11 +109,16 @@ bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
   const auto &liveness = livenessAnalysis.getLiveness();
   auto liveIn = liveness->getBlockLiveIn(regions.front()->getHeader());
 
-  COUT << "Live in: " << regions.front()->getHeader()->getLabel() << ENDL;
-  for (auto *var : liveIn) {
-    COUT << var->getName() << " ";
+  for (auto &block : f) {
+    liveIn = liveness->getBlockLiveIn(&block);
+    COUT << "Live in: " << block.getLabel() << ENDL;
+    for (auto *var : liveIn) {
+      COUT << var->getName() << " ";
+    }
+    COUT << ENDL;
   }
-  COUT << ENDL;
+
+  liveIn = liveness->getBlockLiveIn(regions.front()->getHeader());
 
   // get live variable going out of the region
   Set<const Variable *> liveOut;
