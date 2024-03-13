@@ -305,6 +305,9 @@ FunctionCloneAndRenameHelper::cloneAndRename(const BranchInst &branch) {
          fmt::format("BasicBlock {} not found in basicBlockMap",
                      branch.getIfTrue()->getLabel()));
   auto trueBlock = basicBlockMap.at(branch.getIfTrue());
+  if(branch.isUnconditional()) {
+    return Make<BranchInst>(trueBlock);
+  }
   ASSERT(basicBlockMap.find(branch.getIfFalse()) != basicBlockMap.end(),
          fmt::format("BasicBlock {} not found in basicBlockMap",
                      branch.getIfFalse()->getLabel()));

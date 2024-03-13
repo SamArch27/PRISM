@@ -1,4 +1,5 @@
 #include "outlining.hpp"
+#include "file.hpp"
 #include "instructions.hpp"
 #include "liveness_analysis.hpp"
 #include "utils.hpp"
@@ -93,16 +94,26 @@ bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
     return false;
   }
 
+  COUT << "Outlining regions: " << ENDL;
+  for (auto *region : regions) {
+    COUT << region->getRegionLabel() << " ";
+  }
+
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
   auto &useDefs = useDefAnalysis.getUseDefs();
 
   // get live variable going into the region
-  Set<const Variable *> liveIn;
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
-  liveIn = liveness->getBlockLiveIn(regions.front()->getHeader());
+  auto liveIn = liveness->getBlockLiveIn(regions.front()->getHeader());
+
+  COUT << "Live in: " << regions.front()->getHeader()->getLabel() << ENDL;
+  for (auto *var : liveIn) {
+    COUT << var->getName() << " ";
+  }
+  COUT << ENDL;
 
   // get live variable going out of the region
   Set<const Variable *> liveOut;
@@ -113,20 +124,18 @@ bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
   // get the return variables:
   // variables that are live out of the region and defined in the region
   Set<const Variable *> returnVars;
-  for (auto *var : liveOut) {
-    if (liveIn.count(var) == 0) {
-      returnVars.insert(var);
-    }
-  }
+
   if (!returnRegion) {
+    for (auto *var : liveOut) {
+      if (liveIn.count(var) == 0) {
+        returnVars.insert(var);
+      }
+    }
     ASSERT(returnVars.size() == 1,
-           "Do not support one region to return multiple variables or none");
+           fmt::format("Do not support one region to return {} variables",
+                       returnVars.size()));
   }
 
-  COUT << "Outlining regions: " << ENDL;
-  for (auto *region : regions) {
-    COUT << region->getRegionLabel() << " ";
-  }
   COUT << ENDL;
   COUT << "Return variables: " << ENDL;
   for (auto *var : returnVars) {
@@ -184,8 +193,8 @@ bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
       }
 
       // outline the region
-      ASSERT(dynamic_cast<const SequentialRegion *>(region),
-             "Unexpected region type");
+      // ASSERT(dynamic_cast<const SequentialRegion *>(region),
+      //        "Unexpected region type");
       regionsToOutline.push_back(region);
 
       // get the next region
@@ -239,13 +248,14 @@ bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
     }
   }
 
-  if (!regionsToOutline.empty()) {
-    outlineRegion(regionsToOutline, f, true);
-  }
+  outlineRegion(regionsToOutline, f, true);
 
   return true;
 }
 
 bool OutliningPass::runOnFunction(Function &f) {
+  drawGraph(f.getCFGString(), "cfg_" + f.getFunctionName() + ".dot");
+  drawGraph(f.getRegionString(), "region_" + f.getFunctionName() + ".dot");
+
   return runOnRegion(f.getRegion(), f);
 }
