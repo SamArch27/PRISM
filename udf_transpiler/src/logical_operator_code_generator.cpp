@@ -57,9 +57,9 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
       ScalarFunctionInfo::DecimalTypeToCppType(target_width, target_scale);
   if (target_scale >= source_scale) {
     // scale up
-    idx_t scale_difference = target_scale - source_scale;
+    auto scale_difference = target_scale - source_scale;
     auto multiply_factor = pow10String(scale_difference);
-    idx_t res_width = target_width - scale_difference;
+    auto res_width = target_width - scale_difference;
     if (source_width < res_width) {
       function_name = fmt::format("{} * Cast::Operation", multiply_factor);
       template_args.push_back(source_physical);
@@ -86,9 +86,9 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     }
   } else {
     // scale down
-    idx_t scale_difference = source_scale - target_scale;
+    auto scale_difference = source_scale - target_scale;
     auto multiply_factor = pow10String(scale_difference);
-    idx_t res_width = target_width + scale_difference;
+    auto res_width = target_width + scale_difference;
     if (source_width < res_width) {
       // udf_todo: possibly a source of result difference
       function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);

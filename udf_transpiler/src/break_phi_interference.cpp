@@ -337,7 +337,7 @@ void BreakPhiInterferencePass::processSourceConflict(
              "Must have unique predecessor for conditional block!!");
       toModify = toModify->getPredecessors().front();
     }
-    toModify->insertBefore(--toModify->end(), std::move(newAssignment));
+    toModify->insertBeforeTerminator(std::move(newAssignment));
     // update the live in/out and interference graph
     auto &successors = block->getSuccessors();
     if (std::all_of(successors.begin(), successors.end(),

@@ -218,7 +218,7 @@ void SSAConstructionPass::renameVariablesToSSA(
     auto assign =
         Make<Assignment>(f.getBinding(newName), f.bindExpression(oldName));
     auto *entryBlock = f.getEntryBlock();
-    entryBlock->insertBefore(--entryBlock->end(), std::move(assign));
+    entryBlock->insertBeforeTerminator(std::move(assign));
   }
 
   // rename all of the variables

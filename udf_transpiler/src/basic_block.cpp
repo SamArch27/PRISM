@@ -40,6 +40,10 @@ InstIterator BasicBlock::insertBefore(InstIterator targetInst,
   return instructions.emplace(targetInst.iter, std::move(newInst));
 }
 
+InstIterator BasicBlock::insertBeforeTerminator(Own<Instruction> newInst) {
+  return insertBefore(std::prev(instructions.end()), std::move(newInst));
+}
+
 InstIterator BasicBlock::insertAfter(InstIterator targetInst,
                                      Own<Instruction> newInst) {
   newInst->setParent(this);

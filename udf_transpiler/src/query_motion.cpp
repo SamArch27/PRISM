@@ -55,7 +55,7 @@ bool QueryMotionPass::runOnFunction(Function &f) {
           auto *predBlock = block.getPredecessors().front();
 
           // insert the assignment at the end of the previous block
-          predBlock->insertBefore(--predBlock->end(), std::move(newAssign));
+          predBlock->insertBeforeTerminator(std::move(newAssign));
 
           // replace the condition i.e. if (SELECT ..) with if (temp)
           it = block.replaceInst(
@@ -129,7 +129,7 @@ bool QueryMotionPass::runOnFunction(Function &f) {
     worklist.insert(newAssign.get());
 
     // do the hoisting
-    parentHeader->insertBefore(--parentHeader->end(), std::move(newAssign));
+    parentHeader->insertBeforeTerminator(std::move(newAssign));
 
     // finally update the old assignment
     assign->replaceWith(

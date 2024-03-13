@@ -25,8 +25,8 @@ public:
       auto stop = std::chrono::high_resolution_clock::now();
       auto duration =
           std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-      std::cout << "Pass: " << pass->getPassName()
-                << " took: " << duration.count() << "ms" << std::endl;
+      std::cout << pass->getPassName() << ": " << duration.count() << "ms"
+                << std::endl;
     }
     return changed;
   }

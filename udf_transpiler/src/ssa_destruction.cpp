@@ -29,7 +29,7 @@ void SSADestructionPass::removePhis(Function &f) {
                    "Must have unique predecessor for conditional block!!");
             pred = pred->getPredecessors().front();
           }
-          pred->insertBefore(--pred->end(), std::move(newAssignment));
+          pred->insertBeforeTerminator(std::move(newAssignment));
         }
         // Remove the phi
         it = block.removeInst(it);
