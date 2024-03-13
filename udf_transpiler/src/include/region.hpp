@@ -40,7 +40,12 @@ public:
   void setParentRegion(RecursiveRegion *parent) { parentRegion = parent; }
   RecursiveRegion *getParentRegion() const { return parentRegion; }
 
+  /**
+   * return true if the region or any of its nested regions contains a SELECT
+  */
   virtual bool hasSelect() const = 0;
+
+  virtual Vec<const BasicBlock *> getBasicBlocks() const = 0;
 
 private:
   RecursiveRegion *parentRegion = nullptr;
@@ -58,6 +63,9 @@ public:
   virtual String getRegionLabel() const override = 0;
 
   bool hasSelect() const override { return getHeader()->hasSelect(); }
+  Vec<const BasicBlock *> getBasicBlocks() const override {
+    return {getHeader()};
+  }
 };
 
 class RecursiveRegion : public Region {
@@ -116,6 +124,17 @@ public:
       }
     }
     return false;
+  }
+
+  Vec<const BasicBlock *> getBasicBlocks() const override {
+    Vec<const BasicBlock *> result = {getHeader()};
+    for (auto &region : nestedRegions) {
+      if (region) {
+        auto blocks = region->getBasicBlocks();
+        result.insert(result.end(), blocks.begin(), blocks.end());
+      }
+    }
+    return result;
   }
 
 protected:

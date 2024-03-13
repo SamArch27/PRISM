@@ -4,54 +4,6 @@
 #include "utils.hpp"
 
 template <>
-Own<Variable>
-FunctionCloneAndRenameHelper::cloneAndRename(const Variable &var) {
-  return Make<Variable>(var.getName(), var.getType(), var.isNull());
-}
-
-template <>
-Own<SelectExpression>
-FunctionCloneAndRenameHelper::cloneAndRename(const SelectExpression &expr) {
-  Set<const Variable *> newUsedVariables;
-  for (auto *var : expr.getUsedVariables()) {
-    newUsedVariables.insert(variableMap.at(var));
-  }
-  return Make<SelectExpression>(expr.getRawSQL(), expr.getLogicalPlanShared(),
-                                newUsedVariables);
-}
-
-template <>
-Own<PhiNode> FunctionCloneAndRenameHelper::cloneAndRename(const PhiNode &phi) {
-  VecOwn<SelectExpression> newRHS;
-  for (auto &op : phi.getRHS()) {
-    newRHS.emplace_back(cloneAndRename(*op));
-  }
-  return Make<PhiNode>(variableMap.at(phi.getLHS()), std::move(newRHS));
-}
-
-template <>
-Own<Assignment>
-FunctionCloneAndRenameHelper::cloneAndRename(const Assignment &assign) {
-  return Make<Assignment>(variableMap.at(assign.getLHS()),
-                          cloneAndRename(*assign.getRHS()));
-}
-
-template <>
-Own<ReturnInst>
-FunctionCloneAndRenameHelper::cloneAndRename(const ReturnInst &ret) {
-  return Make<ReturnInst>(cloneAndRename(*ret.getExpr()));
-}
-
-template <>
-Own<BranchInst>
-FunctionCloneAndRenameHelper::cloneAndRename(const BranchInst &branch) {
-  auto trueBlock = BasicBlockMap.at(branch.getIfTrue());
-  auto falseBlock = BasicBlockMap.at(branch.getIfFalse());
-  return Make<BranchInst>(trueBlock, falseBlock,
-                          cloneAndRename(*branch.getCond()));
-}
-
-template <>
 Own<BasicBlock>
 FunctionCloneAndRenameHelper::cloneAndRename(const BasicBlock &block) {
   auto newBlock = Make<BasicBlock>(block.getLabel());
@@ -61,34 +13,82 @@ FunctionCloneAndRenameHelper::cloneAndRename(const BasicBlock &block) {
   return newBlock;
 }
 
-Own<Function> FunctionCloneAndRenameHelper::cloneAndRename(const Function &f) {
-  Map<const Variable *, const Variable *> variableMap;
-  Map<const BasicBlock *, const BasicBlock *> BasicBlockMap;
-  auto newFunction =
-      Make<Function>(f.getConnection(), f.getFunctionName(), f.getReturnType());
-  for (const auto &arg : f.getArguments()) {
-    newFunction->addArgument(arg->getName(), arg->getType());
-  }
-  for (const auto &var : f.getVariables()) {
-    newFunction->addVariable(var->getName(), var->getType(), var->isNull());
-  }
-  // for (const auto &decl : declarations) {
-  //   newFunction->addVarInitialization(decl->getLHS(),
-  //   decl->getRHS()->clone());
-  // }
+// Own<Function> FunctionCloneAndRenameHelper::cloneAndRename(const Function &f)
+// {
+//   Map<const Variable *, const Variable *> variableMap;
+//   Map<const BasicBlock *, const BasicBlock *> BasicBlockMap;
+//   auto newFunction =
+//       Make<Function>(f.getConnection(), f.getFunctionName(),
+//       f.getReturnType());
+//   for (const auto &arg : f.getArguments()) {
+//     newFunction->addArgument(arg->getName(), arg->getType());
+//   }
+//   for (const auto &var : f.getVariables()) {
+//     newFunction->addVariable(var->getName(), var->getType(), var->isNull());
+//   }
+//   // for (const auto &decl : declarations) {
+//   //   newFunction->addVarInitialization(decl->getLHS(),
+//   //   decl->getRHS()->clone());
+//   // }
 
-  // for (const auto &block : basicBlocks) {
-  //   auto newBlock = newFunction->makeBasicBlock(block->getLabel());
-  //   for (const auto &inst : *block) {
-  //     newBlock->addInstruction(inst.clone());
-  //   }
-  // }
-  // newFunction->setRegion(functionRegion->clone());
-  return newFunction;
+//   // for (const auto &block : basicBlocks) {
+//   //   auto newBlock = newFunction->makeBasicBlock(block->getLabel());
+//   //   for (const auto &inst : *block) {
+//   //     newBlock->addInstruction(inst.clone());
+//   //   }
+//   // }
+//   // newFunction->setRegion(functionRegion->clone());
+//   return newFunction;
+// }
+
+/**
+ * Get the next region of this region
+ * Should check if there is only one successor
+ */
+const Region *getNextRegion(const Region *region) {
+  if (region->getParentRegion() == nullptr) {
+    return nullptr;
+  }
+  auto *parent = region->getParentRegion();
+  // make sure parent is only a sequential region or a loop region
+  ASSERT(dynamic_cast<SequentialRegion *>(parent) ||
+             dynamic_cast<LoopRegion *>(parent),
+         "Unexpected parent region type");
+  const auto &nestedRegions = parent->getNestedRegions();
+  for (size_t i = 0; i < nestedRegions.size(); i++) {
+    if (nestedRegions[i] == region) {
+      if (i == nestedRegions.size() - 1) {
+        return getNextRegion(parent);
+      }
+      return nestedRegions[i + 1];
+    }
+  }
+  return nullptr;
 }
 
-void outlineRegion(Region *region, Function &f, const Region *nextRegion,
-                   bool returnRegion) {
+// void breakBasicBlockWithSelect(Function &f) {
+//   Vec<Instruction *> worklist;
+//   for (auto &block : f) {
+//     for (auto &inst : block) {
+//       if (inst.hasSelect()) {
+//         worklist.push_back(&inst);
+//       }
+//     }
+//   }
+
+//   // for (auto *inst : worklist) {
+//   //   auto *block = inst->getParent();
+//   //   auto *nextBlock = block->splitBlock(inst);
+//   //   auto *newBlock = f.makeBasicBlock();
+//   //   newBlock->addInstruction(Make<BranchInst>(nextBlock));
+//   //   for (auto *succ : block->getSuccessors()) {
+//   //     succ->replacePredecessor(block, newBlock);
+//   //   }
+//   // }
+// }
+
+bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
+                                  bool returnRegion) {
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
   auto &useDefs = useDefAnalysis.getUseDefs();
@@ -98,11 +98,12 @@ void outlineRegion(Region *region, Function &f, const Region *nextRegion,
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
-  liveIn = liveness->getBlockLiveIn(region->getHeader());
+  liveIn = liveness->getBlockLiveIn(regions.front()->getHeader());
 
   // get live variable going out of the region
   Set<const Variable *> liveOut;
   if (!returnRegion) {
+    auto *nextRegion = getNextRegion(regions.back());
     liveOut = liveness->getBlockLiveIn(nextRegion->getHeader());
   }
   // get the return variables:
@@ -114,64 +115,130 @@ void outlineRegion(Region *region, Function &f, const Region *nextRegion,
     }
   }
   if (!returnRegion) {
-    ASSERT(returnVars.size() <= 1,
-           "Do not support one region to return multiple variables");
+    ASSERT(returnVars.size() == 1,
+           "Do not support one region to return multiple variables or none");
   }
 
-  // create a new function
-  // auto newFunction = f
-  COUT << "Outlining region: " << region->getRegionLabel() << std::endl;
-  COUT << "Return variables: ";
+  COUT << "Outlining regions: " << ENDL;
+  for (auto *region : regions) {
+    COUT << region->getRegionLabel() << " ";
+  }
+  COUT<< ENDL;
+  COUT << "Return variables: " << ENDL;
   for (auto *var : returnVars) {
     COUT << var->getName() << " ";
   }
-  COUT << "Input variables: ";
+  COUT<< ENDL;
+  COUT << "Input variables: " << ENDL;
   for (auto *var : liveIn) {
     COUT << var->getName() << " ";
   }
+  COUT<< ENDL;
   COUT << ENDL;
+
+  String newFunctionName = fmt::format("{}_outlined{}", f.getFunctionName(),
+                                      outlinedCount);
+  Vec<const Variable *> newFunctionArgs;
+  for (auto *var : liveIn) {
+    newFunctionArgs.push_back(var);
+  }
+  Type returnType = returnRegion? f.getReturnType() : (*returnVars.begin())->getType();
+  auto newFunction = f.partialCloneAndRename(newFunctionName, newFunctionArgs,
+                                             returnType, regions);
+
+  // when going out of ssa, do you need region in place?
+  COUT << "Outlind Function: " << newFunction->getFunctionName() << ENDL;
+  COUT << *newFunction << ENDL;
+
+  // if (regions.front()->getParentRegion() == nullptr) {
+  //   return nullptr;
+  // }
+  // auto *parent = regions.front()->getParentRegion();
+
+  // parent->replaceNestedRegion()
+
+  // create a new function
+  // auto newFunction = f
 }
 
-/**
- * Get the next region of this region
- * Should check if there is only one successor
-*/
-const Region* getNextRegion(const Region *region){
-  if(region->getParentRegion() == nullptr){
-    return nullptr;
-  }
-  auto *parent = region->getParentRegion();
-  // make sure parent is only a sequential region or a loop region
-  ASSERT(dynamic_cast<SequentialRegion *>(parent) || dynamic_cast<LoopRegion *>(parent),
-         "Unexpected parent region type");
-  const auto &nestedRegions = parent->getNestedRegions();
-  for(size_t i = 0; i < nestedRegions.size(); i++){
-    if(nestedRegions[i] == region){
-      if(i == nestedRegions.size() - 1){
-        return nullptr;
-      }
-      return nestedRegions[i + 1];
-    }
-  }
-  return nullptr;
-}
-
-bool OutliningPass::runOnFunction(Function &f) {
+bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
   // traverse the region top down
-  Queue<Region *> worklist;
-  worklist.push(f.getEntryBlock()->getRegion());
+  Queue<const Region *> worklist;
+  worklist.push(rootRegion);
+  Vec<const Region *> regionsToOutline;
   while (!worklist.empty()) {
     auto *region = worklist.front();
     worklist.pop();
     if (!region->hasSelect()) {
+
+      if(region == f.getRegion()) {
+        COUT<< "The entire function " << f.getFunctionName() << " is a compilable!"<< ENDL << ENDL;
+        return true;
+      }
+
       // outline the region
-      ASSERT(dynamic_cast<SequentialRegion *>(region),
+      ASSERT(dynamic_cast<const SequentialRegion *>(region),
              "Unexpected region type");
-      auto nextRegion = getNextRegion(region);
-      outlineRegion(region, f, nextRegion, nextRegion == nullptr);
-      // start from the beginning
-      worklist = Queue<Region *>();
-      worklist.push(f.getRegion());
+      regionsToOutline.push_back(region);
+
+      // get the next region
+      auto *nextRegion = getNextRegion(region);
+      if (nextRegion) {
+        worklist.push(nextRegion);
+      } else {
+        // if there is no next region, this is the last region
+        break;
+      }
+    } else {
+      // now keep it simple, do not outline region that has select
+      // based on the region type
+      if (auto *loopRegion = dynamic_cast<const LoopRegion *>(region)) {
+        ASSERT(loopRegion->getHeader()->getPredecessors().size() >= 2,
+               "Loop region should have at least two predecessors");
+        outlineRegion(regionsToOutline, f, false);
+        regionsToOutline = Vec<const Region *>();
+        // if (!loopRegion->getHeader()->hasSelect()) {
+        //   regionsToOutline.push();
+        // }
+        for (auto *nestedRegion : loopRegion->getNestedRegions()) {
+          runOnRegion(nestedRegion, f);
+        }
+      } else if (auto *conditionalRegion =
+                     dynamic_cast<const ConditionalRegion *>(region)) {
+        outlineRegion(regionsToOutline, f, false);
+        regionsToOutline = Vec<const Region *>();
+
+        for (auto *nestedRegion : conditionalRegion->getNestedRegions()) {
+          runOnRegion(nestedRegion, f);
+        }
+      } else if (auto *sequentialRegion =
+                     dynamic_cast<const SequentialRegion *>(region)) {
+        bool outlined = false;
+        for (auto *nestedRegion : sequentialRegion->getNestedRegions()) {
+          if (nestedRegion->hasSelect()) {
+            outlined = true;
+            outlineRegion(regionsToOutline, f, false);
+            regionsToOutline = Vec<const Region *>();
+            runOnRegion(nestedRegion, f);
+          } else {
+            regionsToOutline.push_back(nestedRegion);
+          }
+        }
+      } else if (auto *leafRegion = dynamic_cast<const LeafRegion *>(region)) {
+        outlineRegion(regionsToOutline, f, false);
+      } else {
+        ASSERT(false, "Unexpected region type");
+      }
     }
   }
+
+  if (!regionsToOutline.empty()) {
+    outlineRegion(regionsToOutline, f, true);
+  }
+
+  return true;
+}
+
+bool OutliningPass::runOnFunction(Function &f) {
+  return runOnRegion(f.getRegion(), f);
 }

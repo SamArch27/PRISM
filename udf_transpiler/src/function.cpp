@@ -58,9 +58,6 @@ void Function::makeDuckDBContext() {
 void Function::destroyDuckDBContext() {
   String dropTableCommand = "DROP TABLE tmp;";
   auto res = conn->Query(dropTableCommand);
-  if (res->HasError()) {
-    EXCEPTION(res->GetError());
-  }
 }
 
 Own<SelectExpression> Function::renameVarInExpression(
@@ -96,11 +93,11 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
 
   String selectExpressionCommand;
   if (toUpper(expr).find("SELECT") == String::npos)
-    if(needContext)
+    if (needContext)
       selectExpressionCommand = "SELECT " + expr + " FROM tmp;";
     else
       selectExpressionCommand = "SELECT " + expr;
-  else if (needContext){
+  else if (needContext) {
     // insert tmp to the from clause
     auto fromPos = toUpper(expr).find(" FROM ");
     selectExpressionCommand = expr;
@@ -114,8 +111,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
 
   if (config.options.disabled_optimizers.count(
           duckdb::OptimizerType::STATISTICS_PROPAGATION) == 0)
-    flagsShouldDelete.insert(
-        duckdb::OptimizerType::STATISTICS_PROPAGATION);
+    flagsShouldDelete.insert(duckdb::OptimizerType::STATISTICS_PROPAGATION);
   config.options.disabled_optimizers.insert(
       duckdb::OptimizerType::STATISTICS_PROPAGATION);
 
@@ -278,4 +274,118 @@ void Function::removeBasicBlock(BasicBlock *toRemove) {
       ++it;
     }
   }
+}
+
+template <>
+Own<Variable>
+FunctionCloneAndRenameHelper::cloneAndRename(const Variable &var) {
+  return Make<Variable>(var.getName(), var.getType(), var.isNull());
+}
+
+template <>
+Own<SelectExpression>
+FunctionCloneAndRenameHelper::cloneAndRename(const SelectExpression &expr) {
+  Set<const Variable *> newUsedVariables;
+  for (auto *var : expr.getUsedVariables()) {
+    ASSERT(variableMap.find(var) != variableMap.end(),
+           fmt::format("Variable {} not found in variableMap", var->getName()));
+    newUsedVariables.insert(variableMap.at(var));
+  }
+  return Make<SelectExpression>(expr.getRawSQL(), expr.getLogicalPlanShared(),
+                                newUsedVariables);
+}
+
+template <>
+Own<PhiNode> FunctionCloneAndRenameHelper::cloneAndRename(const PhiNode &phi) {
+  VecOwn<SelectExpression> newRHS;
+  for (auto &op : phi.getRHS()) {
+    newRHS.emplace_back(cloneAndRename(*op));
+  }
+  ASSERT(variableMap.find(phi.getLHS()) != variableMap.end(),
+         fmt::format("Variable {} not found in variableMap", phi.getLHS()->getName()));
+  return Make<PhiNode>(variableMap.at(phi.getLHS()), std::move(newRHS));
+}
+
+template <>
+Own<Assignment>
+FunctionCloneAndRenameHelper::cloneAndRename(const Assignment &assign) {
+  ASSERT(variableMap.find(assign.getLHS()) != variableMap.end(),
+         fmt::format("Variable {} not found in variableMap", assign.getLHS()->getName()));
+  return Make<Assignment>(variableMap.at(assign.getLHS()),
+                          cloneAndRename(*assign.getRHS()));
+}
+
+template <>
+Own<ReturnInst>
+FunctionCloneAndRenameHelper::cloneAndRename(const ReturnInst &ret) {
+  return Make<ReturnInst>(cloneAndRename(*ret.getExpr()));
+}
+
+template <>
+Own<BranchInst>
+FunctionCloneAndRenameHelper::cloneAndRename(const BranchInst &branch) {
+  ASSERT(basicBlockMap.find(branch.getIfTrue()) != basicBlockMap.end(),
+         fmt::format("BasicBlock {} not found in basicBlockMap", branch.getIfTrue()->getLabel()));
+  auto trueBlock = basicBlockMap.at(branch.getIfTrue());
+  ASSERT(basicBlockMap.find(branch.getIfFalse()) != basicBlockMap.end(),
+         fmt::format("BasicBlock {} not found in basicBlockMap", branch.getIfFalse()->getLabel()));
+  auto falseBlock = basicBlockMap.at(branch.getIfFalse());
+  return Make<BranchInst>(trueBlock, falseBlock,
+                          cloneAndRename(*branch.getCond()));
+}
+
+template <>
+Own<Instruction>
+FunctionCloneAndRenameHelper::cloneAndRename(const Instruction &inst) {
+  if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+    return cloneAndRename(*assign);
+  } else if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
+    return cloneAndRename(*phi);
+  } else if (auto *ret = dynamic_cast<const ReturnInst *>(&inst)) {
+    return cloneAndRename(*ret);
+  } else if (auto *branch = dynamic_cast<const BranchInst *>(&inst)) {
+    return cloneAndRename(*branch);
+  } else {
+    std::cout << "Unhandled case in FunctionCloneAndRenameHelper::cloneAndRename!"
+              << std::endl;
+    std::cout << inst << std::endl;
+    ERROR("Unhandled case in FunctionCloneAndRenameHelper::cloneAndRename!");
+  }
+}
+
+Own<Function> Function::partialCloneAndRename(
+    const String &newName, const Vec<const Variable *> &newArgs,
+    const Type &newReturnType, const Vec<const Region *> regions) const {
+  Map<const Variable *, const Variable *> variableMap;
+  Map<const BasicBlock *, BasicBlock *> basicBlockMap;
+  auto newFunction = Make<Function>(conn, newName, newReturnType);
+  for (const auto &arg : newArgs) {
+    newFunction->addArgument(arg->getName(), arg->getType());
+    variableMap[arg] = newFunction->getBinding(arg->getName());
+  }
+
+  // create the entry block
+  auto entry = newFunction->makeBasicBlock("entry");
+  // there is no variable in the new function, every data pass in by argument
+  for (const auto &region : regions) {
+    for (const auto &basicBlock : region->getBasicBlocks()) {
+      auto newBlock = newFunction->makeBasicBlock(basicBlock->getLabel());
+      basicBlockMap[basicBlock] = newBlock;
+    }
+  }
+
+  FunctionCloneAndRenameHelper cloneHelper{variableMap, basicBlockMap};
+  for (auto &[oldBasicBlock, newBasicBlock] : basicBlockMap) {
+    for (const auto &inst : *oldBasicBlock) {
+      auto newInst = cloneHelper.cloneAndRename(inst);
+      newBasicBlock->addInstruction(std::move(newInst));
+    }
+  }
+
+  // let the entry jump to the first block of the first region
+  ASSERT(basicBlockMap.find(regions.front()->getHeader()) != basicBlockMap.end(),
+         fmt::format("BasicBlock {} not found in basicBlockMap", regions.front()->getHeader()->getLabel()));
+  newFunction->getEntryBlock()->addInstruction(Make<BranchInst>(basicBlockMap.at(regions.front()->getHeader())));
+  
+  return std::move(newFunction);
 }

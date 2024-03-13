@@ -105,6 +105,16 @@ private:
 
 class UseDefs;
 
+struct FunctionCloneAndRenameHelper {
+  template <typename T> Own<T> cloneAndRename(const T &obj) {
+    ERROR("Not implemented yet!");
+    return nullptr;
+  }
+
+  Map<const Variable *, const Variable *> variableMap;
+  Map<const BasicBlock *, BasicBlock *> basicBlockMap;
+};
+
 class Function {
 public:
   Function(duckdb::Connection *conn, const String &name, const Type &returnType)
@@ -309,6 +319,11 @@ public:
     return ss.str();
   }
 
+  Own<Function> partialCloneAndRename(const String &newName,
+                                      const Vec<const Variable *> &newArgs,
+                                      const Type &newReturnType,
+                                      const Vec<const Region *> regions) const;
+
 protected:
   void print(std::ostream &os) const {
     os << "Function Name: " << functionName << std::endl;
@@ -334,7 +349,6 @@ protected:
   }
 
 private:
-
   duckdb::Connection *conn;
   std::size_t labelNumber;
   std::size_t tempVariableCounter;
