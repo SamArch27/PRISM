@@ -224,7 +224,7 @@ void SSAConstructionPass::renameVariablesToSSA(
   // rename all of the variables
   rename(f.getEntryBlock());
 
-  // collect the old variable
+  // collect the old variables
   Vec<const Variable *> oldVariables;
   for (auto &var : f.getVariables()) {
     if (var->getName() == f.getOriginalName(var->getName())) {
