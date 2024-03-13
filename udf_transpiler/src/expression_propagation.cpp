@@ -36,8 +36,8 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
         continue;
       }
 
-      // don't do duplicate SQL statements
-      if (assign->getRHS()->isSQLExpression() && uses.size() > 1) {
+      // don't do propagation of SQL statements
+      if (assign->getRHS()->isSQLExpression()) {
         continue;
       }
 
