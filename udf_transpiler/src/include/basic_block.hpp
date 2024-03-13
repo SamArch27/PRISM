@@ -133,6 +133,7 @@ public:
   InstIterator end() { return InstIterator(instructions.end()); }
 
   InstIterator insertBefore(InstIterator targetInst, Own<Instruction> newInst);
+  InstIterator insertBeforeTerminator(Own<Instruction> newInst);
   InstIterator insertAfter(InstIterator targetInst, Own<Instruction> newInst);
 
   InstIterator findInst(Instruction *inst);

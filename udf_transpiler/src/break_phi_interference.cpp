@@ -1,6 +1,6 @@
 #include "break_phi_interference.hpp"
 #include "instructions.hpp"
-#include "liveness_dataflow.hpp"
+#include "liveness_analysis.hpp"
 #include "utils.hpp"
 
 bool BreakPhiInterferencePass::runOnFunction(Function &f) {
@@ -337,7 +337,7 @@ void BreakPhiInterferencePass::processSourceConflict(
              "Must have unique predecessor for conditional block!!");
       toModify = toModify->getPredecessors().front();
     }
-    toModify->insertBefore(--toModify->end(), std::move(newAssignment));
+    toModify->insertBeforeTerminator(std::move(newAssignment));
     // update the live in/out and interference graph
     auto &successors = block->getSuccessors();
     if (std::all_of(successors.begin(), successors.end(),

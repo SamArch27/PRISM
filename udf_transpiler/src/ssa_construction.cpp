@@ -1,5 +1,5 @@
 #include "ssa_construction.hpp"
-#include "dominator_dataflow.hpp"
+#include "dominator_analysis.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
 
@@ -218,7 +218,7 @@ void SSAConstructionPass::renameVariablesToSSA(
     auto assign =
         Make<Assignment>(f.getBinding(newName), f.bindExpression(oldName));
     auto *entryBlock = f.getEntryBlock();
-    entryBlock->insertBefore(--entryBlock->end(), std::move(assign));
+    entryBlock->insertBeforeTerminator(std::move(assign));
   }
 
   // rename all of the variables

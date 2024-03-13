@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dominator_dataflow.hpp"
+#include "dominator_analysis.hpp"
 #include "function_pass.hpp"
 
 class SSAConstructionPass : public FunctionPass {

@@ -123,26 +123,27 @@ bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
   for (auto *region : regions) {
     COUT << region->getRegionLabel() << " ";
   }
-  COUT<< ENDL;
+  COUT << ENDL;
   COUT << "Return variables: " << ENDL;
   for (auto *var : returnVars) {
     COUT << var->getName() << " ";
   }
-  COUT<< ENDL;
+  COUT << ENDL;
   COUT << "Input variables: " << ENDL;
   for (auto *var : liveIn) {
     COUT << var->getName() << " ";
   }
-  COUT<< ENDL;
+  COUT << ENDL;
   COUT << ENDL;
 
-  String newFunctionName = fmt::format("{}_outlined{}", f.getFunctionName(),
-                                      outlinedCount);
+  String newFunctionName =
+      fmt::format("{}_outlined{}", f.getFunctionName(), outlinedCount);
   Vec<const Variable *> newFunctionArgs;
   for (auto *var : liveIn) {
     newFunctionArgs.push_back(var);
   }
-  Type returnType = returnRegion? f.getReturnType() : (*returnVars.begin())->getType();
+  Type returnType =
+      returnRegion ? f.getReturnType() : (*returnVars.begin())->getType();
   auto newFunction = f.partialCloneAndRename(newFunctionName, newFunctionArgs,
                                              returnType, regions);
 
@@ -171,8 +172,9 @@ bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
     worklist.pop();
     if (!region->hasSelect()) {
 
-      if(region == f.getRegion()) {
-        COUT<< "The entire function " << f.getFunctionName() << " is a compilable!"<< ENDL << ENDL;
+      if (region == f.getRegion()) {
+        COUT << "The entire function " << f.getFunctionName()
+             << " is a compilable!" << ENDL << ENDL;
         return true;
       }
 

@@ -6,7 +6,7 @@ class OutliningPass : public FunctionPass {
 public:
   OutliningPass() : FunctionPass() {}
   bool runOnFunction(Function &f) override;
-  void OutlineRegion(Region *region, Function &f);
+  void outlineRegion(Region *region, Function &f);
   String getPassName() const override { return "OutliningPass"; }
 
 private:

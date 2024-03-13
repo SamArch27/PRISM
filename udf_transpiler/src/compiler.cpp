@@ -6,18 +6,19 @@
 #include "cfg_code_generator.hpp"
 #include "cfg_to_ast.hpp"
 #include "dead_code_elimination.hpp"
-#include "dominator_dataflow.hpp"
+#include "dominator_analysis.hpp"
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
 #include "expression_propagation.hpp"
 #include "file.hpp"
 #include "fixpoint_pass.hpp"
 #include "function.hpp"
-#include "liveness_dataflow.hpp"
+#include "liveness_analysis.hpp"
 #include "merge_regions.hpp"
 #include "outlining.hpp"
 #include "pg_query.h"
 #include "pipeline_pass.hpp"
+#include "predicate_analysis.hpp"
 #include "query_motion.hpp"
 #include "ssa_construction.hpp"
 #include "ssa_destruction.hpp"
@@ -78,28 +79,46 @@ json Compiler::parseJson() const {
 }
 
 void Compiler::optimize(Function &f) {
-  auto corePasses = Make<FixpointPass>(Make<PipelinePass>(
+  auto coreOptimizations = Make<FixpointPass>(Make<PipelinePass>(
       Make<MergeRegionsPass>(), Make<ExpressionPropagationPass>(),
-      Make<DeadCodeEliminationPass>(), Make<QueryMotionPass>()));
+      Make<DeadCodeEliminationPass>()));
 
-  auto pipeline = Make<PipelinePass>(
-      Make<MergeRegionsPass>(), Make<SSAConstructionPass>(),
-      std::move(corePasses), Make<OutliningPass>(),
-      Make<BreakPhiInterferencePass>(),
-      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
+  auto ssaConstruction =
+      Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
+
+  auto outliningPipeline =
+      Make<PipelinePass>(Make<QueryMotionPass>(), Make<OutliningPass>());
+
+  auto ssaDestructionPipeline = Make<PipelinePass>(
+      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
+      Make<AggressiveMergeRegionsPass>());
+
+  PredicateAnalysis predicateAnalysis(f);
+
+  // Convert to SSA
+  ssaConstruction->runOnFunction(f);
+
+  // Run the core optimizations
+  coreOptimizations->runOnFunction(f);
+
+  // Extract the predicates
+  predicateAnalysis.runAnalysis();
+  auto hoistedPredicates = predicateAnalysis.getPredicates();
+
+  // Now perform outlining
+  outliningPipeline->runOnFunction(f);
+
+  // Finally get out of SSA
+  ssaDestructionPipeline->runOnFunction(f);
 
   std::cout << f << std::endl;
-  drawGraph(f.getCFGString(), "cfg1");
 
-  pipeline->runOnFunction(f);
-
-  std::cout << f << std::endl;
-  drawGraph(f.getCFGString(), "cfg2");
-  // PLpgSQLGenerator plpgsqlGenerator(config);
-  // auto plpgsqlRes = plpgsqlGenerator.run(f);
-  // COUT << "----------- PLpgSQL code start -----------\n";
-  // COUT << plpgsqlRes.code << ENDL;
-  // COUT << "----------- PLpgSQL code end-----------\n";
+  // Compile the UDF to PL/SQL
+  PLpgSQLGenerator plpgsqlGenerator(config);
+  auto plpgsqlRes = plpgsqlGenerator.run(f);
+  std::cout << "----------- PLpgSQL code start -----------\n";
+  std::cout << plpgsqlRes.code << std::endl;
+  std::cout << "----------- PLpgSQL code end-----------\n";
 }
 
 /**

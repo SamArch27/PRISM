@@ -62,7 +62,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(Function &f, const json &ast,
 
   for (const auto &p : allBindings) {
     // all the c(s) in the template file
-    for (int i = 0; i < inputDependentComps.size(); i++) {
+    for (std::size_t i = 0; i < inputDependentComps.size(); i++) {
       inputDependentComps[i] += fmt::format(
           fmt::runtime(config.aggify["c" + std::to_string(i + 1)].Scalar()),
           fmt::arg("i", count));
@@ -105,7 +105,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(Function &f, const json &ast,
 
     count++;
   }
-  for (int i = 0; i < inputDependentComps.size(); i++) {
+  for (std::size_t i = 0; i < inputDependentComps.size(); i++) {
     inputDependentComps[i] =
         inputDependentComps[i].substr(0, inputDependentComps[i].size() - 2);
   }
@@ -128,7 +128,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(Function &f, const json &ast,
 
   fmt::dynamic_format_arg_store<fmt::format_context> store;
   store.push_back(fmt::arg("id", id));
-  for (int i = 0; i < inputDependentComps.size(); i++) {
+  for (std::size_t i = 0; i < inputDependentComps.size(); i++) {
     String c = "c" + std::to_string(i + 1);
     store.push_back(fmt::arg(c.c_str(), inputDependentComps[i]));
   }

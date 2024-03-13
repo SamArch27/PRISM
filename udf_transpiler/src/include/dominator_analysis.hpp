@@ -5,54 +5,6 @@
 #include "compiler_fmt/ranges.h"
 #include "dataflow_framework.hpp"
 
-class Dominators {
-public:
-  Dominators(const Vec<BasicBlock *> &basicBlocks)
-      : parentToChild(), childToParent() {
-    for (auto *block : basicBlocks) {
-      parentToChild.insert({block, Set<BasicBlock *>()});
-      childToParent.insert({block, Set<BasicBlock *>()});
-    }
-  }
-
-  friend std::ostream &operator<<(std::ostream &os,
-                                  const Dominators &dominators) {
-    dominators.print(os);
-    return os;
-  }
-
-  void addDominanceEdge(BasicBlock *parent, BasicBlock *child) {
-    parentToChild.at(parent).insert(child);
-    childToParent.at(child).insert(parent);
-  }
-
-  bool dominates(BasicBlock *parent, BasicBlock *child) const {
-    return parentToChild.at(parent).count(child) != 0;
-  }
-
-  bool strictlyDominates(BasicBlock *parent, BasicBlock *child) const {
-    return parent != child && dominates(parent, child);
-  }
-
-  const Set<BasicBlock *> &getDominatingNodes(BasicBlock *block) const {
-    return childToParent.at(block);
-  }
-
-protected:
-  void print(std::ostream &os) const {
-    for (auto &[parent, children] : parentToChild) {
-      fmt::print(os, "Dom({}) = {{{}}}\n", parent->getLabel(),
-                 joinVector(Function::getBasicBlockLabels(children.begin(),
-                                                          children.end()),
-                            ", "));
-    }
-  }
-
-private:
-  Map<BasicBlock *, Set<BasicBlock *>> parentToChild;
-  Map<BasicBlock *, Set<BasicBlock *>> childToParent;
-};
-
 class DominanceFrontier {
 public:
   DominanceFrontier(const Vec<BasicBlock *> &basicBlocks) : frontier() {
@@ -126,32 +78,18 @@ private:
   Map<String, Set<String>> edges;
 };
 
-class DominatorAnalysis : public DataflowFramework<BitVector, true> {
+class DominatorAnalysis : public Analysis {
 public:
-  DominatorAnalysis(Function &f) : DataflowFramework(f) {}
+  DominatorAnalysis(Function &f) : Analysis(f) {}
 
-  const Own<Dominators> &getDominators() const { return dominators; }
+  void runAnalysis() override;
+
   const Own<DominanceFrontier> &getDominanceFrontier() const {
-    return frontier;
+    return dominanceFrontier;
   }
   const Own<DominatorTree> &getDominatorTree() const { return dominatorTree; }
 
-protected:
-  BitVector transfer(BitVector in, Instruction *inst) override;
-  BitVector meet(BitVector result, BitVector in, BasicBlock *block) override;
-  void preprocessInst(Instruction *inst) override;
-  void genBoundaryInner() override;
-  void finalize() override;
-
 private:
-  void computeDominators();
-  void computeDominanceFrontier();
-  void computeDominatorTree();
-
-  Own<Dominators> dominators;
-  Own<DominanceFrontier> frontier;
+  Own<DominanceFrontier> dominanceFrontier;
   Own<DominatorTree> dominatorTree;
-
-  Map<BasicBlock *, std::size_t> blockToIndex;
-  Vec<BasicBlock *> basicBlocks;
 };

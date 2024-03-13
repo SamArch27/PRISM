@@ -1,56 +1,35 @@
 #include "function.hpp"
-#include "dominator_dataflow.hpp"
+#include "dominator_analysis.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
-#include "use_def.hpp"
+#include "use_def_analysis.hpp"
 #include "used_variable_finder.hpp"
 #include "utils.hpp"
 
 void Function::makeDuckDBContext() {
   std::stringstream createTableString;
   createTableString << "CREATE TABLE tmp(";
-  std::stringstream insertTableString;
-  std::stringstream insertTableSecondRow;
-  insertTableString << "INSERT INTO tmp VALUES(";
-  insertTableSecondRow << "(";
 
   bool first = true;
   for (const auto &[name, variable] : bindings) {
     auto type = variable->getType();
     createTableString << (first ? "" : ", ");
-    insertTableString << (first ? "" : ", ");
-    insertTableSecondRow << (first ? "" : ", ");
     if (first) {
       first = false;
     }
     createTableString << name << " " << type;
-    insertTableString << "(NULL) ";
-    insertTableSecondRow << type.getDefaultValue(true);
   }
   if (bindings.empty()) {
     createTableString << "dummy INT";
-    insertTableString << "(NULL)";
-    insertTableSecondRow << "0";
   }
   createTableString << ");";
-  insertTableString << "),";
-  insertTableSecondRow << ");";
 
   // Create commands
   String createTableCommand = createTableString.str();
-  String insertTableCommand =
-      insertTableString.str() + insertTableSecondRow.str();
 
   // CREATE TABLE
   auto res = conn->Query(createTableCommand);
   if (res->HasError()) {
-    EXCEPTION(res->GetError());
-  }
-
-  // INSERT (NULL,NULL,...)
-  res = conn->Query(insertTableCommand);
-  if (res->HasError()) {
-    destroyDuckDBContext();
     EXCEPTION(res->GetError());
   }
 }

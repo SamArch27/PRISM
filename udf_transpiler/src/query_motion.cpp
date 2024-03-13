@@ -1,4 +1,5 @@
 #include "query_motion.hpp"
+#include "types.hpp"
 
 RegionDefs QueryMotionPass::computeDefs(const Region *root) const {
   RegionDefs defs;
@@ -25,6 +26,46 @@ RegionDefs QueryMotionPass::computeDefs(const Region *root) const {
 bool QueryMotionPass::runOnFunction(Function &f) {
 
   bool changed = false;
+
+  // Handle the simplest case of a SELECT in a condition
+  for (auto &block : f) {
+    for (auto it = block.begin(); it != block.end(); ++it) {
+      auto &inst = *it;
+      if (auto *branch = dynamic_cast<BranchInst *>(&inst)) {
+        if (branch->isUnconditional()) {
+          continue;
+        }
+        auto *cond = branch->getCond();
+        // we want to pull this out to its own boolean variable
+        if (cond->isSQLExpression()) {
+
+          // mark the change
+          changed = true;
+
+          // create a new boolean temp variable
+          auto *temp = f.createTempVariable(
+              Type(false, std::nullopt, std::nullopt, PostgresTypeTag::BOOLEAN),
+              false);
+
+          // and assignment temp = SELECT ...
+          auto newAssign = Make<Assignment>(temp, cond->clone());
+          auto preds = block.getPredecessors();
+          ASSERT(preds.size() == 1,
+                 "Must have unique predecessor for conditional block!");
+          auto *predBlock = block.getPredecessors().front();
+
+          // insert the assignment at the end of the previous block
+          predBlock->insertBeforeTerminator(std::move(newAssign));
+
+          // replace the condition i.e. if (SELECT ..) with if (temp)
+          it = block.replaceInst(
+              it, Make<BranchInst>(branch->getIfTrue(), branch->getIfFalse(),
+                                   f.bindExpression(temp->getName())));
+        }
+      }
+    }
+  }
+
   auto regionDefinitions = computeDefs(f.getRegion());
 
   Set<Assignment *> worklist;
@@ -88,7 +129,7 @@ bool QueryMotionPass::runOnFunction(Function &f) {
     worklist.insert(newAssign.get());
 
     // do the hoisting
-    parentHeader->insertBefore(--parentHeader->end(), std::move(newAssign));
+    parentHeader->insertBeforeTerminator(std::move(newAssign));
 
     // finally update the old assignment
     assign->replaceWith(

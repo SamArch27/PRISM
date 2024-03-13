@@ -3,7 +3,7 @@
 #include "basic_block.hpp"
 #include "instructions.hpp"
 #include "region.hpp"
-#include "use_def.hpp"
+#include "use_def_analysis.hpp"
 #include "utils.hpp"
 
 class BasicBlockIterator {
@@ -344,8 +344,8 @@ protected:
     os << "Control Flow Graph: \n" << std::endl;
     os << getCFGString() << std::endl;
 
-    os << "Regions: \n" << std::endl;
-    os << getRegionString() << std::endl;
+    // os << "Regions: \n" << std::endl;
+    // os << getRegionString() << std::endl;
   }
 
 private:
