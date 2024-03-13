@@ -1,5 +1,5 @@
 #include "function.hpp"
-#include "dominators.hpp"
+#include "dominator_analysis.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
 #include "use_def.hpp"

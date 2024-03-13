@@ -6,7 +6,7 @@
 #include "cfg_code_generator.hpp"
 #include "cfg_to_ast.hpp"
 #include "dead_code_elimination.hpp"
-#include "dominators.hpp"
+#include "dominator_analysis.hpp"
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
 #include "expression_propagation.hpp"
@@ -17,6 +17,7 @@
 #include "merge_regions.hpp"
 #include "pg_query.h"
 #include "pipeline_pass.hpp"
+#include "predicate_analysis.hpp"
 #include "query_motion.hpp"
 #include "ssa_construction.hpp"
 #include "ssa_destruction.hpp"
@@ -84,21 +85,34 @@ void Compiler::optimize(Function &f) {
   auto ssaConstruction =
       Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
 
-  auto ssaDestruction = Make<PipelinePass>(Make<BreakPhiInterferencePass>(),
-                                           Make<SSADestructionPass>(),
-                                           Make<AggressiveMergeRegionsPass>());
+  auto outliningPipeline =
+      Make<PipelinePass>(Make<QueryMotionPass>() /*, Outlining, */);
 
-  auto pipeline = Make<PipelinePass>(
-      std::move(ssaConstruction), std::move(coreOptimizations),
-      Make<QueryMotionPass>(), /* Outlining, Predicate Hoisting */
-      std::move(ssaDestruction));
+  auto ssaDestructionPipeline = Make<PipelinePass>(
+      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
+      Make<AggressiveMergeRegionsPass>());
+
+  PredicateAnalysis predicateAnalysis(f);
+
+  // Convert to SSA
+  ssaConstruction->runOnFunction(f);
+
+  // Run the core optimizations
+  coreOptimizations->runOnFunction(f);
+
+  // Extract the predicates
+  predicateAnalysis.runAnalysis();
+  auto hoistedPredicates = predicateAnalysis.getPredicates();
+
+  // Now perform outlining
+  outliningPipeline->runOnFunction(f);
+
+  // Finally get out of SSA
+  ssaDestructionPipeline->runOnFunction(f);
 
   std::cout << f << std::endl;
 
-  pipeline->runOnFunction(f);
-
-  std::cout << f << std::endl;
-
+  // Compile the UDF to PL/SQL
   PLpgSQLGenerator plpgsqlGenerator(config);
   auto plpgsqlRes = plpgsqlGenerator.run(f);
   COUT << "----------- PLpgSQL code start -----------\n";

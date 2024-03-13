@@ -1,4 +1,4 @@
-#include "dominators.hpp"
+#include "dominator_analysis.hpp"
 #include "utils.hpp"
 
 void DominatorAnalysis::runAnalysis() {

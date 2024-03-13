@@ -1,5 +1,5 @@
 #include "ssa_construction.hpp"
-#include "dominators.hpp"
+#include "dominator_analysis.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
 
