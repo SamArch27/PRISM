@@ -347,6 +347,14 @@ Own<Function> Function::partialCloneAndRename(
     variableMap[arg] = newFunction->getBinding(arg->getName());
   }
 
+  for (const auto &[name, var] : bindings) {
+    if(variableMap.find(var) != variableMap.end()) {
+      continue;
+    }
+    newFunction->addVariable(name, var->getType(), var->isNull());
+    variableMap[var] = newFunction->getBinding(name);
+  }
+
   // create the entry block
   auto entry = newFunction->makeBasicBlock("entry");
   // there is no variable in the new function, every data pass in by argument
