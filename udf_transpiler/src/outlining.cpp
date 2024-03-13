@@ -89,6 +89,10 @@ const Region *getNextRegion(const Region *region) {
 
 bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
                                   bool returnRegion) {
+  if (regions.empty()) {
+    return false;
+  }
+
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
   auto &useDefs = useDefAnalysis.getUseDefs();
