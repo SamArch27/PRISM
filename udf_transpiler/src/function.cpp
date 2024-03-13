@@ -73,11 +73,13 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
     makeDuckDBContext();
   }
 
+  auto cleanedExpr = toLower(expr);
+
   String selectExpressionCommand;
   if (needContext) {
-    selectExpressionCommand = "SELECT (" + expr + ") FROM tmp;";
+    selectExpressionCommand = "SELECT (" + cleanedExpr + ") FROM tmp;";
   } else {
-    selectExpressionCommand = "SELECT " + expr;
+    selectExpressionCommand = "SELECT " + cleanedExpr;
   }
 
   auto clientContext = conn->context.get();
@@ -120,7 +122,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
     usedVariables.insert(getBinding(varName));
   }
 
-  return Make<SelectExpression>(expr, std::move(boundExpression),
+  return Make<SelectExpression>(cleanedExpr, std::move(boundExpression),
                                 usedVariables);
 }
 
