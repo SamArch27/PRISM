@@ -6,7 +6,7 @@
 #include "cfg_code_generator.hpp"
 #include "cfg_to_ast.hpp"
 #include "dead_code_elimination.hpp"
-#include "dominator_dataflow.hpp"
+#include "dominators.hpp"
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
 #include "expression_propagation.hpp"

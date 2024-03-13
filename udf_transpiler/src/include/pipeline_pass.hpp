@@ -2,6 +2,7 @@
 
 #include "function_pass.hpp"
 #include "utils.hpp"
+#include <chrono>
 
 class PipelinePass : public FunctionPass {
 public:
@@ -17,8 +18,15 @@ public:
 
   bool runOnFunction(Function &f) override {
     bool changed = false;
+
     for (auto &pass : pipeline) {
+      auto start = std::chrono::high_resolution_clock::now();
       changed |= pass->runOnFunction(f);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+      std::cout << "Pass: " << pass->getPassName()
+                << " took: " << duration.count() << "ms" << std::endl;
     }
     return changed;
   }
