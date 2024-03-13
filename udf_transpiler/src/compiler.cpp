@@ -13,7 +13,7 @@
 #include "file.hpp"
 #include "fixpoint_pass.hpp"
 #include "function.hpp"
-#include "liveness_dataflow.hpp"
+#include "liveness_analysis.hpp"
 #include "merge_regions.hpp"
 #include "pg_query.h"
 #include "pipeline_pass.hpp"

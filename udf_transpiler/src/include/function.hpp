@@ -3,7 +3,7 @@
 #include "basic_block.hpp"
 #include "instructions.hpp"
 #include "region.hpp"
-#include "use_def.hpp"
+#include "use_def_analysis.hpp"
 #include "utils.hpp"
 
 class BasicBlockIterator {

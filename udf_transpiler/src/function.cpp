@@ -2,7 +2,7 @@
 #include "dominator_analysis.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
-#include "use_def.hpp"
+#include "use_def_analysis.hpp"
 #include "used_variable_finder.hpp"
 #include "utils.hpp"
 

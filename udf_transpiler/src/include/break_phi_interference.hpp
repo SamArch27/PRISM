@@ -1,7 +1,7 @@
 #pragma once
 
 #include "function_pass.hpp"
-#include "liveness_dataflow.hpp"
+#include "liveness_analysis.hpp"
 #include "utils.hpp"
 
 using CongruenceClasses = Map<const Variable *, Set<const Variable *>>;

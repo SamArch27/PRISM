@@ -1,5 +1,5 @@
-#include "liveness_dataflow.hpp"
-#include "use_def.hpp"
+#include "liveness_analysis.hpp"
+#include "use_def_analysis.hpp"
 #include "utils.hpp"
 
 void LivenessAnalysis::computeLiveness() {
