@@ -155,8 +155,9 @@ public:
   }
 
 private:
-  BitVector transfer(BitVector out, Instruction *inst);
-  BitVector meet(BitVector result, BitVector in, BasicBlock *block);
+  BitVector transfer(BitVector out, BasicBlock *block);
+  BitVector meet(BitVector out, BitVector in, BasicBlock *succ,
+                 BasicBlock *block);
   void preprocess();
   void preprocessInst(Instruction *inst);
   void genBoundaryInner();
@@ -166,7 +167,7 @@ private:
   void computeLiveness();
   void computeInterferenceGraph();
 
-  Map<BasicBlock *, Set<const Instruction *>> allDefs;
+  Map<BasicBlock *, Set<const Instruction *>> defs;
   Map<BasicBlock *, Set<const Instruction *>> phiDefs;
   Map<BasicBlock *, Set<const Instruction *>> phiUses;
   Map<BasicBlock *, Set<const Instruction *>> upwardsExposed;
@@ -179,5 +180,5 @@ private:
   BitVector innerStart;
   BitVector boundaryStart;
   Vec<BasicBlock *> exitBlocks;
-  Map<Instruction *, DataflowResult<BitVector>> results;
+  Map<BasicBlock *, DataflowResult<BitVector>> results;
 };

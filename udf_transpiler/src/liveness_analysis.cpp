@@ -4,6 +4,46 @@
 
 void LivenessAnalysis::runAnalysis() {
   preprocess();
+
+  for (auto &[block, defs] : defs) {
+    std::cout << "Block: " << block->getLabel() << " has defs: " << std::endl;
+    for (auto *def : defs) {
+      std::cout << *def << " " << std::endl;
+    }
+    std::cout << std::endl;
+  }
+  std::cout << std::endl;
+
+  for (auto &[block, defs] : phiDefs) {
+    std::cout << "Block: " << block->getLabel()
+              << " has phiDefs: " << std::endl;
+    for (auto *def : defs) {
+      std::cout << *def << " " << std::endl;
+    }
+    std::cout << std::endl;
+  }
+  std::cout << std::endl;
+
+  for (auto &[block, uses] : phiUses) {
+    std::cout << "Block: " << block->getLabel()
+              << " has phiUses: " << std::endl;
+    for (auto *use : uses) {
+      std::cout << *use << " " << std::endl;
+    }
+    std::cout << std::endl;
+  }
+  std::cout << std::endl;
+
+  for (auto &[block, ue] : upwardsExposed) {
+    std::cout << "Block: " << block->getLabel()
+              << " has upwardsExposed: " << std::endl;
+    for (auto *u : ue) {
+      std::cout << *u << " " << std::endl;
+    }
+    std::cout << std::endl;
+  }
+  std::cout << std::endl;
+
   runBackwards();
   finalize();
 }
@@ -29,69 +69,49 @@ void LivenessAnalysis::preprocess() {
 
   // initialize the IN/OUT sets
   for (auto &basicBlock : f) {
-    for (auto &inst : basicBlock) {
-      auto *currentInst = &inst;
-      results[currentInst].in = innerStart;
-      results[currentInst].out = innerStart;
-    }
+    results[&basicBlock].in = innerStart;
+    results[&basicBlock].out = innerStart;
   }
 
-  results[f.getEntryBlock()->getInitiator()].in = boundaryStart;
+  results[f.getEntryBlock()].in = boundaryStart;
 
   for (auto *exitBlock : exitBlocks) {
-    results[exitBlock->getTerminator()].out = boundaryStart;
+    results[exitBlock].out = boundaryStart;
   }
 }
 
 void LivenessAnalysis::runBackwards() {
-  Set<BasicBlock *> worklist;
-  for (auto *exitBlock : exitBlocks) {
-    worklist.insert(exitBlock);
-  }
 
-  while (!worklist.empty()) {
-    BasicBlock *basicBlock = *worklist.begin();
-    worklist.erase(basicBlock);
+  bool changed = true;
+  while (changed) {
+    changed = false;
 
-    auto *lastInst = basicBlock->getTerminator();
-
-    auto newOut = results[lastInst].out;
-    bool changed = false;
-
-    // iterate over successors, calling meet over their out sets
-    for (auto *succ : basicBlock->getSuccessors()) {
-      auto &succResult = results[succ->getInitiator()];
-      if (!changed) {
-        newOut = succResult.in;
-        changed = true;
-      } else {
-        newOut = meet(succResult.in, newOut, succ);
+    // insert every non-exit block
+    Set<BasicBlock *> worklist;
+    for (auto &block : f) {
+      if (std::find(exitBlocks.begin(), exitBlocks.end(), &block) ==
+          exitBlocks.end()) {
+        worklist.insert(&block);
       }
     }
 
-    results[lastInst].out = newOut;
-    auto oldIn = results[basicBlock->getInitiator()].in;
-    results[lastInst].in = transfer(results[lastInst].out, lastInst);
-    auto prevInst = lastInst;
+    while (!worklist.empty()) {
+      BasicBlock *basicBlock = *worklist.begin();
+      worklist.erase(basicBlock);
 
-    // iterate the remaining instructions
-    auto iter = basicBlock->end();
-
-    do {
-      --iter;
-      auto *currentInst = &*iter;
-      if (currentInst == lastInst) {
-        break;
+      // iterate over successors, calling meet over their out sets
+      auto newOut = results[basicBlock].out;
+      for (auto *succ : basicBlock->getSuccessors()) {
+        newOut = meet(newOut, results[succ].in, succ, basicBlock);
       }
-      results[currentInst].in = transfer(results[currentInst].out, currentInst);
-      results[currentInst].out = results[prevInst].in;
+      results[basicBlock].out = newOut;
 
-      prevInst = currentInst;
-    } while (iter != basicBlock->begin());
+      // apply transfer function to compute in
+      auto oldIn = results[basicBlock].in;
+      results[basicBlock].in = transfer(results[basicBlock].out, basicBlock);
 
-    if (results[basicBlock->getInitiator()].in != oldIn) {
-      for (auto *pred : basicBlock->getPredecessors()) {
-        worklist.insert(pred);
+      if (oldIn != results[basicBlock].in) {
+        changed = true;
       }
     }
   }
@@ -107,31 +127,26 @@ void LivenessAnalysis::finalize() {
   computeInterferenceGraph();
 }
 
-BitVector LivenessAnalysis::transfer(BitVector out, Instruction *inst) {
-
-  auto *block = inst->getParent();
-
+BitVector LivenessAnalysis::transfer(BitVector out, BasicBlock *block) {
   if (block == f.getEntryBlock()) {
     return out;
-  }
-
-  // Create bitvector for defs
-  BitVector def(instToIndex.size(), false);
-  for (auto *definition : allDefs[block]) {
-    def[instToIndex.at(definition)] = true;
   }
 
   // Create bitvector for phiDefs
   BitVector phiDef(instToIndex.size(), false);
   for (auto *definition : phiDefs[block]) {
-
     phiDef[instToIndex.at(definition)] = true;
+  }
+
+  // Create bitvector for defs
+  BitVector def(instToIndex.size(), false);
+  for (auto *definition : defs[block]) {
+    def[instToIndex.at(definition)] = true;
   }
 
   // Create bitvector for upwardsExposed
   BitVector ue(instToIndex.size(), false);
   for (auto *use : upwardsExposed[block]) {
-
     ue[instToIndex.at(use)] = true;
   }
 
@@ -142,16 +157,15 @@ BitVector LivenessAnalysis::transfer(BitVector out, Instruction *inst) {
   // Union with PhiDefs(B) and UpwardsExposed(B)
   result |= phiDef;
   result |= ue;
-
   return result;
 }
 
-BitVector LivenessAnalysis::meet(BitVector result, BitVector in,
+BitVector LivenessAnalysis::meet(BitVector out, BitVector in, BasicBlock *succ,
                                  BasicBlock *block) {
 
   // Create bitvector for phiDefs
   BitVector phiDef(instToIndex.size(), false);
-  for (auto *definition : phiDefs[block]) {
+  for (auto *definition : phiDefs[succ]) {
     phiDef[instToIndex.at(definition)] = true;
   }
 
@@ -167,10 +181,9 @@ BitVector LivenessAnalysis::meet(BitVector result, BitVector in,
   newInfo &= phiDef.flip();
   // Union with PhiUses(B)
   newInfo |= phiUse;
-  // Union with result and return
-  result |= in;
-
-  return result;
+  // Union with out and return
+  out |= newInfo;
+  return out;
 }
 
 void LivenessAnalysis::preprocessInst(Instruction *inst) {
@@ -189,7 +202,11 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
       std::size_t newSize = instToIndex.size();
       instToIndex[def] = newSize;
       definingInstructions.push_back(inst);
-      allDefs[block].insert(inst);
+
+      // add the def if it's not a phi node
+      // if (!dynamic_cast<PhiNode *>(def)) {
+      defs[block].insert(inst);
+      // }
     }
   }
 
@@ -204,14 +221,19 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
     phiDefs[block].insert(useDefs->getDef(result));
 
     // Add the uses to every predecessor block
-    for (auto *operand : phi->getOperands()) {
-      auto *definingInst = useDefs->getDef(operand);
-      phiUses[block].insert(definingInst);
+    auto phiOps = phi->getRHS();
+    for (auto *pred : block->getPredecessors()) {
+      auto predNumber = f.getPredNumber(block, pred);
+      auto *phiOp = phi->getRHS()[predNumber];
+      for (auto *use : phiOp->getUsedVariables()) {
+        auto *definingInst = useDefs->getDef(use);
+        phiUses[pred].insert(definingInst);
+      }
     }
   }
   // Otherwise update the upwardsExposed
   else {
-    // For each operatnd, check if it is "upwards exposed"
+    // For each operand, check if it is "upwards exposed"
     for (auto *operand : inst->getOperands()) {
       // Get the block that it was defined in
       auto *definingInst = useDefs->getDef(operand);
@@ -232,21 +254,18 @@ void LivenessAnalysis::computeLiveness() {
   liveness = Make<Liveness>(blocks);
 
   for (auto &block : f) {
-    auto *firstInst = block.getInitiator();
-    auto &in = results.at(firstInst).in;
+    auto &in = results.at(&block).in;
     for (std::size_t i = 0; i < in.size(); ++i) {
       if (in[i]) {
         liveness->addBlockLiveIn(&block,
                                  definingInstructions[i]->getResultOperand());
       }
     }
-    for (auto &inst : block) {
-      auto &out = results.at(&inst).out;
-      for (std::size_t i = 0; i < out.size(); ++i) {
-        if (out[i]) {
-          liveness->addBlockLiveOut(
-              &block, definingInstructions[i]->getResultOperand());
-        }
+    auto &out = results.at(&block).out;
+    for (std::size_t i = 0; i < out.size(); ++i) {
+      if (out[i]) {
+        liveness->addBlockLiveOut(&block,
+                                  definingInstructions[i]->getResultOperand());
       }
     }
   }
@@ -256,17 +275,15 @@ void LivenessAnalysis::computeInterferenceGraph() {
   interferenceGraph = Make<InterferenceGraph>();
 
   for (auto &block : f) {
-    for (auto &inst : block) {
-      auto &out = results.at(&inst).out;
+    auto &out = results.at(&block).out;
 
-      // all pairs
-      for (std::size_t i = 0; i < out.size(); ++i) {
-        for (std::size_t j = i + 1; j < out.size(); ++j) {
-          if (out[i] && out[j]) {
-            auto *left = definingInstructions[i]->getResultOperand();
-            auto *right = definingInstructions[j]->getResultOperand();
-            interferenceGraph->addInterferenceEdge(left, right);
-          }
+    // all pairs
+    for (std::size_t i = 0; i < out.size(); ++i) {
+      for (std::size_t j = i + 1; j < out.size(); ++j) {
+        if (out[i] && out[j]) {
+          auto *left = definingInstructions[i]->getResultOperand();
+          auto *right = definingInstructions[j]->getResultOperand();
+          interferenceGraph->addInterferenceEdge(left, right);
         }
       }
     }
