@@ -39,13 +39,13 @@ static String doubleQuote(const String &str) {
   return result;
 }
 
-static String UdfTranspilerMain(String udfString){
+static String CompilerRun(String udfString){
   YAMLConfig config;
   Connection con(*db_instance);
 
+  udfCount++;
   auto compiler = Compiler(&con, udfString, config, udfCount);
   auto res = compiler.run();
-  udfCount++;
   COUT << "Transpiling the UDF..." << ENDL;
   insertDefAndReg(res.code, res.registration, udfCount);
   // compile the template
@@ -61,7 +61,7 @@ inline String UdfTranspilerPragmaFun(ClientContext &context,
                                       const FunctionParameters &parameters) {
   auto udfString = parameters.values[0].GetValue<String>();
 
-  return UdfTranspilerMain(udfString);
+  return CompilerRun(udfString);
 }
 
 inline String UdfFileTranspilerPragmaFun(ClientContext &context,
@@ -75,7 +75,7 @@ inline String UdfFileTranspilerPragmaFun(ClientContext &context,
     return "select '" + err + "' as 'Transpilation Failed.';";
   }
 
-  return UdfTranspilerMain(buffer.str());
+  return CompilerRun(buffer.str());
 }
 
 /**
@@ -94,9 +94,9 @@ inline String UdfCodeGeneratorPragmaFun(ClientContext &context,
   YAMLConfig config;
   Connection con(*db_instance);
   String code, registration;
+  udfCount++;
   auto compiler = Compiler(&con, buffer.str(), config, udfCount);
   auto res = compiler.run();
-  udfCount++;
   COUT << "Transpiling the UDF..." << ENDL;
   insertDefAndReg(res.code, res.registration, udfCount);
   return "select '' as 'Code Generation Done.';";

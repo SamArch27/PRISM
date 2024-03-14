@@ -3,16 +3,9 @@
 #include "instructions.hpp"
 #include "liveness_analysis.hpp"
 #include "utils.hpp"
+#include "udf_transpiler_extension.hpp"
+#include "compiler.hpp"
 
-template <>
-Own<BasicBlock>
-FunctionCloneAndRenameHelper::cloneAndRename(const BasicBlock &block) {
-  auto newBlock = Make<BasicBlock>(block.getLabel());
-  for (auto &inst : block) {
-    newBlock->addInstruction(cloneAndRename(inst));
-  }
-  return newBlock;
-}
 
 // Own<Function> FunctionCloneAndRenameHelper::cloneAndRename(const Function &f)
 // {
@@ -87,6 +80,19 @@ const Region *getNextRegion(const Region *region) {
 //   //   }
 //   // }
 // }
+
+void OutliningPass::outlineFunction(Function &f){
+  compiler.getUdfCount()++;
+  auto res = compiler.runOnFunction(f);
+  COUT << "Transpiling the UDF..." << ENDL;
+  insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
+  // compile the template
+  COUT << "Compiling the UDF..." << ENDL;
+  compileUDF();
+  // load the compiled library
+  COUT << "Installing and loading the UDF..." << ENDL;
+  loadUDF(*compiler.getConnection());
+}
 
 bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
                                   bool returnRegion) {
@@ -169,15 +175,11 @@ bool OutliningPass::outlineRegion(Vec<const Region *> regions, Function &f,
   COUT << "Outlined Function: " << newFunction->getFunctionName() << ENDL;
   COUT << *newFunction << ENDL;
 
-  // if (regions.front()->getParentRegion() == nullptr) {
-  //   return nullptr;
-  // }
-  // auto *parent = regions.front()->getParentRegion();
+  outlineFunction(*newFunction);
 
-  // parent->replaceNestedRegion()
+  // TODO: rewrite the original function
 
-  // create a new function
-  // auto newFunction = f
+
   outlinedCount++;
   return false;
 }

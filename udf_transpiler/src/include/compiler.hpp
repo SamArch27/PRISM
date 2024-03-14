@@ -23,9 +23,17 @@ public:
 
   CompilationResult run();
 
+  /**
+   * run on existing function rather than start from udf string
+  */
+  CompilationResult runOnFunction(Function &f);
+
   CFGCodeGeneratorResult generateCode(const Function &function);
 
   void optimize(Function &f);
+
+  inline size_t &getUdfCount() { return udfCount; }
+  inline duckdb::Connection *getConnection() { return conn; }
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;

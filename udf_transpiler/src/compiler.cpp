@@ -66,6 +66,20 @@ CompilationResult Compiler::run() {
   return codeRes;
 }
 
+CompilationResult Compiler::runOnFunction(Function &f) {
+  auto ssaDestructionPipeline = Make<PipelinePass>(
+      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
+      Make<AggressiveMergeRegionsPass>());
+  ssaDestructionPipeline->runOnFunction(f);
+
+  CompilationResult codeRes;
+  auto res = generateCode(f);
+  codeRes.code += res.code;
+  codeRes.registration += res.registration;
+  codeRes.success = true;
+  return codeRes;
+}
+
 json Compiler::parseJson() const {
   auto result = pg_query_parse_plpgsql(programText.c_str());
   if (result.error) {
@@ -90,7 +104,7 @@ void Compiler::optimize(Function &f) {
       Make<QueryMotionPass>(), Make<ExpressionPropagationPass>());
   auto rightBeforeOutliningPipeline =
       Make<FixpointPass>(Make<DeadCodeEliminationPass>());
-  auto outliningPipeline = Make<PipelinePass>(Make<OutliningPass>());
+  auto outliningPipeline = Make<PipelinePass>(Make<OutliningPass>(*this));
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
