@@ -1,8 +1,9 @@
 #pragma once
 
+#include "analysis.hpp"
+#include "bitvector.hpp"
 #include "compiler_fmt/core.h"
 #include "compiler_fmt/ostream.h"
-#include "dataflow_framework.hpp"
 #include "function.hpp"
 
 class Liveness {
@@ -136,23 +137,32 @@ private:
   Map<const Variable *, Set<const Variable *>> edge;
 };
 
-class LivenessAnalysis : public DataflowFramework<BitVector, false> {
+template <typename T> struct DataflowResult {
 public:
-  LivenessAnalysis(Function &f) : DataflowFramework(f) {}
+  T in;
+  T out;
+};
+
+class LivenessAnalysis : public Analysis {
+public:
+  LivenessAnalysis(Function &f) : Analysis(f) {}
+
+  void runAnalysis() override;
 
   const Own<Liveness> &getLiveness() const { return liveness; }
   const Own<InterferenceGraph> &getInterferenceGraph() const {
     return interferenceGraph;
   }
 
-protected:
-  BitVector transfer(BitVector out, Instruction *inst) override;
-  BitVector meet(BitVector result, BitVector in, BasicBlock *block) override;
-  void preprocessInst(Instruction *inst) override;
-  void genBoundaryInner() override;
-  void finalize() override;
-
 private:
+  BitVector transfer(BitVector out, Instruction *inst);
+  BitVector meet(BitVector result, BitVector in, BasicBlock *block);
+  void preprocess();
+  void preprocessInst(Instruction *inst);
+  void genBoundaryInner();
+  void runBackwards();
+  void finalize();
+
   void computeLiveness();
   void computeInterferenceGraph();
 
@@ -165,4 +175,9 @@ private:
 
   Own<Liveness> liveness;
   Own<InterferenceGraph> interferenceGraph;
+
+  BitVector innerStart;
+  BitVector boundaryStart;
+  Vec<BasicBlock *> exitBlocks;
+  Map<Instruction *, DataflowResult<BitVector>> results;
 };

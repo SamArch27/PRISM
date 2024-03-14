@@ -2,53 +2,109 @@
 #include "use_def_analysis.hpp"
 #include "utils.hpp"
 
-void LivenessAnalysis::computeLiveness() {
-  Vec<BasicBlock *> blocks;
-  for (auto &block : f) {
-    blocks.push_back(&block);
-  }
-  liveness = Make<Liveness>(blocks);
+void LivenessAnalysis::runAnalysis() {
+  preprocess();
+  runBackwards();
+  finalize();
+}
 
-  for (auto &block : f) {
-    auto *firstInst = block.getInitiator();
-    auto &in = results.at(firstInst).in;
-    for (std::size_t i = 0; i < in.size(); ++i) {
-      if (in[i]) {
-        liveness->addBlockLiveIn(&block,
-                                 definingInstructions[i]->getResultOperand());
+void LivenessAnalysis::preprocess() {
+
+  // save exit blocks
+  for (auto &basicBlock : f) {
+    if (basicBlock.getSuccessors().empty()) {
+      exitBlocks.push_back(&basicBlock);
+    }
+  }
+
+  // call pre-process for each inst
+  for (auto &basicBlock : f) {
+    for (auto &inst : basicBlock) {
+      auto *currentInst = &inst;
+      preprocessInst(currentInst);
+    }
+  }
+
+  genBoundaryInner();
+
+  // initialize the IN/OUT sets
+  for (auto &basicBlock : f) {
+    for (auto &inst : basicBlock) {
+      auto *currentInst = &inst;
+      results[currentInst].in = innerStart;
+      results[currentInst].out = innerStart;
+    }
+  }
+
+  results[f.getEntryBlock()->getInitiator()].in = boundaryStart;
+
+  for (auto *exitBlock : exitBlocks) {
+    results[exitBlock->getTerminator()].out = boundaryStart;
+  }
+}
+
+void LivenessAnalysis::runBackwards() {
+  Set<BasicBlock *> worklist;
+  for (auto *exitBlock : exitBlocks) {
+    worklist.insert(exitBlock);
+  }
+
+  while (!worklist.empty()) {
+    BasicBlock *basicBlock = *worklist.begin();
+    worklist.erase(basicBlock);
+
+    auto *lastInst = basicBlock->getTerminator();
+
+    auto newOut = results[lastInst].out;
+    bool changed = false;
+
+    // iterate over successors, calling meet over their out sets
+    for (auto *succ : basicBlock->getSuccessors()) {
+      auto &succResult = results[succ->getInitiator()];
+      if (!changed) {
+        newOut = succResult.in;
+        changed = true;
+      } else {
+        newOut = meet(succResult.in, newOut, succ);
       }
     }
-    for (auto &inst : block) {
-      auto &out = results.at(&inst).out;
-      for (std::size_t i = 0; i < out.size(); ++i) {
-        if (out[i]) {
-          liveness->addBlockLiveOut(
-              &block, definingInstructions[i]->getResultOperand());
-        }
+
+    results[lastInst].out = newOut;
+    auto oldIn = results[basicBlock->getInitiator()].in;
+    results[lastInst].in = transfer(results[lastInst].out, lastInst);
+    auto prevInst = lastInst;
+
+    // iterate the remaining instructions
+    auto iter = basicBlock->end();
+
+    do {
+      --iter;
+      auto *currentInst = &*iter;
+      if (currentInst == lastInst) {
+        break;
+      }
+      results[currentInst].in = transfer(results[currentInst].out, currentInst);
+      results[currentInst].out = results[prevInst].in;
+
+      prevInst = currentInst;
+    } while (iter != basicBlock->begin());
+
+    if (results[basicBlock->getInitiator()].in != oldIn) {
+      for (auto *pred : basicBlock->getPredecessors()) {
+        worklist.insert(pred);
       }
     }
   }
 }
 
-void LivenessAnalysis::computeInterferenceGraph() {
-  interferenceGraph = Make<InterferenceGraph>();
+void LivenessAnalysis::genBoundaryInner() {
+  innerStart = BitVector(instToIndex.size(), false);
+  boundaryStart = BitVector(instToIndex.size(), false);
+}
 
-  for (auto &block : f) {
-    for (auto &inst : block) {
-      auto &out = results.at(&inst).out;
-
-      // all pairs
-      for (std::size_t i = 0; i < out.size(); ++i) {
-        for (std::size_t j = i + 1; j < out.size(); ++j) {
-          if (out[i] && out[j]) {
-            auto *left = definingInstructions[i]->getResultOperand();
-            auto *right = definingInstructions[j]->getResultOperand();
-            interferenceGraph->addInterferenceEdge(left, right);
-          }
-        }
-      }
-    }
-  }
+void LivenessAnalysis::finalize() {
+  computeLiveness();
+  computeInterferenceGraph();
 }
 
 BitVector LivenessAnalysis::transfer(BitVector out, Instruction *inst) {
@@ -168,12 +224,51 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
   }
 }
 
-void LivenessAnalysis::genBoundaryInner() {
-  innerStart = BitVector(instToIndex.size(), false);
-  boundaryStart = BitVector(instToIndex.size(), false);
+void LivenessAnalysis::computeLiveness() {
+  Vec<BasicBlock *> blocks;
+  for (auto &block : f) {
+    blocks.push_back(&block);
+  }
+  liveness = Make<Liveness>(blocks);
+
+  for (auto &block : f) {
+    auto *firstInst = block.getInitiator();
+    auto &in = results.at(firstInst).in;
+    for (std::size_t i = 0; i < in.size(); ++i) {
+      if (in[i]) {
+        liveness->addBlockLiveIn(&block,
+                                 definingInstructions[i]->getResultOperand());
+      }
+    }
+    for (auto &inst : block) {
+      auto &out = results.at(&inst).out;
+      for (std::size_t i = 0; i < out.size(); ++i) {
+        if (out[i]) {
+          liveness->addBlockLiveOut(
+              &block, definingInstructions[i]->getResultOperand());
+        }
+      }
+    }
+  }
 }
 
-void LivenessAnalysis::finalize() {
-  computeLiveness();
-  computeInterferenceGraph();
+void LivenessAnalysis::computeInterferenceGraph() {
+  interferenceGraph = Make<InterferenceGraph>();
+
+  for (auto &block : f) {
+    for (auto &inst : block) {
+      auto &out = results.at(&inst).out;
+
+      // all pairs
+      for (std::size_t i = 0; i < out.size(); ++i) {
+        for (std::size_t j = i + 1; j < out.size(); ++j) {
+          if (out[i] && out[j]) {
+            auto *left = definingInstructions[i]->getResultOperand();
+            auto *right = definingInstructions[j]->getResultOperand();
+            interferenceGraph->addInterferenceEdge(left, right);
+          }
+        }
+      }
+    }
+  }
 }

@@ -4,9 +4,11 @@
 #include "utils.hpp"
 
 bool BreakPhiInterferencePass::runOnFunction(Function &f) {
+  std::cout << f << std::endl;
   auto livenessAnalysis = Make<LivenessAnalysis>(f);
   livenessAnalysis->runAnalysis();
   auto &liveness = livenessAnalysis->getLiveness();
+  std::cout << *liveness << std::endl;
   auto &interferenceGraph = livenessAnalysis->getInterferenceGraph();
   auto phiCongruent = createPhiCongruenceClasses(f);
 
