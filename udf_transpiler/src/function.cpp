@@ -37,9 +37,6 @@ void Function::makeDuckDBContext() {
 void Function::destroyDuckDBContext() {
   String dropTableCommand = "DROP TABLE tmp;";
   auto res = conn->Query(dropTableCommand);
-  if (res->HasError()) {
-    EXCEPTION(res->GetError());
-  }
 }
 
 Own<SelectExpression> Function::renameVarInExpression(
