@@ -282,6 +282,8 @@ public:
   Own<SelectExpression> renameVarInExpression(
       const SelectExpression *original,
       const Map<const Variable *, const Variable *> &oldToNew);
+  
+  void renameBasicBlocks(const Map<const BasicBlock *, BasicBlock *> &oldToNew);
 
   Own<SelectExpression> replaceVarWithExpression(
       const SelectExpression *original,
@@ -319,10 +321,11 @@ public:
     return ss.str();
   }
 
-  Own<Function> partialCloneAndRename(const String &newName,
-                                      const Vec<const Variable *> &newArgs,
-                                      const Type &newReturnType,
-                                      const Vec<const Region *> regions) const;
+  Own<Function>
+  partialCloneAndRename(const String &newName,
+                        const Vec<const Variable *> &newArgs,
+                        const Type &newReturnType,
+                        const Vec<const BasicBlock *> basicBlocks) const;
 
 protected:
   void print(std::ostream &os) const {

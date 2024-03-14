@@ -51,6 +51,27 @@ Own<SelectExpression> Function::renameVarInExpression(
   return bindExpression(replacedText)->clone();
 }
 
+void Function::renameBasicBlocks(
+    const Map<const BasicBlock *, BasicBlock *> &oldToNew) {
+  for (auto &basicBlock : *this) {
+    for (auto &inst : basicBlock) {
+      // based on the fact that only branch instruction can reference basic
+      // blocks
+      if (auto *branchInst = dynamic_cast<BranchInst *>(&inst)) {
+        if (branchInst->isUnconditional()) {
+          branchInst->replaceWith(
+              Make<BranchInst>(oldToNew.at(branchInst->getIfTrue())));
+        } else {
+          branchInst->replaceWith(
+              Make<BranchInst>(oldToNew.at(branchInst->getIfTrue()),
+                               oldToNew.at(branchInst->getIfFalse()),
+                               branchInst->getCond()->clone()));
+        }
+      }
+    }
+  }
+}
+
 Own<SelectExpression> Function::replaceVarWithExpression(
     const SelectExpression *original,
     const Map<const Variable *, const SelectExpression *> &oldToNew) {
@@ -305,7 +326,7 @@ FunctionCloneAndRenameHelper::cloneAndRename(const BranchInst &branch) {
          fmt::format("BasicBlock {} not found in basicBlockMap",
                      branch.getIfTrue()->getLabel()));
   auto trueBlock = basicBlockMap.at(branch.getIfTrue());
-  if(branch.isUnconditional()) {
+  if (branch.isUnconditional()) {
     return Make<BranchInst>(trueBlock);
   }
   ASSERT(basicBlockMap.find(branch.getIfFalse()) != basicBlockMap.end(),
@@ -338,7 +359,8 @@ FunctionCloneAndRenameHelper::cloneAndRename(const Instruction &inst) {
 
 Own<Function> Function::partialCloneAndRename(
     const String &newName, const Vec<const Variable *> &newArgs,
-    const Type &newReturnType, const Vec<const Region *> regions) const {
+    const Type &newReturnType,
+    const Vec<const BasicBlock *> basicBlocks) const {
   Map<const Variable *, const Variable *> variableMap;
   Map<const BasicBlock *, BasicBlock *> basicBlockMap;
   auto newFunction = Make<Function>(conn, newName, newReturnType);
@@ -348,7 +370,7 @@ Own<Function> Function::partialCloneAndRename(
   }
 
   for (const auto &[name, var] : bindings) {
-    if(variableMap.find(var) != variableMap.end()) {
+    if (variableMap.find(var) != variableMap.end()) {
       continue;
     }
     newFunction->addVariable(name, var->getType(), var->isNull());
@@ -358,11 +380,9 @@ Own<Function> Function::partialCloneAndRename(
   // create the entry block
   auto entry = newFunction->makeBasicBlock("entry");
   // there is no variable in the new function, every data pass in by argument
-  for (const auto &region : regions) {
-    for (const auto &basicBlock : region->getBasicBlocks()) {
-      auto newBlock = newFunction->makeBasicBlock(basicBlock->getLabel());
-      basicBlockMap[basicBlock] = newBlock;
-    }
+  for (const auto &basicBlock : basicBlocks) {
+    auto newBlock = newFunction->makeBasicBlock(basicBlock->getLabel());
+    basicBlockMap[basicBlock] = newBlock;
   }
 
   FunctionCloneAndRenameHelper cloneHelper{variableMap, basicBlockMap};
@@ -374,12 +394,11 @@ Own<Function> Function::partialCloneAndRename(
   }
 
   // let the entry jump to the first block of the first region
-  ASSERT(basicBlockMap.find(regions.front()->getHeader()) !=
-             basicBlockMap.end(),
+  ASSERT(basicBlockMap.find(basicBlocks.front()) != basicBlockMap.end(),
          fmt::format("BasicBlock {} not found in basicBlockMap",
-                     regions.front()->getHeader()->getLabel()));
+                     basicBlocks.front()->getLabel()));
   newFunction->getEntryBlock()->addInstruction(
-      Make<BranchInst>(basicBlockMap.at(regions.front()->getHeader())));
+      Make<BranchInst>(basicBlockMap.at(basicBlocks.front())));
 
   return std::move(newFunction);
 }

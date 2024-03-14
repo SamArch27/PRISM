@@ -34,6 +34,7 @@ public:
 
   inline size_t &getUdfCount() { return udfCount; }
   inline duckdb::Connection *getConnection() { return conn; }
+  inline const YAMLConfig &getConfig() { return config; }
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;

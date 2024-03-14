@@ -33,19 +33,19 @@ public:
     blockLiveIn.at(block).erase(liveVariable);
   }
 
-  void addBlockLiveOut(BasicBlock *block, const Variable *liveVariable) {
+  void addBlockLiveOut(const BasicBlock *block, const Variable *liveVariable) {
     blockLiveOut.at(block).insert(liveVariable);
   }
 
-  void removeBlockLiveOut(BasicBlock *block, const Variable *liveVariable) {
+  void removeBlockLiveOut(const BasicBlock *block, const Variable *liveVariable) {
     blockLiveOut.at(block).erase(liveVariable);
   }
 
-  const Set<const Variable *> &getBlockLiveIn(BasicBlock *block) const {
+  const Set<const Variable *> &getBlockLiveIn(const BasicBlock *block) const {
     return blockLiveIn.at(block);
   }
 
-  const Set<const Variable *> &getBlockLiveOut(BasicBlock *block) const {
+  const Set<const Variable *> &getBlockLiveOut(const BasicBlock *block) const {
     return blockLiveOut.at(block);
   }
 
@@ -80,10 +80,10 @@ protected:
   }
 
 private:
-  Map<Instruction *, Set<const Variable *>> liveIn;
-  Map<Instruction *, Set<const Variable *>> liveOut;
-  Map<BasicBlock *, Set<const Variable *>> blockLiveIn;
-  Map<BasicBlock *, Set<const Variable *>> blockLiveOut;
+  Map<const Instruction *, Set<const Variable *>> liveIn;
+  Map<const Instruction *, Set<const Variable *>> liveOut;
+  Map<const BasicBlock *, Set<const Variable *>> blockLiveIn;
+  Map<const BasicBlock *, Set<const Variable *>> blockLiveOut;
 };
 
 class InterferenceGraph {

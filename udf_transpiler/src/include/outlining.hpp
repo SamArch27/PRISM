@@ -12,8 +12,7 @@ public:
 
 private:
   void outlineFunction(Function &f);
-  bool outlineRegion(Vec<const Region *> regions, Function &f,
-                     bool returnRegion);
+  bool outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks, Function &f);
   bool runOnRegion(const Region *rootRegion, Function &f);
 
   Compiler &compiler;
