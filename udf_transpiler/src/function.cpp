@@ -47,7 +47,7 @@ Own<SelectExpression> Function::renameVarInExpression(
     const Map<const Variable *, const Variable *> &oldToNew) {
   auto replacedText = original->getRawSQL();
   for (auto &[oldVar, newVar] : oldToNew) {
-    std::regex wordRegex("\\b" + oldVar->getName() + "\\b");
+    std::regex wordRegex("\\b" + oldVar->getName() + "\\b", std::regex::icase);
     replacedText =
         std::regex_replace(replacedText, wordRegex, newVar->getName());
   }
@@ -59,7 +59,7 @@ Own<SelectExpression> Function::replaceVarWithExpression(
     const Map<const Variable *, const SelectExpression *> &oldToNew) {
   auto replacedText = original->getRawSQL();
   for (auto &[oldVar, newExpr] : oldToNew) {
-    std::regex wordRegex("\\b" + oldVar->getName() + "\\b");
+    std::regex wordRegex("\\b" + oldVar->getName() + "\\b", std::regex::icase);
     replacedText =
         std::regex_replace(replacedText, wordRegex, newExpr->getRawSQL());
   }
@@ -73,7 +73,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
     makeDuckDBContext();
   }
 
-  auto cleanedExpr = toLower(expr);
+  auto cleanedExpr = expr;
 
   String selectExpressionCommand;
   if (needContext) {
@@ -88,9 +88,10 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   std::set<duckdb::OptimizerType> disable_optimizers_should_delete;
 
   if (config.options.disabled_optimizers.count(
-          duckdb::OptimizerType::STATISTICS_PROPAGATION) == 0)
+          duckdb::OptimizerType::STATISTICS_PROPAGATION) == 0) {
     disable_optimizers_should_delete.insert(
         duckdb::OptimizerType::STATISTICS_PROPAGATION);
+  }
   config.options.disabled_optimizers.insert(
       duckdb::OptimizerType::STATISTICS_PROPAGATION);
 

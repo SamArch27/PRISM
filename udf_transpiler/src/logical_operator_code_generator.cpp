@@ -337,6 +337,8 @@ BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp,
   }
 }
 
+String getDuckDBNumericValue(const Value &value, const LogicalType &type) {}
+
 template <>
 String
 BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
@@ -345,9 +347,16 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
       exp.value.type() == LogicalType::BOOLEAN) {
     return fmt::format(
         "({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type),
-        exp.value.ToString());
+        exp.value.GetValue<uint64_t>()); // int64_t should be enough for most
+                                         // numeric types
+  } else if (exp.value.type() == LogicalType::DATE) {
+    return fmt::format("(int32_t) {}", exp.value.GetValue<int32_t>());
+  } else if (exp.value.type() == LogicalType::VARCHAR) {
+    return fmt::format("\"{}\"", exp.value.ToString());
+  } else {
+    return fmt::format("[Not supported const: {}: {}]", exp.value.ToString(),
+                       exp.return_type.ToString());
   }
-  return fmt::format("\"{}\"", exp.value.ToString());
 }
 
 template <>

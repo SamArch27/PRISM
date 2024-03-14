@@ -81,9 +81,16 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
       } else {
         ERROR("Instruction does not fall into a specific type.");
       }
+    } catch (const duckdb::Exception &e) {
+      std::stringstream ss;
+      ss << e.GetStackTrace(10) << "\n"
+         << e.what() << "\n"
+         << "When compiling instruction: " << "\n"
+         << inst;
+      throw duckdb::ParserException(ss.str());
     } catch (const std::exception &e) {
       std::stringstream ss;
-      ss << e.what() << "When compiling instruction: " << inst;
+      ss << e.what() << "When compiling instruction: " << "\n" << inst;
       throw duckdb::ParserException(ss.str());
     }
   }
