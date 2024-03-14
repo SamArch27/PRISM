@@ -352,7 +352,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
   } else if (exp.value.type() == LogicalType::DATE) {
     return fmt::format("(int32_t) {}", exp.value.GetValue<int32_t>());
   } else if (exp.value.type() == LogicalType::VARCHAR) {
-    return fmt::format("\"{}\"", exp.value.ToString());
+    return fmt::format("string_t(\"{}\")", exp.value.ToString());
   } else {
     return fmt::format("[Not supported const: {}: {}]", exp.value.ToString(),
                        exp.return_type.ToString());
