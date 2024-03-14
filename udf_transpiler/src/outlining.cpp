@@ -12,36 +12,12 @@
 #include "utils.hpp"
 
 /**
- * Get the next region of this region
- * Should check if there is only one successor
+ * Robust way to find the outgoing branch out of this list of blocks
  */
-// const Region *getNextRegion(const Region *region) {
-//   if (region->getParentRegion() == nullptr) {
-//     return nullptr;
-//   }
-//   auto *parent = region->getParentRegion();
-//   // make sure parent is only a sequential region or a loop region
-//   ASSERT(dynamic_cast<SequentialRegion *>(parent) ||
-//              dynamic_cast<LoopRegion *>(parent),
-//          "Unexpected parent region type");
-//   const auto &nestedRegions = parent->getNestedRegions();
-//   for (size_t i = 0; i < nestedRegions.size(); i++) {
-//     if (nestedRegions[i] == region) {
-//       if (i == nestedRegions.size() - 1) {
-//         return getNextRegion(parent);
-//       }
-//       return nestedRegions[i + 1];
-//     }
-//   }
-//   return nullptr;
-// }
-
-/**
- * A robust way is to find the outgoing branch out of this list of blocks
- */
-const BasicBlock *
+Set<BasicBlock *>
 getNextBasicBlock(const Vec<const BasicBlock *> &basicBlocks) {
   Set<const BasicBlock *> blockSet;
+  Set<BasicBlock *> nextBlocks;
   for (auto *block : basicBlocks) {
     blockSet.insert(block);
   }
@@ -49,49 +25,25 @@ getNextBasicBlock(const Vec<const BasicBlock *> &basicBlocks) {
   for (auto *block : basicBlocks) {
     for (auto *succ : block->getSuccessors()) {
       if (blockSet.count(succ) == 0) {
-        if (nextBlock != nullptr && nextBlock != succ) {
-          ERROR("There should be only one next block of the whole outlined "
-                "region.");
-        }
-        nextBlock = succ;
+        nextBlocks.insert(succ);
       }
     }
   }
-  return nextBlock;
+  return nextBlocks;
 }
 
-// void breakBasicBlockWithSelect(Function &f) {
-//   Vec<Instruction *> worklist;
-//   for (auto &block : f) {
-//     for (auto &inst : block) {
-//       if (inst.hasSelect()) {
-//         worklist.push_back(&inst);
-//       }
-//     }
-//   }
-
-//   // for (auto *inst : worklist) {
-//   //   auto *block = inst->getParent();
-//   //   auto *nextBlock = block->splitBlock(inst);
-//   //   auto *newBlock = f.makeBasicBlock();
-//   //   newBlock->addInstruction(Make<BranchInst>(nextBlock));
-//   //   for (auto *succ : block->getSuccessors()) {
-//   //     succ->replacePredecessor(block, newBlock);
-//   //   }
-//   // }
-// }
-
 void OutliningPass::outlineFunction(Function &f) {
+  COUT << "Optimizing function " << f.getFunctionName() << ENDL;
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
       Make<AggressiveMergeRegionsPass>());
   ssaDestructionPipeline->runOnFunction(f);
 
+  COUT << fmt::format("Transpiling UDF {}...", f.getFunctionName()) << ENDL;
   compiler.getUdfCount()++;
   CFGCodeGenerator codeGenerator(compiler.getConfig());
   auto res = codeGenerator.run(f);
 
-  COUT << "Transpiling the UDF..." << ENDL;
   insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
   // compile the template
   COUT << "Compiling the UDF..." << ENDL;
@@ -138,7 +90,15 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
   }
   COUT << ENDL;
 
-  auto *nextBasicBlock = getNextBasicBlock(basicBlocks);
+  auto nextBasicBlocks = getNextBasicBlock(basicBlocks);
+  if (nextBasicBlocks.size() > 1) {
+    ERROR("Should not have a case where there are multiple next blocks for an "
+          "outlined region");
+  }
+
+  BasicBlock *nextBasicBlock =
+      nextBasicBlocks.empty() ? nullptr : *nextBasicBlocks.begin();
+
   bool hasReturn = false;
   for (auto *block : basicBlocks) {
     if (block->getSuccessors().size() == 0) {
@@ -252,7 +212,6 @@ bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
       //        "Unexpected region type");
       // regionsToOutline.push_back(region);
       for (auto *block : region->getBasicBlocks()) {
-        COUT << "1. Pushing block " << block->getLabel() << ENDL;
         basicBlocksToOutline.push_back(block);
       }
 
@@ -281,8 +240,6 @@ bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
         // sequential region is an exception because other part of the region
         // does not affect regions inside it being outlined
         if (!sequentialRegion->getHeader()->hasSelect()) {
-          COUT << "2. Pushing block "
-               << sequentialRegion->getHeader()->getLabel() << ENDL;
           basicBlocksToOutline.push_back(sequentialRegion->getHeader());
         }
         for (auto *nestedRegion : sequentialRegion->getNestedRegions()) {
@@ -292,7 +249,6 @@ bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
             runOnRegion(nestedRegion, f);
           } else {
             for (auto *block : nestedRegion->getBasicBlocks()) {
-              COUT << "3. Pushing block " << block->getLabel() << ENDL;
               basicBlocksToOutline.push_back(block);
             }
           }

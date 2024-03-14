@@ -114,7 +114,6 @@ public:
   }
 
   bool hasSelect() const override {
-    COUT << "hasSelect: " << this->getRegionLabel() << ENDL;
     if (getHeader()->hasSelect()) {
       return true;
     }
