@@ -162,8 +162,8 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
       args.push_back(std::to_string(function_info.width_scale.second));
       break;
     case ScalarFunctionInfo::ErrorCastWrapper:
-      // udf_todo
-      EXCEPTION("ErrorCastWrapper not implemented yet.");
+      function_name = "ErrorCastHelper";
+      template_args.push_back(get_struct_name(function_info.cpp_name));
       break;
     case ScalarFunctionInfo::DecimalVectorBackWrapper:
       // udf_todo
@@ -336,8 +336,6 @@ BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp,
                        ExpressionTypeToString(exp.GetExpressionType()));
   }
 }
-
-String getDuckDBNumericValue(const Value &value, const LogicalType &type) {}
 
 template <>
 String

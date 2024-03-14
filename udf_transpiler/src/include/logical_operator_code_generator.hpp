@@ -28,6 +28,7 @@ public:
   }
 
   String newTmpVar() { return "tmp_var" + std::to_string(tmpVarCount++); }
+  String getNewestTmpVar() { return "tmp_var" + std::to_string(tmpVarCount - 1); }
 };
 
 namespace duckdb {

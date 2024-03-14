@@ -34,6 +34,19 @@ inline T NumericCastHelper(S input) {
 }
 
 /**
+ * A helper function for exposing error message from a typical cast
+*/
+template <typename S, typename T, typename op>
+inline T ErrorCastHelper(S input){
+    T output;
+    string_t error_message;
+    op::template Operation<S, T>(input, output, &error_message);
+    if(!error_message.empty()){
+        throw std::runtime_error(error_message);
+    }
+}
+
+/**
  * A helper function to expose target from a decimal cast
  * can accept operator: TryCastToDecimal
 */
