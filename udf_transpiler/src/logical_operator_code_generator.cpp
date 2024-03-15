@@ -345,10 +345,10 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
       exp.value.type() == LogicalType::BOOLEAN) {
     return fmt::format(
         "({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type),
-        exp.value.GetValue<uint64_t>()); // int64_t should be enough for most
+        exp.value.GetValueUnsafe<uint64_t>()); // int64_t should be enough for most
                                          // numeric types
   } else if (exp.value.type() == LogicalType::DATE) {
-    return fmt::format("(int32_t) {}", exp.value.GetValue<int32_t>());
+    return fmt::format("date_t({})", exp.value.GetValueUnsafe<int32_t>());
   } else if (exp.value.type() == LogicalType::VARCHAR) {
     return fmt::format("string_t(\"{}\")", exp.value.ToString());
   } else {
@@ -400,8 +400,8 @@ String BoundExpressionCodeGenerator::Transpile(const Expression &exp,
     return Transpile(exp.Cast<BoundColumnRefExpression>(), insert);
     break;
   default:
-    return fmt::format("[{}: {}]", exp.ToString(),
-                       ExpressionClassToString(exp.GetExpressionClass()));
+    EXCEPTION(fmt::format("[{}: {}]", exp.ToString(),
+                          ExpressionClassToString(exp.GetExpressionClass())));
     break;
   }
 }

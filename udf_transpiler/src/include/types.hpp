@@ -88,7 +88,8 @@ enum class CppTypeTag {
   UINT16_T,
   UINT32_T,
   UINT64_T,
-  UINT8_T
+  UINT8_T,
+  DATE_T
 };
 
 std::ostream &operator<<(std::ostream &os, DuckdbTypeTag);
