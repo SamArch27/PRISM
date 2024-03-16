@@ -91,7 +91,7 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     auto res_width = target_width + scale_difference;
     if (source_width < res_width) {
       // udf_todo: possibly a source of result difference
-      function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);
+      function_name = fmt::format("1.0/{} * Cast::Operation", multiply_factor);
       template_args.push_back(source_physical);
       template_args.push_back(target_physical);
     } else {
@@ -110,7 +110,7 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
       ",
                                          fmt::arg("input", newVar),
                                          fmt::arg("limit", limit)));
-      function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);
+      function_name = fmt::format("1.0/{} * Cast::Operation", multiply_factor);
       template_args.push_back(source_physical);
       template_args.push_back(target_physical);
     }
@@ -345,8 +345,8 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
       exp.value.type() == LogicalType::BOOLEAN) {
     return fmt::format(
         "({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type),
-        exp.value.GetValueUnsafe<uint64_t>()); // int64_t should be enough for most
-                                         // numeric types
+        exp.value.GetValueUnsafe<uint64_t>()); // int64_t should be enough for
+                                               // most numeric types
   } else if (exp.value.type() == LogicalType::DATE) {
     return fmt::format("date_t({})", exp.value.GetValueUnsafe<int32_t>());
   } else if (exp.value.type() == LogicalType::VARCHAR) {

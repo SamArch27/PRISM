@@ -124,7 +124,7 @@ void PredicateAnalysis::runAnalysis() {
             }
           }
 
-          auto boundCondition = f.bindExpression(cond);
+          auto boundCondition = f.bindExpression(cond, f.getReturnType());
           std::cout << std::endl;
           std::cout << "Predicate: " << *boundCondition << std::endl;
         }

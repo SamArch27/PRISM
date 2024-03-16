@@ -277,7 +277,7 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  Own<SelectExpression> bindExpression(const String &expr,
+  Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
                                        bool needContext = true);
 
   Map<Instruction *, Instruction *>

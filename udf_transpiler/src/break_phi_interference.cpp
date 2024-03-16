@@ -308,7 +308,7 @@ void BreakPhiInterferencePass::processResultConflict(
     Function &f, const Variable *x, const Variable *xPrime, InstIterator it,
     InterferenceGraph &interferenceGraph, Liveness &liveness) {
   // Insert x = x' after the phi instruction
-  auto newAssignment = Make<Assignment>(x, f.bindExpression(xPrime->getName()));
+  auto newAssignment = Make<Assignment>(x, f.bindExpression(xPrime->getName(), xPrime->getType()));
   auto *block = it->getParent();
   block->insertAfter(it, std::move(newAssignment));
 
@@ -330,7 +330,7 @@ void BreakPhiInterferencePass::processSourceConflict(
   auto argIt = oldArgs.begin();
   while ((argIt = std::find(argIt, oldArgs.end(), x)) != oldArgs.end()) {
     auto newAssignment =
-        Make<Assignment>(xPrime, f.bindExpression(x->getName()));
+        Make<Assignment>(xPrime, f.bindExpression(x->getName(), x->getType()));
 
     auto predIndex = std::distance(oldArgs.begin(), argIt);
     auto *toModify = block->getPredecessors()[predIndex];

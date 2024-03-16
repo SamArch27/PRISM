@@ -55,7 +55,7 @@ void SSAConstructionPass::insertPhiFunctions(
           auto numPreds = m->getPredecessors().size();
           VecOwn<SelectExpression> args;
           for (std::size_t i = 0; i < numPreds; ++i) {
-            args.emplace_back(f.bindExpression(var->getName()));
+            args.emplace_back(f.bindExpression(var->getName(), var->getType()));
           }
           auto phiInst = Make<PhiNode>(var, std::move(args));
           m->insertBefore(m->begin(), std::move(phiInst));
@@ -216,7 +216,7 @@ void SSAConstructionPass::renameVariablesToSSA(
     auto newName = renameVariable(arg.get(), true)->getName();
     f.addVariable(newName, arg->getType(), false);
     auto assign =
-        Make<Assignment>(f.getBinding(newName), f.bindExpression(oldName));
+        Make<Assignment>(f.getBinding(newName), f.bindExpression(oldName, arg->getType()));
     auto *entryBlock = f.getEntryBlock();
     entryBlock->insertBeforeTerminator(std::move(assign));
   }

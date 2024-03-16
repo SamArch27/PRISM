@@ -3,6 +3,8 @@
 #include <regex>
 #define FMT_HEADER_ONLY
 
+Type Type::BOOLEAN = Type(false, std::nullopt, std::nullopt, PostgresTypeTag::BOOLEAN);
+
 std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
   switch (tag) {
   case DuckdbTypeTag::BIGINT:

@@ -100,6 +100,8 @@ public:
   static constexpr int DEFAULT_WIDTH = 18;
   static constexpr int DEFAULT_SCALE = 3;
 
+  static Type BOOLEAN; 
+
   Type(bool decimal, Opt<int> width, Opt<int> scale,
        PostgresTypeTag postgresTag)
       : decimal(decimal), width(getWidth(isDecimal(), width)),
