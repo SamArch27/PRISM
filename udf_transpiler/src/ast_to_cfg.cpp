@@ -64,6 +64,8 @@ Own<Function> AstToCFG::createFunction(const json &ast, const String &name,
 
   std::cout << ast << std::endl;
   buildCFG(*f, ast);
+
+  f->destroyDuckDBContext();
   return f;
 }
 
@@ -204,7 +206,8 @@ Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
   }
   auto newBlock = f.makeBasicBlock();
   String ret = getJsonExpr(returnJson["expr"]);
-  newBlock->addInstruction(Make<ReturnInst>(f.bindExpression(ret, f.getReturnType())));
+  newBlock->addInstruction(
+      Make<ReturnInst>(f.bindExpression(ret, f.getReturnType())));
   return Make<LeafRegion>(newBlock);
 }
 
