@@ -363,8 +363,8 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
       exp.value.type() == LogicalType::BOOLEAN) {
     return fmt::format(
         "({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type),
-        exp.value.GetValueUnsafe<uint64_t>()); // int64_t should be enough for
-                                               // most numeric types
+        exp.value.GetValue<uint64_t>()); // int64_t should be enough for
+                                         // most numeric types
   } else if (exp.value.type() == LogicalType::DATE) {
     return fmt::format("date_t({})", exp.value.GetValueUnsafe<int32_t>());
   } else if (exp.value.type() == LogicalType::VARCHAR) {
