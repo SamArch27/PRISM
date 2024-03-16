@@ -61,9 +61,13 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     auto multiply_factor = pow10String(scale_difference);
     auto res_width = target_width - scale_difference;
     if (source_width < res_width) {
-      function_name = fmt::format("{} * Cast::Operation", multiply_factor);
-      template_args.push_back(source_physical);
-      template_args.push_back(target_physical);
+      if (source_physical != target_physical) {
+        function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        template_args.push_back(source_physical);
+        template_args.push_back(target_physical);
+      } else {
+        function_name = fmt::format("{} * ", multiply_factor);
+      }
     } else {
       // DecimalScaleUpCheckOperator
       // evaluate the child first
@@ -80,9 +84,13 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
       ",
                                          fmt::arg("input", newVar),
                                          fmt::arg("limit", limit)));
-      function_name = fmt::format("{} * Cast::Operation", multiply_factor);
-      template_args.push_back(source_physical);
-      template_args.push_back(target_physical);
+      if (source_physical != target_physical) {
+        function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        template_args.push_back(source_physical);
+        template_args.push_back(target_physical);
+      } else {
+        function_name = fmt::format("{} * ", multiply_factor);
+      }
     }
   } else {
     // scale down
@@ -91,9 +99,14 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     auto res_width = target_width + scale_difference;
     if (source_width < res_width) {
       // udf_todo: possibly a source of result difference
-      function_name = fmt::format("1.0/{} * Cast::Operation", multiply_factor);
-      template_args.push_back(source_physical);
-      template_args.push_back(target_physical);
+      if (source_physical != target_physical) {
+        function_name =
+            fmt::format("1.0/{} * Cast::Operation", multiply_factor);
+        template_args.push_back(source_physical);
+        template_args.push_back(target_physical);
+      } else {
+        function_name = fmt::format("1.0/{} * ", multiply_factor);
+      }
     } else {
       // DecimalScaleUpCheckOperator
       // evaluate the child first
@@ -110,9 +123,14 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
       ",
                                          fmt::arg("input", newVar),
                                          fmt::arg("limit", limit)));
-      function_name = fmt::format("1.0/{} * Cast::Operation", multiply_factor);
-      template_args.push_back(source_physical);
-      template_args.push_back(target_physical);
+      if (source_physical != target_physical) {
+        function_name =
+            fmt::format("1.0/{} * Cast::Operation", multiply_factor);
+        template_args.push_back(source_physical);
+        template_args.push_back(target_physical);
+      } else {
+        function_name = fmt::format("1.0/{} * ", multiply_factor);
+      }
     }
   }
 }
