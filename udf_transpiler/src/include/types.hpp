@@ -88,7 +88,8 @@ enum class CppTypeTag {
   UINT16_T,
   UINT32_T,
   UINT64_T,
-  UINT8_T
+  UINT8_T,
+  DATE_T
 };
 
 std::ostream &operator<<(std::ostream &os, DuckdbTypeTag);
@@ -98,6 +99,8 @@ class Type {
 public:
   static constexpr int DEFAULT_WIDTH = 18;
   static constexpr int DEFAULT_SCALE = 3;
+
+  static Type BOOLEAN; 
 
   Type(bool decimal, Opt<int> width, Opt<int> scale,
        PostgresTypeTag postgresTag)

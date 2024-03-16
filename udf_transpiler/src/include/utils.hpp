@@ -167,7 +167,7 @@ static Map<String, String> alias_to_duckdb_type = {{"UNKNOWN", "UNKNOWN"},
                                                    {"STRING", "VARCHAR"}};
 static Map<String, String> duckdb_to_cpp_type = {
     {"BOOLEAN", "bool"},   {"TINYINT", "int8_t"},    {"SMALLINT", "int16_t"},
-    {"DATE", "int32_t"},   {"TIME", "int32_t"},      {"INTEGER", "int32_t"},
+    {"DATE", "date_t"},   {"TIME", "int32_t"},      {"INTEGER", "int32_t"},
     {"BIGINT", "int64_t"}, {"TIMESTAMP", "int64_t"}, {"FLOAT", "float"},
     {"DOUBLE", "double"},  {"DECIMAL", "double"},    {"VARCHAR", "string_t"},
     {"CHAR", "string_t"},  {"BLOB", "string_t"}};

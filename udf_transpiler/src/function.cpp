@@ -48,7 +48,7 @@ Own<SelectExpression> Function::renameVarInExpression(
     replacedText =
         std::regex_replace(replacedText, wordRegex, newVar->getName());
   }
-  return bindExpression(replacedText)->clone();
+  return bindExpression(replacedText, original->getReturnType())->clone();
 }
 
 Own<SelectExpression> Function::replaceVarWithExpression(
@@ -60,10 +60,11 @@ Own<SelectExpression> Function::replaceVarWithExpression(
     replacedText =
         std::regex_replace(replacedText, wordRegex, newExpr->getRawSQL());
   }
-  return bindExpression(replacedText)->clone();
+  return bindExpression(replacedText, original->getReturnType())->clone();
 }
 
 Own<SelectExpression> Function::bindExpression(const String &expr,
+                                               const Type &retType,
                                                bool needContext) {
   if (needContext) {
     destroyDuckDBContext();
@@ -74,9 +75,11 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
 
   String selectExpressionCommand;
   if (needContext) {
-    selectExpressionCommand = "SELECT (" + cleanedExpr + ") FROM tmp;";
+    selectExpressionCommand = fmt::format("SELECT ({})::{} FROM tmp;",
+                                          cleanedExpr, retType.getDuckDBType());
   } else {
-    selectExpressionCommand = "SELECT " + cleanedExpr;
+    selectExpressionCommand =
+        fmt::format("SELECT {}::{};", cleanedExpr, retType.getDuckDBType());
   }
 
   auto clientContext = conn->context.get();
@@ -120,8 +123,8 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
     usedVariables.insert(getBinding(varName));
   }
 
-  return Make<SelectExpression>(cleanedExpr, std::move(boundExpression),
-                                usedVariables);
+  return Make<SelectExpression>(cleanedExpr, retType,
+                                std::move(boundExpression), usedVariables);
 }
 
 Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(

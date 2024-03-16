@@ -37,7 +37,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
                                                CodeGenInfo &function_info) {
   String code;
   code += fmt::format("/* ==== Basic block {} start ==== */\n", bb->getLabel());
-  code += fmt::format("{}:\n", bb->getLabel());
+  code += fmt::format("{}:\n{{\n", bb->getLabel());
 
   for (auto &inst : *bb) {
     try {
@@ -94,6 +94,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
       throw duckdb::ParserException(ss.str());
     }
   }
+  code += "}\n";
   container.basicBlockCodes.push_back(code);
   return;
 }

@@ -58,12 +58,14 @@ Own<Function> AstToCFG::createFunction(const json &ast, const String &name,
 
   for (auto &init : pendingInitialization) {
     auto var = f->getBinding(init.first);
-    auto expr = f->bindExpression(init.second);
+    auto expr = f->bindExpression(init.second, var->getType());
     f->addVarInitialization(var, std::move(expr));
   }
 
   std::cout << ast << std::endl;
   buildCFG(*f, ast);
+
+  f->destroyDuckDBContext();
   return f;
 }
 
@@ -176,7 +178,7 @@ Own<Region> AstToCFG::constructAssignmentCFG(const json &assignmentJson,
   String assignmentText = getJsonExpr(assignmentJson["expr"]);
   const auto &[left, right] = unpackAssignment(assignmentText);
   auto *var = f.getBinding(left);
-  auto expr = f.bindExpression(right);
+  auto expr = f.bindExpression(right, var->getType());
 
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
 
@@ -204,7 +206,8 @@ Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
   }
   auto newBlock = f.makeBasicBlock();
   String ret = getJsonExpr(returnJson["expr"]);
-  newBlock->addInstruction(Make<ReturnInst>(f.bindExpression(ret)));
+  newBlock->addInstruction(
+      Make<ReturnInst>(f.bindExpression(ret, f.getReturnType())));
   return Make<LeafRegion>(newBlock);
 }
 
@@ -214,7 +217,7 @@ Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
                                      bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(ifJson["cond"]);
-  auto cond = f.bindExpression(condString);
+  auto cond = f.bindExpression(condString, Type::BOOLEAN);
 
   auto afterIfRegion =
       constructCFG(f, statements, continuations, attachFallthrough);
@@ -279,7 +282,7 @@ Own<Region> AstToCFG::constructIfElseIfCFG(const json &ifElseIfJson,
                                            bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(ifElseIfJson["cond"]);
-  auto cond = f.bindExpression(condString);
+  auto cond = f.bindExpression(condString, Type::BOOLEAN);
   auto thenStatements = getJsonList(ifElseIfJson["stmts"]);
 
   auto ifRegion =
@@ -303,7 +306,7 @@ Own<Region> AstToCFG::constructWhileCFG(const json &whileJson, Function &f,
                                         bool attachFallthrough) {
   auto newBlock = f.makeBasicBlock();
   String condString = getJsonExpr(whileJson["cond"]);
-  auto cond = f.bindExpression(condString);
+  auto cond = f.bindExpression(condString, Type::BOOLEAN);
 
   auto afterLoopRegion =
       constructCFG(f, statements, continuations, attachFallthrough);
@@ -382,21 +385,21 @@ Own<Region> AstToCFG::constructForLoopCFG(const json &forJson, Function &f,
   // Create assignment <var> =  <lower>
   const auto &[left, right] = std::make_pair(varString, lowerString);
   auto *var = f.getBinding(left);
-  auto expr = f.bindExpression(right);
+  auto expr = f.bindExpression(right, var->getType());
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
 
   // Create step (assignment) <var> = <var> (reverse ? - : +) <step>
   auto latchBlock = f.makeBasicBlock();
   String rhs =
       fmt::format("{} {} {}", varString, (reverse ? " - " : " + "), stepString);
-  auto stepExpr = f.bindExpression(rhs);
+  auto stepExpr = f.bindExpression(rhs, var->getType());
   latchBlock->addInstruction(Make<Assignment>(var, std::move(stepExpr)));
 
   // Create condition as terminator into while loop
   auto headerBlock = f.makeBasicBlock();
   String condString =
       fmt::format("{} {} {}", left, (reverse ? " > " : " < "), upperString);
-  auto cond = f.bindExpression(condString);
+  auto cond = f.bindExpression(condString, Type::BOOLEAN);
 
   auto afterLoopRegion =
       constructCFG(f, statements, continuations, attachFallthrough);

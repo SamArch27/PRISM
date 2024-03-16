@@ -3,6 +3,8 @@
 #include <regex>
 #define FMT_HEADER_ONLY
 
+Type Type::BOOLEAN = Type(false, std::nullopt, std::nullopt, PostgresTypeTag::BOOLEAN);
+
 std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
   switch (tag) {
   case DuckdbTypeTag::BIGINT:
@@ -115,6 +117,11 @@ std::ostream &operator<<(std::ostream &os, CppTypeTag tag) {
   case CppTypeTag::STRING_T:
     os << "string_t";
     break;
+  case CppTypeTag::DATE_T:
+    os << "date_t";
+    break;
+  default:
+    os << "UNKNOWN";
   }
   return os;
 }
@@ -226,7 +233,7 @@ CppTypeTag Type::lookupCppTag(DuckdbTypeTag duckdbTag, Opt<int> width,
   case DuckdbTypeTag::BOOLEAN:
     return CppTypeTag::BOOL;
   case DuckdbTypeTag::DATE:
-    return CppTypeTag::INT32_T;
+    return CppTypeTag::DATE_T;
   case DuckdbTypeTag::DECIMAL:
     ASSERT(width > 0, "Width of decimal should be > 0.");
     if (width <= 4)
