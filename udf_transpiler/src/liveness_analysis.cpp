@@ -5,44 +5,21 @@
 void LivenessAnalysis::runAnalysis() {
   preprocess();
 
-  for (auto &[block, defs] : defs) {
+  for (auto &[block, use] : uses) {
+    std::cout << "Block: " << block->getLabel() << " has uses: " << std::endl;
+    for (auto *u : use) {
+      std::cout << u->getResultOperand()->getName() << std::endl;
+    }
+    std::cout << std::endl;
+  }
+
+  for (auto &[block, def] : defs) {
     std::cout << "Block: " << block->getLabel() << " has defs: " << std::endl;
-    for (auto *def : defs) {
-      std::cout << *def << " " << std::endl;
+    for (auto *d : def) {
+      std::cout << d->getResultOperand()->getName() << std::endl;
     }
     std::cout << std::endl;
   }
-  std::cout << std::endl;
-
-  for (auto &[block, defs] : phiDefs) {
-    std::cout << "Block: " << block->getLabel()
-              << " has phiDefs: " << std::endl;
-    for (auto *def : defs) {
-      std::cout << *def << " " << std::endl;
-    }
-    std::cout << std::endl;
-  }
-  std::cout << std::endl;
-
-  for (auto &[block, uses] : phiUses) {
-    std::cout << "Block: " << block->getLabel()
-              << " has phiUses: " << std::endl;
-    for (auto *use : uses) {
-      std::cout << *use << " " << std::endl;
-    }
-    std::cout << std::endl;
-  }
-  std::cout << std::endl;
-
-  for (auto &[block, ue] : upwardsExposed) {
-    std::cout << "Block: " << block->getLabel()
-              << " has upwardsExposed: " << std::endl;
-    for (auto *u : ue) {
-      std::cout << *u << " " << std::endl;
-    }
-    std::cout << std::endl;
-  }
-  std::cout << std::endl;
 
   runBackwards();
   finalize();
@@ -86,13 +63,10 @@ void LivenessAnalysis::runBackwards() {
   while (changed) {
     changed = false;
 
-    // insert every non-exit block
+    // insert every block
     Set<BasicBlock *> worklist;
     for (auto &block : f) {
-      if (std::find(exitBlocks.begin(), exitBlocks.end(), &block) ==
-          exitBlocks.end()) {
-        worklist.insert(&block);
-      }
+      worklist.insert(&block);
     }
 
     while (!worklist.empty()) {
@@ -100,19 +74,21 @@ void LivenessAnalysis::runBackwards() {
       worklist.erase(basicBlock);
 
       // iterate over successors, calling meet over their out sets
-      auto newOut = results[basicBlock].out;
+      auto newOut = BitVector(instToIndex.size(), false);
       for (auto *succ : basicBlock->getSuccessors()) {
-        newOut = meet(newOut, results[succ].in, succ, basicBlock);
+        newOut |= results[succ].in;
       }
-      results[basicBlock].out = newOut;
-
       // apply transfer function to compute in
+      auto newIn = transfer(results[basicBlock].out, basicBlock);
       auto oldIn = results[basicBlock].in;
-      results[basicBlock].in = transfer(results[basicBlock].out, basicBlock);
 
-      if (oldIn != results[basicBlock].in) {
+      // change with in means we keep iterating
+      if (oldIn != newIn) {
         changed = true;
       }
+
+      results[basicBlock].in = newIn;
+      results[basicBlock].out = newOut;
     }
   }
 }
@@ -128,14 +104,11 @@ void LivenessAnalysis::finalize() {
 }
 
 BitVector LivenessAnalysis::transfer(BitVector out, BasicBlock *block) {
-  if (block == f.getEntryBlock()) {
-    return out;
-  }
 
-  // Create bitvector for phiDefs
-  BitVector phiDef(instToIndex.size(), false);
-  for (auto *definition : phiDefs[block]) {
-    phiDef[instToIndex.at(definition)] = true;
+  // Create bitvector for uses
+  BitVector use(instToIndex.size(), false);
+  for (auto *definition : uses[block]) {
+    use[instToIndex.at(definition)] = true;
   }
 
   // Create bitvector for defs
@@ -144,46 +117,11 @@ BitVector LivenessAnalysis::transfer(BitVector out, BasicBlock *block) {
     def[instToIndex.at(definition)] = true;
   }
 
-  // Create bitvector for upwardsExposed
-  BitVector ue(instToIndex.size(), false);
-  for (auto *use : upwardsExposed[block]) {
-    ue[instToIndex.at(use)] = true;
-  }
-
   BitVector result(instToIndex.size(), false);
-  // LiveOut(B) \ Def(B)
   result |= out;
   result &= def.flip();
-  // Union with PhiDefs(B) and UpwardsExposed(B)
-  result |= phiDef;
-  result |= ue;
+  result |= use;
   return result;
-}
-
-BitVector LivenessAnalysis::meet(BitVector out, BitVector in, BasicBlock *succ,
-                                 BasicBlock *block) {
-
-  // Create bitvector for phiDefs
-  BitVector phiDef(instToIndex.size(), false);
-  for (auto *definition : phiDefs[succ]) {
-    phiDef[instToIndex.at(definition)] = true;
-  }
-
-  // Create bitvector for phiUses
-  BitVector phiUse(instToIndex.size(), false);
-  for (auto *definition : phiUses[block]) {
-    phiUse[instToIndex.at(definition)] = true;
-  }
-
-  // LiveIn(S) \ PhiDef(S)
-  BitVector newInfo(instToIndex.size(), false);
-  newInfo |= in;
-  newInfo &= phiDef.flip();
-  // Union with PhiUses(B)
-  newInfo |= phiUse;
-  // Union with out and return
-  out |= newInfo;
-  return out;
 }
 
 void LivenessAnalysis::preprocessInst(Instruction *inst) {
@@ -202,11 +140,7 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
       std::size_t newSize = instToIndex.size();
       instToIndex[def] = newSize;
       definingInstructions.push_back(inst);
-
-      // add the def if it's not a phi node
-      // if (!dynamic_cast<PhiNode *>(def)) {
       defs[block].insert(inst);
-      // }
     }
   }
 
@@ -216,10 +150,6 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
 
   // If the current instruction is a phi node
   if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
-    // Add the def to the phiDefs for the block
-    auto *result = phi->getResultOperand();
-    phiDefs[block].insert(useDefs->getDef(result));
-
     // Add the uses to every predecessor block
     auto phiOps = phi->getRHS();
     for (auto *pred : block->getPredecessors()) {
@@ -227,21 +157,12 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
       auto *phiOp = phi->getRHS()[predNumber];
       for (auto *use : phiOp->getUsedVariables()) {
         auto *definingInst = useDefs->getDef(use);
-        phiUses[pred].insert(definingInst);
+        uses[pred].insert(definingInst);
       }
     }
-  }
-  // Otherwise update the upwardsExposed
-  else {
-    // For each operand, check if it is "upwards exposed"
-    for (auto *operand : inst->getOperands()) {
-      // Get the block that it was defined in
-      auto *definingInst = useDefs->getDef(operand);
-      auto *definingBlock = definingInst->getParent();
-      // If it was defined outside of this block then it is "upwards exposed"
-      if (definingBlock != inst->getParent()) {
-        upwardsExposed[block].insert(definingInst);
-      }
+  } else {
+    for (auto *use : inst->getOperands()) {
+      uses[block].insert(useDefs->getDef(use));
     }
   }
 }

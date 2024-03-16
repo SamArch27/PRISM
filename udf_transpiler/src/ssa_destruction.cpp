@@ -1,8 +1,12 @@
 #include "ssa_destruction.hpp"
 
 bool SSADestructionPass::runOnFunction(Function &f) {
+  std::cout << "SSA DESTRUCTION" << std::endl;
+  std::cout << f << std::endl;
   removePhis(f);
+  std::cout << "AFTER REMOVE PHIS" << std::endl;
   removeSSANames(f);
+  std::cout << "AFTER REMOVING SSA NAMES" << std::endl;
   return true;
 }
 

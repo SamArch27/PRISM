@@ -156,8 +156,7 @@ public:
 
 private:
   BitVector transfer(BitVector out, BasicBlock *block);
-  BitVector meet(BitVector out, BitVector in, BasicBlock *succ,
-                 BasicBlock *block);
+  BitVector meet(BitVector in, BasicBlock *succ, BasicBlock *block);
   void preprocess();
   void preprocessInst(Instruction *inst);
   void genBoundaryInner();
@@ -168,9 +167,7 @@ private:
   void computeInterferenceGraph();
 
   Map<BasicBlock *, Set<const Instruction *>> defs;
-  Map<BasicBlock *, Set<const Instruction *>> phiDefs;
-  Map<BasicBlock *, Set<const Instruction *>> phiUses;
-  Map<BasicBlock *, Set<const Instruction *>> upwardsExposed;
+  Map<BasicBlock *, Set<const Instruction *>> uses;
   Vec<const Instruction *> definingInstructions;
   Map<const Instruction *, std::size_t> instToIndex;
 
