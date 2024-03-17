@@ -207,12 +207,13 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &f) {
 
   Vec<String> args_logical_types;
   for (auto &arg : f.getArguments()) {
-    args_logical_types.push_back(arg->getType().getDuckDBLogicalType());
+    args_logical_types.push_back(arg->getType().getDuckDBLogicalTypeStr());
   }
   container.registration = fmt::format(
       fmt::runtime(config.function["fcreate"].Scalar()),
       fmt::arg("function_name", f.getFunctionName()),
-      fmt::arg("return_logical_type", f.getReturnType().getDuckDBLogicalType()),
+      fmt::arg("return_logical_type",
+               f.getReturnType().getDuckDBLogicalTypeStr()),
       fmt::arg("args_logical_types", joinVector(args_logical_types, ", ")));
 
   return {container.body + "\n" + container.main, container.registration};

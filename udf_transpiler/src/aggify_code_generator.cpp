@@ -83,7 +83,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(Function &f, const json &ast,
     inputLogicalTypes += fmt::format(
         fmt::runtime(config.aggify["inputLogicalType"].Scalar()),
         fmt::arg("i", count),
-        fmt::arg("type", p.second->getType().getDuckDBLogicalType()));
+        fmt::arg("type", p.second->getType().getDuckDBLogicalTypeStr()));
 
     if (cursorVars.count(p.first) == 0) {
       // is state variable
@@ -149,7 +149,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(Function &f, const json &ast,
       fmt::arg("outputType", dfaResult.getReturnVar()->getType().getCppType()),
       fmt::arg("inputLogicalTypes", inputLogicalTypes),
       fmt::arg("outputLogicalType",
-               dfaResult.getReturnVar()->getType().getDuckDBLogicalType()));
+               dfaResult.getReturnVar()->getType().getDuckDBLogicalTypeStr()));
 
   String customAggCaller = fmt::format(
       fmt::runtime(config.aggify["caller"].Scalar()), fmt::arg("id", id),

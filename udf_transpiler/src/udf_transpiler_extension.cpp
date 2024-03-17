@@ -31,15 +31,15 @@ size_t udfCount = 0;
 static String doubleQuote(const String &str) {
   String result;
   for (auto &c : str) {
-	if (c == '\'') {
-	  result += '\'';
-	}
-	result += c;
+    if (c == '\'') {
+      result += '\'';
+    }
+    result += c;
   }
   return result;
 }
 
-static String UdfTranspilerMain(String udfString){
+static String UdfTranspilerMain(String udfString) {
   YAMLConfig config;
   Connection con(*db_instance);
 
@@ -58,20 +58,21 @@ static String UdfTranspilerMain(String udfString){
 }
 
 inline String UdfTranspilerPragmaFun(ClientContext &context,
-                                      const FunctionParameters &parameters) {
+                                     const FunctionParameters &parameters) {
   auto udfString = parameters.values[0].GetValue<String>();
 
   return UdfTranspilerMain(udfString);
 }
 
 inline String UdfFileTranspilerPragmaFun(ClientContext &context,
-                                      const FunctionParameters &parameters) {
+                                         const FunctionParameters &parameters) {
   auto file_name = parameters.values[0].GetValue<String>();
   std::ifstream t(file_name);
   std::ostringstream buffer;
   buffer << t.rdbuf();
   if (buffer.str().empty()) {
-    String err = "Input file is empty or does not exist: " + doubleQuote(file_name);
+    String err =
+        "Input file is empty or does not exist: " + doubleQuote(file_name);
     return "select '" + err + "' as 'Transpilation Failed.';";
   }
 
@@ -82,13 +83,14 @@ inline String UdfFileTranspilerPragmaFun(ClientContext &context,
  * transpile udfs from a file but not link it
  */
 inline String UdfCodeGeneratorPragmaFun(ClientContext &context,
-                                         const FunctionParameters &parameters) {
+                                        const FunctionParameters &parameters) {
   auto file_name = parameters.values[0].GetValue<String>();
   std::ifstream t(file_name);
   std::ostringstream buffer;
   buffer << t.rdbuf();
   if (buffer.str().empty()) {
-    String err = "Input file is empty or does not exist: " + doubleQuote(file_name);
+    String err =
+        "Input file is empty or does not exist: " + doubleQuote(file_name);
     return "select '" + err + "' as 'Transpilation Failed.';";
   }
   YAMLConfig config;
@@ -106,7 +108,7 @@ inline String UdfCodeGeneratorPragmaFun(ClientContext &context,
  * rebuild and load the last udf set
  */
 inline String UdfBuilderPragmaFun(ClientContext &context,
-                                   const FunctionParameters &parameters) {
+                                  const FunctionParameters &parameters) {
   COUT << "Compiling the UDF..." << ENDL;
   compileUDF();
   // load the compiled library
@@ -117,7 +119,7 @@ inline String UdfBuilderPragmaFun(ClientContext &context,
 }
 
 inline String UdafBuilderPragmaFun(ClientContext &context,
-                                    const FunctionParameters &parameters) {
+                                   const FunctionParameters &parameters) {
   COUT << "Compiling the UDAF..." << ENDL;
   compileUDAF();
   // load the compiled library
@@ -148,6 +150,12 @@ inline String LOCodeGenPragmaFun(ClientContext &_context,
           OptimizerType::STATISTICS_PROPAGATION);
     config.options.disabled_optimizers.insert(
         OptimizerType::STATISTICS_PROPAGATION);
+    if (config.options.disabled_optimizers.count(
+            OptimizerType::COMMON_SUBEXPRESSIONS) == 0)
+      disable_optimizers_should_delete.insert(
+          OptimizerType::COMMON_SUBEXPRESSIONS);
+    config.options.disabled_optimizers.insert(
+        OptimizerType::COMMON_SUBEXPRESSIONS);
   }
 
   try {
@@ -172,17 +180,14 @@ inline String LOCodeGenPragmaFun(ClientContext &_context,
 }
 
 static void LoadInternal(DatabaseInstance &instance) {
-  // auto udf_transpiler_scalar_function = ScalarFunction("udf_transpiler",
-  // {LogicalType::VARCHAR},
-  // LogicalType::VARCHAR, Udf_transpilerScalarFun);
-  // ExtensionUtil::RegisterFunction(instance, udf_transpiler_scalar_function);
 
   auto udf_transpiler_pragma_function = PragmaFunction::PragmaCall(
       "transpile", UdfTranspilerPragmaFun, {LogicalType::VARCHAR});
   ExtensionUtil::RegisterFunction(instance, udf_transpiler_pragma_function);
   auto udf_file_transpiler_pragma_function = PragmaFunction::PragmaCall(
       "transpile_file", UdfFileTranspilerPragmaFun, {LogicalType::VARCHAR});
-  ExtensionUtil::RegisterFunction(instance, udf_file_transpiler_pragma_function);
+  ExtensionUtil::RegisterFunction(instance,
+                                  udf_file_transpiler_pragma_function);
   auto udf_codegen_pragma_function = PragmaFunction::PragmaCall(
       "codegen", UdfCodeGeneratorPragmaFun, {LogicalType::VARCHAR});
   ExtensionUtil::RegisterFunction(instance, udf_codegen_pragma_function);
@@ -196,9 +201,6 @@ static void LoadInternal(DatabaseInstance &instance) {
       PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun,
                                  {LogicalType::VARCHAR, LogicalType::INTEGER});
   ExtensionUtil::RegisterFunction(instance, lo_codegen_pragma_function);
-  // auto itos_scalar_function = ScalarFunction("itos", {LogicalType::INTEGER},
-  // 													 LogicalType::VARCHAR,
-  // itos); ExtensionUtil::RegisterFunction(instance, itos_scalar_function);
 }
 
 void UdfTranspilerExtension::Load(DuckDB &db) {

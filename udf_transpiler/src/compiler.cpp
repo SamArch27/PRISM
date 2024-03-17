@@ -92,7 +92,7 @@ void Compiler::optimize(Function &f) {
       Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
       Make<AggressiveMergeRegionsPass>());
 
-  PredicateAnalysis predicateAnalysis(f);
+  // PredicateAnalysis predicateAnalysis(f);
 
   // Convert to SSA
   ssaConstruction->runOnFunction(f);
@@ -101,8 +101,8 @@ void Compiler::optimize(Function &f) {
   coreOptimizations->runOnFunction(f);
 
   // Extract the predicates
-  predicateAnalysis.runAnalysis();
-  auto hoistedPredicates = predicateAnalysis.getPredicates();
+  // predicateAnalysis.runAnalysis();
+  // auto hoistedPredicates = predicateAnalysis.getPredicates();
 
   // Now perform outlining
   outliningPipeline->runOnFunction(f);

@@ -1,5 +1,6 @@
 #include "function.hpp"
 #include "dominator_analysis.hpp"
+#include "duckdb/function/cast_rules.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
 #include "use_def_analysis.hpp"
@@ -63,6 +64,40 @@ Own<SelectExpression> Function::replaceVarWithExpression(
   return bindExpression(replacedText, original->getReturnType())->clone();
 }
 
+bool Function::typeMatches(const String &rhs, const Type &type,
+                           bool needContext) {
+  String selectExpressionCommand;
+  if (needContext) {
+    selectExpressionCommand = fmt::format("SELECT ({}) FROM tmp;", rhs);
+  } else {
+    selectExpressionCommand = fmt::format("SELECT ({});", rhs);
+  }
+
+  auto clientContext = conn->context.get();
+  clientContext->config.enable_optimizer = false;
+
+  // SELECT <expr> FROM tmp
+  Shared<LogicalPlan> boundExpression;
+  Shared<duckdb::Binder> plannerBinder;
+  try {
+    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
+                                                 plannerBinder);
+
+  } catch (const std::exception &e) {
+    destroyDuckDBContext();
+    EXCEPTION(e.what());
+  }
+
+  // check whether implicit cast is possible
+  boundExpression->ResolveOperatorTypes();
+  auto castCost = duckdb::CastRules::ImplicitCast(boundExpression->types[0],
+                                                  type.getDuckDBLogicalType());
+  if (castCost < 0) {
+    return false;
+  }
+  return true;
+}
+
 Own<SelectExpression> Function::bindExpression(const String &expr,
                                                const Type &retType,
                                                bool needContext) {
@@ -71,15 +106,25 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
     makeDuckDBContext();
   }
 
-  auto cleanedExpr = expr;
+  // trim leading and trailing whitespace
+  auto first = expr.find_first_not_of(' ');
+  auto last = expr.find_last_not_of(' ');
+  auto cleanedExpr = expr.substr(first, (last - first + 1));
+
+  if (!typeMatches(cleanedExpr, retType, needContext)) {
+    destroyDuckDBContext();
+    EXCEPTION(fmt::format(
+        "Cannot bind expression {} to type {}, please add explicit cast.", expr,
+        retType.getDuckDBType()));
+  }
+
+  cleanedExpr = fmt::format("({})::{}", cleanedExpr, retType.getDuckDBType());
 
   String selectExpressionCommand;
   if (needContext) {
-    selectExpressionCommand = fmt::format("SELECT ({})::{} FROM tmp;",
-                                          cleanedExpr, retType.getDuckDBType());
+    selectExpressionCommand = fmt::format("SELECT {} FROM tmp", cleanedExpr);
   } else {
-    selectExpressionCommand =
-        fmt::format("SELECT {}::{};", cleanedExpr, retType.getDuckDBType());
+    selectExpressionCommand = fmt::format("SELECT {}", cleanedExpr);
   }
 
   auto clientContext = conn->context.get();
@@ -94,6 +139,14 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   }
   config.options.disabled_optimizers.insert(
       duckdb::OptimizerType::STATISTICS_PROPAGATION);
+
+  if(config.options.disabled_optimizers.count(
+          duckdb::OptimizerType::COMMON_SUBEXPRESSIONS) == 0) {
+    disable_optimizers_should_delete.insert(
+        duckdb::OptimizerType::COMMON_SUBEXPRESSIONS);
+  }
+  config.options.disabled_optimizers.insert(
+      duckdb::OptimizerType::COMMON_SUBEXPRESSIONS);
 
   // SELECT <expr> FROM tmp
   Shared<LogicalPlan> boundExpression;
