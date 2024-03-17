@@ -269,7 +269,7 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  bool typeMatches(const String &rhs, const Type &type,
+  int typeMatches(const String &rhs, const Type &type,
                  bool needContext = true);
 
   Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
