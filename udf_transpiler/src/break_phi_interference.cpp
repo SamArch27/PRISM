@@ -50,38 +50,6 @@ InstIterator BreakPhiInterferencePass::resolvePhiInterference(
 void BreakPhiInterferencePass::removeCopies(
     Function &f, const CongruenceClasses &phiCongruent) {
 
-  // // Elide successive copies
-  // for (auto &block : f) {
-  //   auto it = block.begin();
-  //   while (true) {
-  //     auto next = it;
-  //     ++next;
-  //     if (next == block.end()) {
-  //       break;
-  //     }
-  //     auto &inst = *it;
-  //     auto &nextInst = *next;
-  //     if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
-  //       if (auto *nextAssign = dynamic_cast<const Assignment *>(&nextInst)) {
-  //         if (assign->getLHS() != nextAssign->getLHS()) {
-  //           ++it;
-  //           continue;
-  //         }
-  //         if (assign->getRHS()->getRawSQL() !=
-  //             nextAssign->getRHS()->getRawSQL()) {
-  //           ++it;
-  //           continue;
-  //         }
-
-  //         // identical assignments, remove the first one
-  //         it = block.removeInst(it);
-  //         continue;
-  //       }
-  //     }
-  //     ++it;
-  //   }
-  // }
-
   // Remove superfluous copies using phiCongruence
   for (auto &block : f) {
     for (auto it = block.begin(); it != block.end();) {
