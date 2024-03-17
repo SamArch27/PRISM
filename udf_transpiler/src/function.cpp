@@ -380,17 +380,27 @@ FunctionCloneAndRenameHelper::cloneAndRename(const ReturnInst &ret) {
 template <>
 Own<BranchInst>
 FunctionCloneAndRenameHelper::cloneAndRename(const BranchInst &branch) {
-  ASSERT(basicBlockMap.find(branch.getIfTrue()) != basicBlockMap.end(),
-         fmt::format("BasicBlock {} not found in basicBlockMap",
-                     branch.getIfTrue()->getLabel()));
-  auto trueBlock = basicBlockMap.at(branch.getIfTrue());
+  // ASSERT(basicBlockMap.find(branch.getIfTrue()) != basicBlockMap.end(),
+  //        fmt::format("BasicBlock {} not found in basicBlockMap",
+  //                    branch.getIfTrue()->getLabel()));
+  BasicBlock *trueBlock;
+  if (basicBlockMap.find(branch.getIfTrue()) != basicBlockMap.end()) {
+    trueBlock = basicBlockMap.at(branch.getIfTrue());
+  } else {
+    trueBlock = branch.getIfTrue();
+  }
   if (branch.isUnconditional()) {
     return Make<BranchInst>(trueBlock);
   }
-  ASSERT(basicBlockMap.find(branch.getIfFalse()) != basicBlockMap.end(),
-         fmt::format("BasicBlock {} not found in basicBlockMap",
-                     branch.getIfFalse()->getLabel()));
-  auto falseBlock = basicBlockMap.at(branch.getIfFalse());
+  // ASSERT(basicBlockMap.find(branch.getIfFalse()) != basicBlockMap.end(),
+  //        fmt::format("BasicBlock {} not found in basicBlockMap",
+  //                    branch.getIfFalse()->getLabel()));
+  BasicBlock *falseBlock;
+  if (basicBlockMap.find(branch.getIfFalse()) != basicBlockMap.end()) {
+    falseBlock = basicBlockMap.at(branch.getIfFalse());
+  } else {
+    falseBlock = branch.getIfFalse();
+  }
   return Make<BranchInst>(trueBlock, falseBlock,
                           cloneAndRename(*branch.getCond()));
 }
@@ -423,14 +433,14 @@ Own<Function> Function::partialCloneAndRename(
   Map<const BasicBlock *, BasicBlock *> basicBlockMap;
   auto newFunction = Make<Function>(conn, newName, newReturnType);
   for (const auto &arg : newArgs) {
-    newFunction->addArgument(arg->getName(), arg->getType());
-    variableMap[arg] = newFunction->getBinding(arg->getName());
+    newFunction->addArgument(arg->getName()+"_arg", arg->getType());
+    // variableMap[arg] = newFunction->getBinding(arg->getName());
   }
 
   for (const auto &[name, var] : bindings) {
-    if (variableMap.find(var) != variableMap.end()) {
-      continue;
-    }
+    // if (variableMap.find(var) != variableMap.end()) {
+    //   continue;
+    // }
     newFunction->addVariable(name, var->getType(), var->isNull());
     variableMap[var] = newFunction->getBinding(name);
   }
@@ -455,8 +465,16 @@ Own<Function> Function::partialCloneAndRename(
   ASSERT(basicBlockMap.find(basicBlocks.front()) != basicBlockMap.end(),
          fmt::format("BasicBlock {} not found in basicBlockMap",
                      basicBlocks.front()->getLabel()));
-  newFunction->getEntryBlock()->addInstruction(
+
+  ASSERT(entry == newFunction->getEntryBlock(),
+         "The entry block should be the first block created");
+  for (auto &arg : newArgs) {
+    entry->addInstruction(Make<Assignment>(
+        variableMap.at(arg),
+        newFunction->bindExpression(arg->getName()+"_arg", arg->getType())));
+  }
+  entry->addInstruction(
       Make<BranchInst>(basicBlockMap.at(basicBlocks.front())));
 
-  return std::move(newFunction);
+  return newFunction;
 }

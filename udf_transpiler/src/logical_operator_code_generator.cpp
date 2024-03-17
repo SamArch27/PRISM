@@ -389,7 +389,6 @@ template <>
 String
 BoundExpressionCodeGenerator::Transpile(const BoundColumnRefExpression &exp,
                                         CodeGenInfo &insert) {
-  COUT<<"BoundColumnRefExpression "<<exp.GetName()<<std::endl;
   return toLower(exp.GetName());
 }
 

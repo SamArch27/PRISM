@@ -72,16 +72,16 @@ public:
   }
 
   bool isSQLExpression() const {
-    return toUpper(rawSQL).find(" FROM ") != String::npos;
+    // find 'FROM' in the rawSQL
+    return std::regex_search(
+        rawSQL, std::regex("\\bFROM\\b", std::regex_constants::icase));
   }
 
-  String getRawSQL() const {
-    return rawSQL;
-  }
+  String getRawSQL() const { return rawSQL; }
 
   const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
 
-  Shared<LogicalPlan> getLogicalPlanShared() const{ return logicalPlan; }
+  Shared<LogicalPlan> getLogicalPlanShared() const { return logicalPlan; }
   const Set<const Variable *> &getUsedVariables() const {
     return usedVariables;
   }

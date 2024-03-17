@@ -169,7 +169,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
   auto newFunction = f.partialCloneAndRename(newFunctionName, newFunctionArgs,
                                              returnType, basicBlocks);
 
-  // when going out of ssa, do you need region in place?
   COUT << "Outlined Function: " << newFunction->getFunctionName() << ENDL;
   COUT << *newFunction << ENDL;
 
