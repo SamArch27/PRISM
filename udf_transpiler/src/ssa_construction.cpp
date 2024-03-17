@@ -176,7 +176,7 @@ void SSAConstructionPass::renameVariablesToSSA(
 
     // for each successor
     for (auto *succ : block->getSuccessors()) {
-      auto j = f.getPredNumber(succ, block);
+      auto j = succ->getPredNumber(block);
       for (auto it = succ->begin(); it != succ->end(); ++it) {
         auto &inst = *it;
         if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
@@ -215,8 +215,8 @@ void SSAConstructionPass::renameVariablesToSSA(
     auto oldName = arg->getName();
     auto newName = renameVariable(arg.get(), true)->getName();
     f.addVariable(newName, arg->getType(), false);
-    auto assign =
-        Make<Assignment>(f.getBinding(newName), f.bindExpression(oldName, arg->getType()));
+    auto assign = Make<Assignment>(f.getBinding(newName),
+                                   f.bindExpression(oldName, arg->getType()));
     auto *entryBlock = f.getEntryBlock();
     entryBlock->insertBeforeTerminator(std::move(assign));
   }

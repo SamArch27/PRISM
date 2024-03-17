@@ -45,7 +45,7 @@ class UseDefAnalysis : public Analysis {
 public:
   UseDefAnalysis(Function &f) : Analysis(f) {}
 
-  const Own<UseDefs> &getUseDefs() { return useDefs; }
+  UseDefs *getUseDefs() { return useDefs.get(); }
 
   void runAnalysis() override;
 

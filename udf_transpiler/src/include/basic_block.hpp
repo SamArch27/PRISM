@@ -115,6 +115,15 @@ public:
     return os;
   }
 
+  std::size_t getPredNumber(BasicBlock *pred) const {
+    auto it = std::find(predecessors.begin(), predecessors.end(), pred);
+    ASSERT(it != predecessors.end(),
+           "Error! No predecessor found with predNumber function!");
+    return std::distance(predecessors.begin(), it);
+  };
+
+  BasicBlock *getPred(std::size_t offset) const { return predecessors[offset]; }
+
   const Vec<BasicBlock *> &getSuccessors() const;
   const Vec<BasicBlock *> &getPredecessors() const;
   void addSuccessor(BasicBlock *succ);

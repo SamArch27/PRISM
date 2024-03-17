@@ -8,7 +8,7 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
 
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
-  auto &useDefs = useDefAnalysis.getUseDefs();
+  auto useDefs = useDefAnalysis.getUseDefs();
 
   auto worklist = useDefs->getAllDefs();
   while (!worklist.empty()) {
@@ -47,7 +47,7 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
 
       // replace uses of RHS with LHS and add to the worklist
       for (auto &[oldInst, newInst] :
-           f.replaceUsesWithExpr(oldToNew, useDefs)) {
+           f.replaceUsesWithExpr(oldToNew, *useDefs)) {
         changed = true;
         worklist.erase(oldInst);
         worklist.insert(newInst);

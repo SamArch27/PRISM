@@ -129,17 +129,17 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
 
 Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
     const Map<const Variable *, const SelectExpression *> &oldToNew,
-    const Own<UseDefs> &useDefs) {
+    UseDefs &useDefs) {
 
   Map<Instruction *, Instruction *> newInstructions;
   for (auto &[oldVar, newVar] : oldToNew) {
     Set<Instruction *> toReplace;
-    for (auto *use : useDefs->getUses(oldVar)) {
+    for (auto *use : useDefs.getUses(oldVar)) {
       for (auto *op : use->getOperands()) {
-        useDefs->removeUse(op, use);
+        useDefs.removeUse(op, use);
       }
       if (auto *def = use->getResultOperand()) {
-        useDefs->removeDef(def, use);
+        useDefs.removeDef(def, use);
       }
       toReplace.insert(use);
     }
@@ -177,10 +177,10 @@ Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
 
       // add uses for the new instruction
       for (auto *op : inst->getOperands()) {
-        useDefs->addUse(op, inst);
+        useDefs.addUse(op, inst);
       }
       if (auto *def = inst->getResultOperand()) {
-        useDefs->addDef(def, inst);
+        useDefs.addDef(def, inst);
       }
     }
   }

@@ -127,6 +127,10 @@ private:
       }
       os << "\t" << var->getName() << " [label=\"" << var->getName() << "\"];";
       for (const auto *other : others) {
+        // only print left to right edges
+        if (var->getName() < other->getName()) {
+          continue;
+        }
         os << "\t" << var->getName() << " -> " << other->getName()
            << " [dir=none];" << std::endl;
       }
@@ -149,9 +153,9 @@ public:
 
   void runAnalysis() override;
 
-  const Own<Liveness> &getLiveness() const { return liveness; }
-  const Own<InterferenceGraph> &getInterferenceGraph() const {
-    return interferenceGraph;
+  Liveness *getLiveness() const { return liveness.get(); }
+  InterferenceGraph *getInterferenceGraph() const {
+    return interferenceGraph.get();
   }
 
 private:

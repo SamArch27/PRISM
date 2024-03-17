@@ -4,23 +4,6 @@
 
 void LivenessAnalysis::runAnalysis() {
   preprocess();
-
-  for (auto &[block, use] : uses) {
-    std::cout << "Block: " << block->getLabel() << " has uses: " << std::endl;
-    for (auto *u : use) {
-      std::cout << u->getResultOperand()->getName() << std::endl;
-    }
-    std::cout << std::endl;
-  }
-
-  for (auto &[block, def] : defs) {
-    std::cout << "Block: " << block->getLabel() << " has defs: " << std::endl;
-    for (auto *d : def) {
-      std::cout << d->getResultOperand()->getName() << std::endl;
-    }
-    std::cout << std::endl;
-  }
-
   runBackwards();
   finalize();
 }
@@ -128,7 +111,7 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
 
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
-  auto &useDefs = useDefAnalysis.getUseDefs();
+  auto useDefs = useDefAnalysis.getUseDefs();
 
   // Collect definitions for each block, mapping them to bitvector positions
   const auto *resultOperand = inst->getResultOperand();
@@ -153,7 +136,7 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
     // Add the uses to every predecessor block
     auto phiOps = phi->getRHS();
     for (auto *pred : block->getPredecessors()) {
-      auto predNumber = f.getPredNumber(block, pred);
+      auto predNumber = block->getPredNumber(pred);
       auto *phiOp = phi->getRHS()[predNumber];
       for (auto *use : phiOp->getUsedVariables()) {
         auto *definingInst = useDefs->getDef(use);

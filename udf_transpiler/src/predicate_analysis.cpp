@@ -75,7 +75,7 @@ void PredicateAnalysis::runAnalysis() {
 
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
-  auto &useDefs = useDefAnalysis.getUseDefs();
+  auto useDefs = useDefAnalysis.getUseDefs();
 
   for (auto &block : f) {
     for (auto &inst : block) {
