@@ -181,7 +181,7 @@ void SSAConstructionPass::renameVariablesToSSA(
         auto &inst = *it;
         if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
           VecOwn<SelectExpression> newArguments;
-          for (auto &arg : phi->getRHS()) {
+          for (auto *arg : phi->getRHS()) {
             newArguments.emplace_back(arg->clone());
           }
           // collect all of the new variables
@@ -204,8 +204,8 @@ void SSAConstructionPass::renameVariablesToSSA(
 
     // for each assignment, pop the stack
     for (auto &inst : *block) {
-      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
-        accessStack(assign->getLHS()).pop();
+      if (auto *result = inst.getResultOperand()) {
+        accessStack(result).pop();
       }
     }
   };
