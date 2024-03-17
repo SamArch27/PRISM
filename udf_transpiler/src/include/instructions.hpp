@@ -76,10 +76,7 @@ public:
   }
 
   String getRawSQL() const {
-    // trim leading and trailing whitespace
-    auto first = rawSQL.find_first_not_of(' ');
-    auto last = rawSQL.find_last_not_of(' ');
-    return rawSQL.substr(first, (last - first + 1));
+    return rawSQL;
   }
 
   const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }

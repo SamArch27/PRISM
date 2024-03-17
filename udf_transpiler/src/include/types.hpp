@@ -1,4 +1,5 @@
 #pragma once
+#include "duckdb/common/types.hpp"
 #include "utils.hpp"
 #define FMT_HEADER_ONLY
 #include <iostream>
@@ -100,7 +101,7 @@ public:
   static constexpr int DEFAULT_WIDTH = 18;
   static constexpr int DEFAULT_SCALE = 3;
 
-  static Type BOOLEAN; 
+  static Type BOOLEAN;
 
   Type(bool decimal, Opt<int> width, Opt<int> scale,
        PostgresTypeTag postgresTag)
@@ -128,12 +129,9 @@ public:
   }
 
   const static inline Set<DuckdbTypeTag> NumericTypes = {
-      DuckdbTypeTag::BOOLEAN,  DuckdbTypeTag::TINYINT,
-      DuckdbTypeTag::SMALLINT, DuckdbTypeTag::INTEGER,
-      DuckdbTypeTag::BIGINT,   DuckdbTypeTag::DATE,
-      DuckdbTypeTag::TIME,     DuckdbTypeTag::TIMESTAMP,
-      DuckdbTypeTag::UBIGINT,  DuckdbTypeTag::UINTEGER,
-      DuckdbTypeTag::DECIMAL,  DuckdbTypeTag::DOUBLE};
+      DuckdbTypeTag::BOOLEAN,  DuckdbTypeTag::TINYINT, DuckdbTypeTag::SMALLINT,
+      DuckdbTypeTag::INTEGER,  DuckdbTypeTag::BIGINT,  DuckdbTypeTag::UBIGINT,
+      DuckdbTypeTag::UINTEGER, DuckdbTypeTag::DECIMAL, DuckdbTypeTag::DOUBLE};
 
   const static inline Set<DuckdbTypeTag> BlobTypes = {DuckdbTypeTag::BLOB,
                                                       DuckdbTypeTag::VARCHAR};
@@ -180,14 +178,19 @@ public:
         return "''";
       else
         return "\"\"";
+    } else if (duckdbTag == DuckdbTypeTag::DATE) {
+      return "0::DATE";
     } else {
       ERROR("Cannot get default value for non-numeric and non-BLOB type!");
     }
   }
 
-  String getDuckDBLogicalType() const {
+  String getDuckDBLogicalTypeStr() const {
     return "LogicalType::" + getDuckDBType();
   }
+
+  duckdb::LogicalType getDuckDBLogicalType() const;
+
   bool isDecimal() const { return decimal; }
   bool isNumeric() const { return NumericTypes.count(duckdbTag); }
   bool isBlob() const { return BlobTypes.count(duckdbTag); }
