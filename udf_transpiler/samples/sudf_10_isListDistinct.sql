@@ -7,7 +7,7 @@ DECLARE
   pos  int;
 BEGIN
   list := LTRIM(RTRIM(list)) || delim;
-  pos  := STRPOS(list, delim);
+  pos  := STRPOS(list, delim)::int;
   WHILE pos > 0 LOOP
     part := LTRIM(RTRIM(LEFT(list,pos)));
     list := SUBSTRING(list, pos+1, LENGTH(list));
@@ -15,7 +15,7 @@ BEGIN
       RETURN FALSE; 
     END IF;
 
-    pos := STRPOS(list,delim);
+    pos := STRPOS(list,delim)::int;
   END LOOP;
 
   RETURN TRUE; 
