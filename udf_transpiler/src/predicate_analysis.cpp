@@ -122,10 +122,6 @@ PredicateAnalysis::getExprOnPath(const Vec<BasicBlock *> &path,
 }
 
 void PredicateAnalysis::runAnalysis() {
-
-  std::cout << "\nPREDICATE ANALYSIS\n" << std::endl;
-  std::cout << f << std::endl;
-
   auto root = f.getRegion();
 
   Set<const Region *> worklist;
@@ -164,7 +160,10 @@ void PredicateAnalysis::runAnalysis() {
     }
   }
 
-  String eqPredicate;
+  // =, <=, >=, <, >
+  Vec<String> ops = {"=", "<=", ">=", "<", ">"};
+  Vec<String> suffix = {"eq", "leq", "geq", "lt", "gt"};
+  predicates.resize(5);
 
   // add a variable t to compare against
   f.addVariable("t", f.getReturnType(), false);
@@ -181,24 +180,27 @@ void PredicateAnalysis::runAnalysis() {
           auto returnValue = getExprOnPath(path, ret->getExpr());
           auto condValue = getExprOnPath(path, boundCondition.get());
 
-          std::cout << "Predicate: " << condValue << std::endl;
-          std::cout << "Return value: " << returnValue << std::endl;
-
-          if (eqPredicate != "") {
-            eqPredicate += " OR ";
+          for (std::size_t i = 0; i < predicates.size(); ++i) {
+            auto &pred = predicates[i];
+            if (pred != "") {
+              pred += " OR ";
+            }
+            pred += ("((" + condValue + " AND (NOT (" + returnValue + " " +
+                     ops[i] + " t)) IS DISTINCT FROM TRUE))");
           }
-          eqPredicate += ("((" + condValue + " AND (NOT (" + returnValue +
-                          " = t)) IS DISTINCT FROM TRUE))");
         }
       }
     }
   }
 
-  std::cout << "CREATE MACRO ";
-  std::cout << f.getFunctionName() << "Eq";
-  std::cout << "(t";
-  for (auto &arg : f.getArguments()) {
-    std::cout << "," << arg->getName();
+  for (std::size_t i = 0; i < predicates.size(); ++i) {
+    auto &pred = predicates[i];
+    String args = "(t";
+    for (auto &arg : f.getArguments()) {
+      args += (", " + arg->getName());
+    }
+    args += ")";
+    pred = "CREATE MACRO " + f.getFunctionName() + "_" + suffix[i] + args +
+           " AS (" + pred + ");";
   }
-  std::cout << ") AS (" << eqPredicate << ")" << std::endl;
 }

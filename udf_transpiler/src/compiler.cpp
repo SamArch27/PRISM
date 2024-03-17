@@ -104,6 +104,9 @@ void Compiler::optimize(Function &f) {
   auto predicateAnalysis = Make<PredicateAnalysis>(f);
   predicateAnalysis->runAnalysis();
   auto hoistedPredicates = predicateAnalysis->getPredicates();
+  for (auto &pred : hoistedPredicates) {
+    std::cout << pred << std::endl;
+  }
 
   // Now perform outlining
   outliningPipeline->runOnFunction(f);
