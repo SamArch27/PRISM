@@ -93,7 +93,7 @@ private:
   String rawSQL;
   Type returnType;
   Shared<LogicalPlan> logicalPlan;
-  duckdb::ClientContext *clientContext;
+  // Shared<Binder> binder;
   Set<const Variable *> usedVariables;
 };
 

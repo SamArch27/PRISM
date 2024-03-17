@@ -48,7 +48,7 @@ public:
     ASSERT((bitset.size() == other.size()),
            "Bitvectors must have same size for |= operation!");
     for (std::size_t i = 0; i < bitset.size(); ++i) {
-      bitset[i] = bitset[i] | other[i];
+      bitset[i] = bitset[i] || other[i];
     }
   }
 
@@ -56,7 +56,7 @@ public:
     ASSERT((bitset.size() == other.size()),
            "Bitvectors must have same size for |= operation!");
     for (std::size_t i = 0; i < bitset.size(); ++i) {
-      bitset[i] = bitset[i] & other[i];
+      bitset[i] = bitset[i] && other[i];
     }
   }
 
