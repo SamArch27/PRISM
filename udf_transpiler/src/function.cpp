@@ -140,6 +140,14 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   config.options.disabled_optimizers.insert(
       duckdb::OptimizerType::STATISTICS_PROPAGATION);
 
+  if(config.options.disabled_optimizers.count(
+          duckdb::OptimizerType::COMMON_SUBEXPRESSIONS) == 0) {
+    disable_optimizers_should_delete.insert(
+        duckdb::OptimizerType::COMMON_SUBEXPRESSIONS);
+  }
+  config.options.disabled_optimizers.insert(
+      duckdb::OptimizerType::COMMON_SUBEXPRESSIONS);
+
   // SELECT <expr> FROM tmp
   Shared<LogicalPlan> boundExpression;
   Shared<duckdb::Binder> plannerBinder;
