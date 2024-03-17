@@ -101,8 +101,9 @@ void Compiler::optimize(Function &f) {
   coreOptimizations->runOnFunction(f);
 
   // Extract the predicates
-  // predicateAnalysis.runAnalysis();
-  // auto hoistedPredicates = predicateAnalysis.getPredicates();
+  auto predicateAnalysis = Make<PredicateAnalysis>(f);
+  predicateAnalysis->runAnalysis();
+  auto hoistedPredicates = predicateAnalysis->getPredicates();
 
   // Now perform outlining
   outliningPipeline->runOnFunction(f);

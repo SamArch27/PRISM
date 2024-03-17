@@ -194,6 +194,16 @@ public:
   };
 
   duckdb::Connection *getConnection() const { return conn; }
+
+  bool isArgument(const Variable *var) const {
+    for (auto &arg : arguments) {
+      if (arg.get() == var) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   const VecOwn<Variable> &getArguments() const { return arguments; }
   const SetOwn<Variable> &getVariables() const { return variables; }
   Set<Variable *> getAllVariables() const {
@@ -269,8 +279,7 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  int typeMatches(const String &rhs, const Type &type,
-                 bool needContext = true);
+  int typeMatches(const String &rhs, const Type &type, bool needContext = true);
 
   Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
                                        bool needContext = true);
