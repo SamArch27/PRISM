@@ -1,5 +1,6 @@
 #include "function.hpp"
 #include "dominator_analysis.hpp"
+#include "duckdb/function/cast_rules.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
 #include "use_def_analysis.hpp"
@@ -44,11 +45,11 @@ Own<SelectExpression> Function::renameVarInExpression(
     const Map<const Variable *, const Variable *> &oldToNew) {
   auto replacedText = original->getRawSQL();
   for (auto &[oldVar, newVar] : oldToNew) {
-    std::regex wordRegex("\\b" + oldVar->getName() + "\\b");
+    std::regex wordRegex("\\b" + oldVar->getName() + "\\b", std::regex::icase);
     replacedText =
         std::regex_replace(replacedText, wordRegex, newVar->getName());
   }
-  return bindExpression(replacedText)->clone();
+  return bindExpression(replacedText, original->getReturnType())->clone();
 }
 
 void Function::renameBasicBlocks(
@@ -77,39 +78,24 @@ Own<SelectExpression> Function::replaceVarWithExpression(
     const Map<const Variable *, const SelectExpression *> &oldToNew) {
   auto replacedText = original->getRawSQL();
   for (auto &[oldVar, newExpr] : oldToNew) {
-    std::regex wordRegex("\\b" + oldVar->getName() + "\\b");
+    std::regex wordRegex("\\b" + oldVar->getName() + "\\b", std::regex::icase);
     replacedText =
         std::regex_replace(replacedText, wordRegex, newExpr->getRawSQL());
   }
-  return bindExpression(replacedText)->clone();
+  return bindExpression(replacedText, original->getReturnType())->clone();
 }
 
-Own<SelectExpression> Function::bindExpression(const String &expr,
-                                               bool needContext) {
-  if (needContext) {
-    destroyDuckDBContext();
-    makeDuckDBContext();
-  }
-
-  auto cleanedExpr = toLower(expr);
-
+int Function::typeMatches(const String &rhs, const Type &type,
+                          bool needContext) {
   String selectExpressionCommand;
   if (needContext) {
-    selectExpressionCommand = "SELECT (" + cleanedExpr + ") FROM tmp;";
+    selectExpressionCommand = fmt::format("SELECT ({}) FROM tmp;", rhs);
   } else {
-    selectExpressionCommand = "SELECT " + cleanedExpr;
+    selectExpressionCommand = fmt::format("SELECT ({});", rhs);
   }
 
   auto clientContext = conn->context.get();
-  clientContext->config.enable_optimizer = true;
-  auto &config = duckdb::DBConfig::GetConfig(*clientContext);
-  std::set<duckdb::OptimizerType> flagsShouldDelete;
-
-  if (config.options.disabled_optimizers.count(
-          duckdb::OptimizerType::STATISTICS_PROPAGATION) == 0)
-    flagsShouldDelete.insert(duckdb::OptimizerType::STATISTICS_PROPAGATION);
-  config.options.disabled_optimizers.insert(
-      duckdb::OptimizerType::STATISTICS_PROPAGATION);
+  clientContext->config.enable_optimizer = false;
 
   // SELECT <expr> FROM tmp
   Shared<LogicalPlan> boundExpression;
@@ -118,11 +104,83 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
     boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
                                                  plannerBinder);
 
-    for (auto &type : flagsShouldDelete) {
+  } catch (const std::exception &e) {
+    destroyDuckDBContext();
+    EXCEPTION(e.what());
+  }
+
+  // check whether implicit cast is possible
+  boundExpression->ResolveOperatorTypes();
+  auto castCost = duckdb::CastRules::ImplicitCast(boundExpression->types[0],
+                                                  type.getDuckDBLogicalType());
+  return castCost;
+}
+
+Own<SelectExpression> Function::bindExpression(const String &expr,
+                                               const Type &retType,
+                                               bool needContext) {
+  if (needContext) {
+    destroyDuckDBContext();
+    makeDuckDBContext();
+  }
+
+  // trim leading and trailing whitespace
+  auto first = expr.find_first_not_of(' ');
+  auto last = expr.find_last_not_of(' ');
+  auto cleanedExpr = expr.substr(first, (last - first + 1));
+
+  int castCost = typeMatches(cleanedExpr, retType, needContext);
+  if (castCost < 0) {
+    destroyDuckDBContext();
+    EXCEPTION(fmt::format(
+        "Cannot bind expression {} to type {}, please add explicit cast.", expr,
+        retType.getDuckDBType()));
+  } else if (castCost > 0) {
+    cleanedExpr = fmt::format("({})::{}", cleanedExpr, retType.getDuckDBType());
+  } else {
+    // do nothing
+  }
+
+  String selectExpressionCommand;
+  if (needContext) {
+    selectExpressionCommand = fmt::format("SELECT ({}) FROM tmp", cleanedExpr);
+  } else {
+    selectExpressionCommand = fmt::format("SELECT ({})", cleanedExpr);
+  }
+
+  auto clientContext = conn->context.get();
+  clientContext->config.enable_optimizer = true;
+  auto &config = duckdb::DBConfig::GetConfig(*clientContext);
+  std::set<duckdb::OptimizerType> tmpOptimizerDisableFlag;
+
+  if (config.options.disabled_optimizers.count(
+          duckdb::OptimizerType::STATISTICS_PROPAGATION) == 0) {
+    tmpOptimizerDisableFlag.insert(
+        duckdb::OptimizerType::STATISTICS_PROPAGATION);
+  }
+  config.options.disabled_optimizers.insert(
+      duckdb::OptimizerType::STATISTICS_PROPAGATION);
+
+  if (config.options.disabled_optimizers.count(
+          duckdb::OptimizerType::COMMON_SUBEXPRESSIONS) == 0) {
+    tmpOptimizerDisableFlag.insert(
+        duckdb::OptimizerType::COMMON_SUBEXPRESSIONS);
+  }
+  config.options.disabled_optimizers.insert(
+      duckdb::OptimizerType::COMMON_SUBEXPRESSIONS);
+
+  // SELECT <expr> FROM tmp
+  Shared<LogicalPlan> boundExpression;
+  Shared<duckdb::Binder> plannerBinder;
+  try {
+    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
+                                                 plannerBinder);
+
+    for (auto &type : tmpOptimizerDisableFlag) {
       config.options.disabled_optimizers.erase(type);
     }
   } catch (const std::exception &e) {
-    for (auto &type : flagsShouldDelete) {
+    for (auto &type : tmpOptimizerDisableFlag) {
       config.options.disabled_optimizers.erase(type);
     }
 
@@ -139,23 +197,23 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
     usedVariables.insert(getBinding(varName));
   }
 
-  return Make<SelectExpression>(cleanedExpr, std::move(boundExpression),
-                                usedVariables);
+  return Make<SelectExpression>(cleanedExpr, retType,
+                                std::move(boundExpression), usedVariables);
 }
 
 Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
     const Map<const Variable *, const SelectExpression *> &oldToNew,
-    const Own<UseDefs> &useDefs) {
+    UseDefs &useDefs) {
 
   Map<Instruction *, Instruction *> newInstructions;
   for (auto &[oldVar, newVar] : oldToNew) {
     Set<Instruction *> toReplace;
-    for (auto *use : useDefs->getUses(oldVar)) {
+    for (auto *use : useDefs.getUses(oldVar)) {
       for (auto *op : use->getOperands()) {
-        useDefs->removeUse(op, use);
+        useDefs.removeUse(op, use);
       }
       if (auto *def = use->getResultOperand()) {
-        useDefs->removeDef(def, use);
+        useDefs.removeDef(def, use);
       }
       toReplace.insert(use);
     }
@@ -193,10 +251,10 @@ Map<Instruction *, Instruction *> Function::replaceUsesWithExpr(
 
       // add uses for the new instruction
       for (auto *op : inst->getOperands()) {
-        useDefs->addUse(op, inst);
+        useDefs.addUse(op, inst);
       }
       if (auto *def = inst->getResultOperand()) {
-        useDefs->addDef(def, inst);
+        useDefs.addDef(def, inst);
       }
     }
   }
@@ -287,8 +345,8 @@ FunctionCloneAndRenameHelper::cloneAndRename(const SelectExpression &expr) {
            fmt::format("Variable {} not found in variableMap", var->getName()));
     newUsedVariables.insert(variableMap.at(var));
   }
-  return Make<SelectExpression>(expr.getRawSQL(), expr.getLogicalPlanShared(),
-                                newUsedVariables);
+  return Make<SelectExpression>(expr.getRawSQL(), expr.getReturnType(),
+                                expr.getLogicalPlanShared(), newUsedVariables);
 }
 
 template <>

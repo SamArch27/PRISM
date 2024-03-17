@@ -19,6 +19,6 @@ private:
     void regionCodeGenerator(const Function &function, PLpgSQLContainer &container, const Region *region, int indent);
     void bodyCodeGenerator(const Function &function, PLpgSQLContainer &container);
 public:
-    PLpgSQLGenerator(const YAMLConfig config) : config(config) {}
+    PLpgSQLGenerator(const YAMLConfig &config) : config(config) {}
     PLpgSQLGeneratorResult run(const Function &function);
 };

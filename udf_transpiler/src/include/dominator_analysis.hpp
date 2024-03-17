@@ -1,9 +1,11 @@
 #pragma once
 
+#include "basic_block.hpp"
 #include "compiler_fmt/core.h"
 #include "compiler_fmt/ostream.h"
 #include "compiler_fmt/ranges.h"
-#include "dataflow_framework.hpp"
+#include "function.hpp"
+#include "utils.hpp"
 
 class DominanceFrontier {
 public:

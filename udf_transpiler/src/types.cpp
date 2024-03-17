@@ -3,6 +3,8 @@
 #include <regex>
 #define FMT_HEADER_ONLY
 
+Type Type::BOOLEAN = Type(false, std::nullopt, std::nullopt, PostgresTypeTag::BOOLEAN);
+
 std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
   switch (tag) {
   case DuckdbTypeTag::BIGINT:
@@ -74,6 +76,102 @@ std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
   }
   return os;
 }
+
+duckdb::LogicalType Type::getDuckDBLogicalType() const {
+  switch (duckdbTag) {
+  {
+  case DuckdbTypeTag::BIGINT:
+    return duckdb::LogicalType::BIGINT;
+  }
+  {
+  case DuckdbTypeTag::BIT:
+    return duckdb::LogicalType::BIT;
+  }
+  {
+  case DuckdbTypeTag::BLOB:
+    return duckdb::LogicalType::BLOB;
+  }
+  {
+  case DuckdbTypeTag::BOOLEAN:
+    return duckdb::LogicalType::BOOLEAN;
+  }
+  {
+  case DuckdbTypeTag::DATE:
+    return duckdb::LogicalType::DATE;
+  }
+  {
+  case DuckdbTypeTag::DECIMAL:
+    return duckdb::LogicalType::DECIMAL(*width, *scale);
+  }
+  {
+  case DuckdbTypeTag::DOUBLE:
+    return duckdb::LogicalType::DOUBLE;
+  }
+  {
+  case DuckdbTypeTag::HUGEINT:
+    return duckdb::LogicalType::HUGEINT;
+  }
+  {
+  case DuckdbTypeTag::INTEGER:
+    return duckdb::LogicalType::INTEGER;
+  }
+  {
+  case DuckdbTypeTag::INTERVAL:
+    return duckdb::LogicalType::INTERVAL;
+  }
+  {
+  case DuckdbTypeTag::REAL:
+    return duckdb::LogicalType::FLOAT;
+  }
+  {
+  case DuckdbTypeTag::SMALLINT:
+    return duckdb::LogicalType::SMALLINT;
+  }
+  {
+  case DuckdbTypeTag::TIME:
+    return duckdb::LogicalType::TIME;
+  }
+  {
+  case DuckdbTypeTag::TIMESTAMP:
+    return duckdb::LogicalType::TIMESTAMP;
+  }
+  {
+  case DuckdbTypeTag::TINYINT:
+    return duckdb::LogicalType::TINYINT;
+  }
+  {
+  case DuckdbTypeTag::UBIGINT:
+    return duckdb::LogicalType::UBIGINT;
+  }
+  {
+  case DuckdbTypeTag::UINTEGER:
+    return duckdb::LogicalType::UINTEGER;
+  }
+  {
+  case DuckdbTypeTag::UNKNOWN:
+    return duckdb::LogicalType::INVALID;
+  }
+  {
+  case DuckdbTypeTag::USMALLINT:
+    return duckdb::LogicalType::USMALLINT;
+  }
+  {
+  case DuckdbTypeTag::UTINYINT:
+    return duckdb::LogicalType::UTINYINT;
+  }
+  {
+  case DuckdbTypeTag::UUID:
+    return duckdb::LogicalType::UUID;
+  }
+  {
+  case DuckdbTypeTag::VARCHAR:
+    return duckdb::LogicalType::VARCHAR;
+  }
+  default:
+    ERROR("Unknown type.");
+  }
+}
+
 std::ostream &operator<<(std::ostream &os, CppTypeTag tag) {
   switch (tag) {
   case CppTypeTag::BOOL:
@@ -115,6 +213,11 @@ std::ostream &operator<<(std::ostream &os, CppTypeTag tag) {
   case CppTypeTag::STRING_T:
     os << "string_t";
     break;
+  case CppTypeTag::DATE_T:
+    os << "date_t";
+    break;
+  default:
+    os << "UNKNOWN";
   }
   return os;
 }
@@ -226,7 +329,7 @@ CppTypeTag Type::lookupCppTag(DuckdbTypeTag duckdbTag, Opt<int> width,
   case DuckdbTypeTag::BOOLEAN:
     return CppTypeTag::BOOL;
   case DuckdbTypeTag::DATE:
-    return CppTypeTag::INT32_T;
+    return CppTypeTag::DATE_T;
   case DuckdbTypeTag::DECIMAL:
     ASSERT(width > 0, "Width of decimal should be > 0.");
     if (width <= 4)

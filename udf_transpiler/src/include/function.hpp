@@ -232,14 +232,6 @@ public:
     return bindings.find(cleanedName) != bindings.end();
   }
 
-  std::size_t getPredNumber(BasicBlock *child, BasicBlock *parent) {
-    const auto &preds = child->getPredecessors();
-    auto it = std::find(preds.begin(), preds.end(), parent);
-    ASSERT(it != preds.end(),
-           "Error! No predecessor found with predNumber function!");
-    return std::distance(preds.begin(), it);
-  };
-
   const Variable *getBinding(const String &name) const {
     auto cleanedName = getCleanedVariableName(name);
     ASSERT(hasBinding(cleanedName), "ERROR: No binding for: |" + name +
@@ -289,15 +281,15 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  Own<SelectExpression> bindExpression(const String &expr,
+  int typeMatches(const String &rhs, const Type &type,
+                 bool needContext = true);
+
+  Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
                                        bool needContext = true);
 
-  Map<Instruction *, Instruction *>
-  replaceUsesWithVar(const Map<const Variable *, const Variable *> &oldToNew,
-                     const Own<UseDefs> &useDefs);
   Map<Instruction *, Instruction *> replaceUsesWithExpr(
       const Map<const Variable *, const SelectExpression *> &oldToNew,
-      const Own<UseDefs> &useDefs);
+      UseDefs &useDefs);
 
   String getCFGString() const {
     std::stringstream ss;

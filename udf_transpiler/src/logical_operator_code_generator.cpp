@@ -61,9 +61,13 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     auto multiply_factor = pow10String(scale_difference);
     auto res_width = target_width - scale_difference;
     if (source_width < res_width) {
-      function_name = fmt::format("{} * Cast::Operation", multiply_factor);
-      template_args.push_back(source_physical);
-      template_args.push_back(target_physical);
+      if (source_physical != target_physical) {
+        function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        template_args.push_back(source_physical);
+        template_args.push_back(target_physical);
+      } else {
+        function_name = fmt::format("{} * ", multiply_factor);
+      }
     } else {
       // DecimalScaleUpCheckOperator
       // evaluate the child first
@@ -80,9 +84,13 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
       ",
                                          fmt::arg("input", newVar),
                                          fmt::arg("limit", limit)));
-      function_name = fmt::format("{} * Cast::Operation", multiply_factor);
-      template_args.push_back(source_physical);
-      template_args.push_back(target_physical);
+      if (source_physical != target_physical) {
+        function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        template_args.push_back(source_physical);
+        template_args.push_back(target_physical);
+      } else {
+        function_name = fmt::format("{} * ", multiply_factor);
+      }
     }
   } else {
     // scale down
@@ -91,9 +99,14 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     auto res_width = target_width + scale_difference;
     if (source_width < res_width) {
       // udf_todo: possibly a source of result difference
-      function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);
-      template_args.push_back(source_physical);
-      template_args.push_back(target_physical);
+      if (source_physical != target_physical) {
+        function_name =
+            fmt::format("1.0/{} * Cast::Operation", multiply_factor);
+        template_args.push_back(source_physical);
+        template_args.push_back(target_physical);
+      } else {
+        function_name = fmt::format("1.0/{} * ", multiply_factor);
+      }
     } else {
       // DecimalScaleUpCheckOperator
       // evaluate the child first
@@ -110,9 +123,14 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
       ",
                                          fmt::arg("input", newVar),
                                          fmt::arg("limit", limit)));
-      function_name = fmt::format("1/{} * Cast::Operation", multiply_factor);
-      template_args.push_back(source_physical);
-      template_args.push_back(target_physical);
+      if (source_physical != target_physical) {
+        function_name =
+            fmt::format("1.0/{} * Cast::Operation", multiply_factor);
+        template_args.push_back(source_physical);
+        template_args.push_back(target_physical);
+      } else {
+        function_name = fmt::format("1.0/{} * ", multiply_factor);
+      }
     }
   }
 }
@@ -162,8 +180,8 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
       args.push_back(std::to_string(function_info.width_scale.second));
       break;
     case ScalarFunctionInfo::ErrorCastWrapper:
-      // udf_todo
-      EXCEPTION("ErrorCastWrapper not implemented yet.");
+      function_name = "ErrorCastHelper";
+      template_args.push_back(get_struct_name(function_info.cpp_name));
       break;
     case ScalarFunctionInfo::DecimalVectorBackWrapper:
       // udf_todo
@@ -345,9 +363,16 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
       exp.value.type() == LogicalType::BOOLEAN) {
     return fmt::format(
         "({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type),
-        exp.value.ToString());
+        exp.value.GetValue<uint64_t>()); // int64_t should be enough for
+                                         // most numeric types
+  } else if (exp.value.type() == LogicalType::DATE) {
+    return fmt::format("date_t({})", exp.value.GetValueUnsafe<int32_t>());
+  } else if (exp.value.type() == LogicalType::VARCHAR) {
+    return fmt::format("string_t(\"{}\")", exp.value.ToString());
+  } else {
+    return fmt::format("[Not supported const: {}: {}]", exp.value.ToString(),
+                       exp.return_type.ToString());
   }
-  return fmt::format("\"{}\"", exp.value.ToString());
 }
 
 template <>
@@ -397,8 +422,8 @@ String BoundExpressionCodeGenerator::Transpile(const Expression &exp,
     return Transpile(exp.Cast<BoundColumnRefExpression>(), insert);
     break;
   default:
-    return fmt::format("[{}: {}]", exp.ToString(),
-                       ExpressionClassToString(exp.GetExpressionClass()));
+    EXCEPTION(fmt::format("[{}: {}]", exp.ToString(),
+                          ExpressionClassToString(exp.GetExpressionClass())));
     break;
   }
 }

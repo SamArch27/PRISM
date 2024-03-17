@@ -37,7 +37,7 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
                                                CodeGenInfo &function_info) {
   String code;
   code += fmt::format("/* ==== Basic block {} start ==== */\n", bb->getLabel());
-  code += fmt::format("{}:\n", bb->getLabel());
+  code += fmt::format("{}:\n{{\n", bb->getLabel());
 
   for (auto &inst : *bb) {
     try {
@@ -81,12 +81,20 @@ void CFGCodeGenerator::basicBlockCodeGenerator(BasicBlock *bb,
       } else {
         ERROR("Instruction does not fall into a specific type.");
       }
+    } catch (const duckdb::Exception &e) {
+      std::stringstream ss;
+      ss << e.GetStackTrace(10) << "\n"
+         << e.what() << "\n"
+         << "When compiling instruction: " << "\n"
+         << inst;
+      throw duckdb::ParserException(ss.str());
     } catch (const std::exception &e) {
       std::stringstream ss;
-      ss << e.what() << "When compiling instruction: " << inst;
+      ss << e.what() << "When compiling instruction: " << "\n" << inst;
       throw duckdb::ParserException(ss.str());
     }
   }
+  code += "}\n";
   container.basicBlockCodes.push_back(code);
   return;
 }
@@ -199,12 +207,13 @@ CFGCodeGeneratorResult CFGCodeGenerator::run(const Function &f) {
 
   Vec<String> args_logical_types;
   for (auto &arg : f.getArguments()) {
-    args_logical_types.push_back(arg->getType().getDuckDBLogicalType());
+    args_logical_types.push_back(arg->getType().getDuckDBLogicalTypeStr());
   }
   container.registration = fmt::format(
       fmt::runtime(config.function["fcreate"].Scalar()),
       fmt::arg("function_name", f.getFunctionName()),
-      fmt::arg("return_logical_type", f.getReturnType().getDuckDBLogicalType()),
+      fmt::arg("return_logical_type",
+               f.getReturnType().getDuckDBLogicalTypeStr()),
       fmt::arg("args_logical_types", joinVector(args_logical_types, ", ")));
 
   return {container.body + "\n" + container.main, container.registration};

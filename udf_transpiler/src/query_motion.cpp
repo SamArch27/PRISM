@@ -60,7 +60,7 @@ bool QueryMotionPass::runOnFunction(Function &f) {
           // replace the condition i.e. if (SELECT ..) with if (temp)
           it = block.replaceInst(
               it, Make<BranchInst>(branch->getIfTrue(), branch->getIfFalse(),
-                                   f.bindExpression(temp->getName())));
+                                   f.bindExpression(temp->getName(), Type::BOOLEAN)));
         }
       }
     }
@@ -121,7 +121,7 @@ bool QueryMotionPass::runOnFunction(Function &f) {
         // SELECT <SELECT ...> WHERE <cond>
         auto newRHS = "SELECT (" + assign->getRHS()->getRawSQL() + ") WHERE " +
                       branch->getCond()->getRawSQL();
-        newAssign = Make<Assignment>(temp, f.bindExpression(newRHS));
+        newAssign = Make<Assignment>(temp, f.bindExpression(newRHS, assign->getRHS()->getReturnType()));
       }
     }
 
@@ -133,7 +133,7 @@ bool QueryMotionPass::runOnFunction(Function &f) {
 
     // finally update the old assignment
     assign->replaceWith(
-        Make<Assignment>(assign->getLHS(), f.bindExpression(temp->getName())));
+        Make<Assignment>(assign->getLHS(), f.bindExpression(temp->getName(), assign->getLHS()->getType())));
   }
 
   return changed;

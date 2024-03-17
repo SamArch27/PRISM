@@ -1,53 +1,54 @@
 #include "break_phi_interference.hpp"
 #include "instructions.hpp"
 #include "liveness_analysis.hpp"
+#include "use_def_analysis.hpp"
 #include "utils.hpp"
 
 bool BreakPhiInterferencePass::runOnFunction(Function &f) {
+  auto useDefAnalysis = Make<UseDefAnalysis>(f);
+  useDefAnalysis->runAnalysis();
+  useDefs = useDefAnalysis->getUseDefs();
+
   auto livenessAnalysis = Make<LivenessAnalysis>(f);
   livenessAnalysis->runAnalysis();
-  auto &liveness = livenessAnalysis->getLiveness();
-  auto &interferenceGraph = livenessAnalysis->getInterferenceGraph();
+  liveness = livenessAnalysis->getLiveness();
+  interferenceGraph = livenessAnalysis->getInterferenceGraph();
   auto phiCongruent = createPhiCongruenceClasses(f);
+
+  entryBlock = f.getEntryBlock();
 
   // for every phi, resolve the phi interference
   for (auto &block : f) {
     for (auto it = block.begin(); it != block.end(); ++it) {
-      it = resolvePhiInterference(f, it, phiCongruent, *interferenceGraph,
-                                  *liveness);
+      it = resolvePhiInterference(f, it, phiCongruent);
     }
   }
 
   invalidateSingletons(phiCongruent);
-  removeCopies(f, phiCongruent, *interferenceGraph);
+  removeCopies(f, phiCongruent);
   return true;
 }
 
 InstIterator BreakPhiInterferencePass::resolvePhiInterference(
-    Function &f, InstIterator it, CongruenceClasses &phiCongruent,
-    InterferenceGraph &interferenceGraph, Liveness &liveness) {
+    Function &f, InstIterator it, CongruenceClasses &phiCongruent) {
 
   MarkedSet marked;
   DeferredSet deferred;
 
   auto &inst = *it;
   if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
-    computeSourceConflicts(phi, phiCongruent, interferenceGraph, liveness,
-                           marked, deferred);
-    computeResultConflicts(phi, phiCongruent, interferenceGraph, liveness,
-                           marked, deferred);
+    computeSourceConflicts(phi, phiCongruent, marked, deferred);
+    computeResultConflicts(phi, phiCongruent, marked, deferred);
     removeMarkedFromDeferred(marked, deferred);
     moveDeferredToMarked(marked, deferred);
-    it = processMarkedSet(f, it, phiCongruent, interferenceGraph, liveness,
-                          marked);
+    it = processMarkedSet(f, it, phiCongruent, marked);
     mergePhiCongruenceClasses(it, phiCongruent);
   }
   return it;
 }
 
 void BreakPhiInterferencePass::removeCopies(
-    Function &f, const CongruenceClasses &phiCongruent,
-    const InterferenceGraph &interferenceGraph) {
+    Function &f, const CongruenceClasses &phiCongruent) {
 
   // Remove superfluous copies using phiCongruence
   for (auto &block : f) {
@@ -72,13 +73,13 @@ void BreakPhiInterferencePass::removeCopies(
         auto rhsConflicts = phiCongruent.at(rhs);
         rhsConflicts.erase(rhs);
         for (auto *x : rhsConflicts) {
-          rhsConflict |= interferenceGraph.interferes(lhs, x);
+          rhsConflict |= interferenceGraph->interferes(lhs, x);
         }
 
         auto lhsConflicts = phiCongruent.at(lhs);
         lhsConflicts.erase(lhs);
         for (auto *x : lhsConflicts) {
-          lhsConflict |= interferenceGraph.interferes(rhs, x);
+          lhsConflict |= interferenceGraph->interferes(rhs, x);
         }
 
         if (lhsEmpty && rhsEmpty) {
@@ -132,7 +133,6 @@ BreakPhiInterferencePass::createPhiCongruenceClasses(Function &f) {
 
 void BreakPhiInterferencePass::computeSourceConflicts(
     const PhiNode *phi, const CongruenceClasses &phiCongruent,
-    InterferenceGraph &interferenceGraph, const Liveness &liveness,
     MarkedSet &marked, DeferredSet &deferred) {
   // for each pair of arguments
   auto *block = phi->getParent();
@@ -141,17 +141,23 @@ void BreakPhiInterferencePass::computeSourceConflicts(
     for (auto *x_i : args[i]->getUsedVariables()) {
       for (std::size_t j = i + 1; j < args.size(); ++j) {
         for (auto *x_j : args[j]->getUsedVariables()) {
-          if (interferenceGraph.interferes(x_i, x_j)) {
-
+          // Ignore function arguments
+          if (useDefs->getDef(x_i)->getParent() == entryBlock) {
+            continue;
+          }
+          if (useDefs->getDef(x_j)->getParent() == entryBlock) {
+            continue;
+          }
+          if (interferenceGraph->interferes(x_i, x_j)) {
             // Resolve according to the four cases
             auto *n_i = block->getPredecessors()[i];
             auto *n_j = block->getPredecessors()[j];
 
             bool lhsConflict =
-                !intersect(phiCongruent.at(x_i), liveness.getBlockLiveOut(n_j))
+                !intersect(phiCongruent.at(x_i), liveness->getBlockLiveOut(n_j))
                      .empty();
             bool rhsConflict =
-                !intersect(phiCongruent.at(x_j), liveness.getBlockLiveOut(n_i))
+                !intersect(phiCongruent.at(x_j), liveness->getBlockLiveOut(n_i))
                      .empty();
             if (lhsConflict && !rhsConflict) {
               // mark x_i
@@ -176,7 +182,6 @@ void BreakPhiInterferencePass::computeSourceConflicts(
 
 void BreakPhiInterferencePass::computeResultConflicts(
     const PhiNode *phi, const CongruenceClasses &phiCongruent,
-    InterferenceGraph &interferenceGraph, const Liveness &liveness,
     MarkedSet &marked, DeferredSet &deferred) {
   auto *block = phi->getParent();
 
@@ -185,22 +190,29 @@ void BreakPhiInterferencePass::computeResultConflicts(
   auto rhs = phi->getRHS();
   for (std::size_t j = 0; j < rhs.size(); ++j) {
     for (auto *x_j : rhs[j]->getUsedVariables()) {
-      if (interferenceGraph.interferes(x_i, x_j)) {
+      // Ignore function arguments
+      if (useDefs->getDef(x_i)->getParent() == entryBlock) {
+        continue;
+      }
+      if (useDefs->getDef(x_j)->getParent() == entryBlock) {
+        continue;
+      }
+      if (interferenceGraph->interferes(x_i, x_j)) {
         // Resolve according to the four cases
         auto *n = block; // defining block for x_i is trivially n
         auto *n_j = block->getPredecessors()[j];
 
         bool selfConflict =
-            !intersect(phiCongruent.at(x_i), liveness.getBlockLiveOut(n))
+            !intersect(phiCongruent.at(x_i), liveness->getBlockLiveOut(n))
                  .empty();
         bool lhsConflict =
-            !intersect(phiCongruent.at(x_i), liveness.getBlockLiveOut(n_j))
+            !intersect(phiCongruent.at(x_i), liveness->getBlockLiveOut(n_j))
                  .empty();
         bool rhsInConflict =
-            !intersect(phiCongruent.at(x_j), liveness.getBlockLiveIn(n))
+            !intersect(phiCongruent.at(x_j), liveness->getBlockLiveIn(n))
                  .empty();
         bool rhsOutConflict =
-            !intersect(phiCongruent.at(x_j), liveness.getBlockLiveOut(n))
+            !intersect(phiCongruent.at(x_j), liveness->getBlockLiveOut(n))
                  .empty();
 
         if (selfConflict && !rhsInConflict) {
@@ -278,10 +290,10 @@ void BreakPhiInterferencePass::removeMarkedFromDeferred(MarkedSet &marked,
   }
 }
 
-InstIterator BreakPhiInterferencePass::processMarkedSet(
-    Function &f, InstIterator it, CongruenceClasses &phiCongruent,
-    InterferenceGraph &interferenceGraph, Liveness &liveness,
-    const MarkedSet &marked) {
+InstIterator
+BreakPhiInterferencePass::processMarkedSet(Function &f, InstIterator it,
+                                           CongruenceClasses &phiCongruent,
+                                           const MarkedSet &marked) {
   for (auto *x : marked) {
     auto &inst = *it;
     auto *oldPhi = dynamic_cast<const PhiNode *>(&inst);
@@ -292,9 +304,9 @@ InstIterator BreakPhiInterferencePass::processMarkedSet(
     bool resultConflict = (newPhi->getLHS() != oldPhi->getLHS());
 
     if (resultConflict) {
-      processResultConflict(f, x, xPrime, it, interferenceGraph, liveness);
+      processResultConflict(f, x, xPrime, it);
     } else {
-      processSourceConflict(f, x, xPrime, it, interferenceGraph, liveness);
+      processSourceConflict(f, x, xPrime, it);
     }
 
     it = block->replaceInst(it, std::move(newPhi));
@@ -302,70 +314,80 @@ InstIterator BreakPhiInterferencePass::processMarkedSet(
   return it;
 }
 
-void BreakPhiInterferencePass::processResultConflict(
-    Function &f, const Variable *x, const Variable *xPrime, InstIterator it,
-    InterferenceGraph &interferenceGraph, Liveness &liveness) {
+void BreakPhiInterferencePass::processResultConflict(Function &f,
+                                                     const Variable *x,
+                                                     const Variable *xPrime,
+                                                     InstIterator it) {
   // Insert x = x' after the phi instruction
-  auto newAssignment = Make<Assignment>(x, f.bindExpression(xPrime->getName()));
+  auto newAssignment = Make<Assignment>(
+      x, f.bindExpression(xPrime->getName(), xPrime->getType()));
   auto *block = it->getParent();
   block->insertAfter(it, std::move(newAssignment));
 
   // Update the live in/out and interference graph
-  liveness.removeBlockLiveIn(block, x);
-  for (auto *var : liveness.getBlockLiveIn(block)) {
-    interferenceGraph.addInterferenceEdge(xPrime, var);
+  liveness->removeBlockLiveIn(block, x);
+  for (auto *var : liveness->getBlockLiveIn(block)) {
+    interferenceGraph->addInterferenceEdge(xPrime, var);
   }
-  liveness.addBlockLiveIn(block, xPrime);
+  liveness->addBlockLiveIn(block, xPrime);
 }
 
-void BreakPhiInterferencePass::processSourceConflict(
-    Function &f, const Variable *x, const Variable *xPrime, InstIterator it,
-    InterferenceGraph &interferenceGraph, Liveness &liveness) {
+void BreakPhiInterferencePass::processSourceConflict(Function &f,
+                                                     const Variable *x,
+                                                     const Variable *xPrime,
+                                                     InstIterator it) {
 
-  // For each argument, insert x' = x at the end of the corresponding pred block
-  auto *block = it->getParent();
-  auto oldArgs = it->getOperands();
-  auto argIt = oldArgs.begin();
-  while ((argIt = std::find(argIt, oldArgs.end(), x)) != oldArgs.end()) {
-    auto newAssignment =
-        Make<Assignment>(xPrime, f.bindExpression(x->getName()));
+  // For each argument, insert x' = x at the end of the corresponding pred
+  // block
+  if (auto *phi = dynamic_cast<const PhiNode *>(&*it)) {
+    auto *block = phi->getParent();
+    auto oldArgs = phi->getRHS();
+    for (std::size_t i = 0; i < oldArgs.size(); ++i) {
+      auto oldArg = oldArgs[i];
+      auto &usedVariables = oldArg->getUsedVariables();
 
-    auto predIndex = std::distance(oldArgs.begin(), argIt);
-    auto *toModify = block->getPredecessors()[predIndex];
-    if (toModify->isConditional()) {
-      ASSERT(toModify->getPredecessors().size() == 1,
-             "Must have unique predecessor for conditional block!!");
-      toModify = toModify->getPredecessors().front();
-    }
-    toModify->insertBeforeTerminator(std::move(newAssignment));
-    // update the live in/out and interference graph
-    auto &successors = block->getSuccessors();
-    if (std::all_of(successors.begin(), successors.end(),
-                    [&](BasicBlock *succ) {
-                      // not in livein of succ
-                      auto &succLiveIn = liveness.getBlockLiveIn(succ);
-                      if (succLiveIn.find(x) != succLiveIn.end()) {
-                        return false;
-                      }
-                      // not referenced in any phi
-                      for (auto *phi : f.getPhisFromBlock(succ)) {
-                        auto uses = phi->getRHS();
-                        for (auto *use : uses) {
-                          auto usedVariables = use->getUsedVariables();
-                          if (usedVariables.find(x) != usedVariables.end()) {
-                            return false;
+      // check if this phi argument uses x
+      if (usedVariables.find(x) == usedVariables.end()) {
+        continue;
+      }
+
+      // if so then add x' = x at the end of the corresponding pred block
+      auto newAssignment = Make<Assignment>(
+          xPrime, f.bindExpression(x->getName(), x->getType()));
+
+      auto *toModify = block->getPredecessors()[i];
+      toModify->insertBeforeTerminator(std::move(newAssignment));
+
+      // update the live in/out and interference graph
+      auto &successors = block->getSuccessors();
+      if (std::all_of(successors.begin(), successors.end(),
+                      [&](BasicBlock *succ) {
+                        // not in livein of succ
+                        auto &succLiveIn = liveness->getBlockLiveIn(succ);
+                        if (succLiveIn.find(x) != succLiveIn.end()) {
+                          return false;
+                        }
+                        // not referenced in any phi
+                        for (auto *phi : f.getPhisFromBlock(succ)) {
+                          auto uses = phi->getRHS();
+                          for (auto *use : uses) {
+                            auto usedVariables = use->getUsedVariables();
+                            if (usedVariables.find(x) != usedVariables.end()) {
+                              return false;
+                            }
                           }
                         }
-                      }
-                      return true;
-                    })) {
-      liveness.removeBlockLiveOut(toModify, x);
+                        return true;
+                      })) {
+        liveness->removeBlockLiveOut(toModify, x);
+      }
+      for (auto *var : liveness->getBlockLiveOut(toModify)) {
+        interferenceGraph->addInterferenceEdge(xPrime, var);
+      }
+      liveness->addBlockLiveOut(toModify, xPrime);
     }
-    for (auto *var : liveness.getBlockLiveOut(toModify)) {
-      interferenceGraph.addInterferenceEdge(xPrime, var);
-    }
-    liveness.addBlockLiveOut(toModify, xPrime);
-    ++argIt;
+  } else {
+    ERROR("processSourceConflict must be called with a phi node!");
   }
 }
 
@@ -397,12 +419,13 @@ Own<PhiNode> BreakPhiInterferencePass::createUpdatedPhi(
   VecOwn<SelectExpression> newArgs;
   if (modifyingResult) {
     newResult = xPrime;
-  } else {
-    for (auto &oldArg : oldPhi->getRHS()) {
-      newArgs.push_back(f.renameVarInExpression(oldArg, oldToNew));
-    }
   }
-  return Make<PhiNode>(newResult, std::move(newArgs));
+  for (auto &oldArg : oldPhi->getRHS()) {
+    newArgs.push_back(f.renameVarInExpression(oldArg, oldToNew));
+  }
+
+  auto newPhi = Make<PhiNode>(newResult, std::move(newArgs));
+  return newPhi;
 }
 
 void BreakPhiInterferencePass::mergePhiCongruenceClasses(

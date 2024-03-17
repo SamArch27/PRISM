@@ -14,7 +14,7 @@ void SSADestructionPass::removePhis(Function &f) {
       if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
         // Add assignment instructions for each arg to the appropriate block
         for (auto *pred : block.getPredecessors()) {
-          auto predNumber = f.getPredNumber(&block, pred);
+          auto predNumber = block.getPredNumber(pred);
           auto *arg = phi->getRHS()[predNumber];
 
           // Elide the assignment if the src and dest are the same variable

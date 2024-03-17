@@ -1,8 +1,9 @@
 #pragma once
 
+#include "analysis.hpp"
+#include "bitvector.hpp"
 #include "compiler_fmt/core.h"
 #include "compiler_fmt/ostream.h"
-#include "dataflow_framework.hpp"
 #include "function.hpp"
 
 class Liveness {
@@ -126,6 +127,10 @@ private:
       }
       os << "\t" << var->getName() << " [label=\"" << var->getName() << "\"];";
       for (const auto *other : others) {
+        // only print left to right edges
+        if (var->getName() < other->getName()) {
+          continue;
+        }
         os << "\t" << var->getName() << " -> " << other->getName()
            << " [dir=none];" << std::endl;
       }
@@ -136,33 +141,45 @@ private:
   Map<const Variable *, Set<const Variable *>> edge;
 };
 
-class LivenessAnalysis : public DataflowFramework<BitVector, false> {
+template <typename T> struct DataflowResult {
 public:
-  LivenessAnalysis(Function &f) : DataflowFramework(f) {}
+  T in;
+  T out;
+};
 
-  const Own<Liveness> &getLiveness() const { return liveness; }
-  const Own<InterferenceGraph> &getInterferenceGraph() const {
-    return interferenceGraph;
+class LivenessAnalysis : public Analysis {
+public:
+  LivenessAnalysis(Function &f) : Analysis(f) {}
+
+  void runAnalysis() override;
+
+  Liveness *getLiveness() const { return liveness.get(); }
+  InterferenceGraph *getInterferenceGraph() const {
+    return interferenceGraph.get();
   }
 
-protected:
-  BitVector transfer(BitVector out, Instruction *inst) override;
-  BitVector meet(BitVector result, BitVector in, BasicBlock *block) override;
-  void preprocessInst(Instruction *inst) override;
-  void genBoundaryInner() override;
-  void finalize() override;
-
 private:
+  BitVector transfer(BitVector out, BasicBlock *block);
+  BitVector meet(BitVector in, BasicBlock *succ, BasicBlock *block);
+  void preprocess();
+  void preprocessInst(Instruction *inst);
+  void genBoundaryInner();
+  void runBackwards();
+  void finalize();
+
   void computeLiveness();
   void computeInterferenceGraph();
 
-  Map<BasicBlock *, Set<const Instruction *>> allDefs;
-  Map<BasicBlock *, Set<const Instruction *>> phiDefs;
-  Map<BasicBlock *, Set<const Instruction *>> phiUses;
-  Map<BasicBlock *, Set<const Instruction *>> upwardsExposed;
+  Map<BasicBlock *, Set<const Instruction *>> defs;
+  Map<BasicBlock *, Set<const Instruction *>> uses;
   Vec<const Instruction *> definingInstructions;
   Map<const Instruction *, std::size_t> instToIndex;
 
   Own<Liveness> liveness;
   Own<InterferenceGraph> interferenceGraph;
+
+  BitVector innerStart;
+  BitVector boundaryStart;
+  Vec<BasicBlock *> exitBlocks;
+  Map<BasicBlock *, DataflowResult<BitVector>> results;
 };

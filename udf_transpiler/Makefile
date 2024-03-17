@@ -55,10 +55,10 @@ udafs:
 	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF_AGG_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=0 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
 	cmake --build build/udfs --config Release
 
-PROFILER_EXTENSION_FLAGS=-DDUCKDB_EXTENSION_NAMES="profiler" -DDUCKDB_EXTENSION_PROFILER_PATH="$(PROJ_DIR)profiler" -DDUCKDB_EXTENSION_PROFILER_INCLUDE_PATH="$(PROJ_DIR)profiler/src/include"
+PROFILER_EXTENSION_FLAGS=-DBUILD_MAIN_DUCKDB_LIBRARY=0 -DDISABLE_BUILTIN_EXTENSIONS=1 -DDUCKDB_EXTENSION_NAMES="profiler" -DDUCKDB_EXTENSION_PROFILER_PATH="$(PROJ_DIR)profiler" -DDUCKDB_EXTENSION_PROFILER_INCLUDE_PATH="$(PROJ_DIR)profiler/src/include"
 profile:
 	mkdir -p build/release
-	cmake $(GENERATOR) $(FORCE_COLOR) $(PROFILER_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/release
+	cmake $(GENERATOR) $(FORCE_COLOR) $(PROFILER_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=0 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/release
 	cmake --build build/release --config Release
 
 release:
@@ -67,7 +67,7 @@ release:
 	cmake $(GENERATOR) $(FORCE_COLOR) $(EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release ${BUILD_FLAGS} -S ./duckdb/ -B build/release && \
 	cmake --build build/release --config Release -j6
 
-start_duckdb:
+start_profile:
 	./build/release/duckdb -unsigned -cmd "install './build/release/extension/profiler/profiler.duckdb_extension'; load './build/release/extension/profiler/profiler.duckdb_extension';"
 
 # Client build

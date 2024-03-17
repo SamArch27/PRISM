@@ -14,9 +14,9 @@
 #define FMT_HEADER_ONLY
 #include "compiler_fmt/core.h"
 #include "duckdb/common/exception.hpp"
+#include "yaml-cpp/yaml.h"
 #include <algorithm>
 #include <regex>
-#include "yaml-cpp/yaml.h"
 
 template <class A> using Own = std::unique_ptr<A>;
 template <class A> using Shared = std::shared_ptr<A>;
@@ -85,8 +85,7 @@ using String = std::string;
     throw duckdb::ParserException("See the above message.");                   \
   } while (false)
 
-template <typename It> 
-class Range {
+template <typename It> class Range {
   It b, e;
 
 public:
@@ -168,7 +167,7 @@ static Map<String, String> alias_to_duckdb_type = {{"UNKNOWN", "UNKNOWN"},
                                                    {"STRING", "VARCHAR"}};
 static Map<String, String> duckdb_to_cpp_type = {
     {"BOOLEAN", "bool"},   {"TINYINT", "int8_t"},    {"SMALLINT", "int16_t"},
-    {"DATE", "int32_t"},   {"TIME", "int32_t"},      {"INTEGER", "int32_t"},
+    {"DATE", "date_t"},   {"TIME", "int32_t"},      {"INTEGER", "int32_t"},
     {"BIGINT", "int64_t"}, {"TIMESTAMP", "int64_t"}, {"FLOAT", "float"},
     {"DOUBLE", "double"},  {"DECIMAL", "double"},    {"VARCHAR", "string_t"},
     {"CHAR", "string_t"},  {"BLOB", "string_t"}};

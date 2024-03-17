@@ -5,7 +5,7 @@ bool DeadCodeEliminationPass::runOnFunction(Function &f) {
   bool changed = false;
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
-  auto &useDefs = useDefAnalysis.getUseDefs();
+  auto useDefs = useDefAnalysis.getUseDefs();
 
   auto worklist = useDefs->getAllDefs();
   while (!worklist.empty()) {

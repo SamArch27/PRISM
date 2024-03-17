@@ -118,7 +118,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
 
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
-  auto &useDefs = useDefAnalysis.getUseDefs();
+  const auto useDefs = useDefAnalysis.getUseDefs();
 
   // get live variable going into the region
   LivenessAnalysis livenessAnalysis(f);
@@ -177,7 +177,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
     // add explicit return of the return variable to the end of the function
     auto *returnBlock = newFunction->makeBasicBlock("return");
     returnBlock->addInstruction(Make<ReturnInst>(
-        newFunction->bindExpression((*returnVars.begin())->getName())));
+        newFunction->bindExpression((*returnVars.begin())->getName(), (*returnVars.begin())->getType())));
 
     newFunction->renameBasicBlocks({{nextBasicBlock, returnBlock}});
   }

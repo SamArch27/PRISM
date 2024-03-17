@@ -75,7 +75,7 @@ void PredicateAnalysis::runAnalysis() {
 
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
-  auto &useDefs = useDefAnalysis.getUseDefs();
+  auto useDefs = useDefAnalysis.getUseDefs();
 
   for (auto &block : f) {
     for (auto &inst : block) {
@@ -98,12 +98,38 @@ void PredicateAnalysis::runAnalysis() {
         auto pathsToReturn = getAllPathsToBlock(&block);
 
         for (auto &path : pathsToReturn) {
+          String cond = "";
+
           std::cout << "Path: ";
+          BasicBlock *prevBlock = nullptr;
           for (auto *block : path) {
             std::cout << block->getLabel() << " ";
+            if (auto *branch =
+                    dynamic_cast<const BranchInst *>(block->getTerminator())) {
+              if (branch->isConditional()) {
+                if (cond != "") {
+                  cond += " AND ";
+                }
+
+                cond += "(";
+
+                if (prevBlock != branch->getIfFalse()) {
+                  cond += "NOT";
+                }
+                cond += "(" + branch->getCond()->getRawSQL() +
+                        ") IS DISTINCT FROM TRUE";
+                cond += ")";
+              }
+              prevBlock = block;
+            }
           }
+
+          auto boundCondition = f.bindExpression(cond, f.getReturnType());
           std::cout << std::endl;
+          std::cout << "Predicate: " << *boundCondition << std::endl;
         }
+
+        // Collect all conjunctions along the path
       }
     }
   }

@@ -48,14 +48,16 @@ private:
 
 class SelectExpression {
 public:
-  SelectExpression(const String &rawSQL, Shared<LogicalPlan> logicalPlan,
+  SelectExpression(const String &rawSQL, const Type &returnType,
+                   Shared<LogicalPlan> logicalPlan,
                    const Set<const Variable *> &usedVariables)
 
-      : rawSQL(rawSQL), logicalPlan(logicalPlan), usedVariables(usedVariables) {
-  }
+      : rawSQL(rawSQL), returnType(returnType), logicalPlan(logicalPlan),
+        usedVariables(usedVariables) {}
 
   Own<SelectExpression> clone() const {
-    return Make<SelectExpression>(rawSQL, logicalPlan, usedVariables);
+    return Make<SelectExpression>(rawSQL, returnType, logicalPlan,
+                                  usedVariables);
   }
 
   friend std::ostream &operator<<(std::ostream &os,
@@ -74,10 +76,7 @@ public:
   }
 
   String getRawSQL() const {
-    // trim leading and trailing whitespace
-    auto first = rawSQL.find_first_not_of(' ');
-    auto last = rawSQL.find_last_not_of(' ');
-    return rawSQL.substr(first, (last - first + 1));
+    return rawSQL;
   }
 
   const LogicalPlan *getLogicalPlan() const { return logicalPlan.get(); }
@@ -87,13 +86,16 @@ public:
     return usedVariables;
   }
 
+  inline const Type &getReturnType() const { return returnType; }
+
 protected:
   void print(std::ostream &os) const { os << rawSQL; }
 
 private:
   String rawSQL;
+  Type returnType;
   Shared<LogicalPlan> logicalPlan;
-  duckdb::ClientContext *clientContext;
+  // Shared<Binder> binder;
   Set<const Variable *> usedVariables;
 };
 

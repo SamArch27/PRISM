@@ -2,6 +2,7 @@
 
 #include "function_pass.hpp"
 #include "liveness_analysis.hpp"
+#include "use_def_analysis.hpp"
 #include "utils.hpp"
 
 using CongruenceClasses = Map<const Variable *, Set<const Variable *>>;
@@ -16,31 +17,23 @@ public:
 
 private:
   InstIterator resolvePhiInterference(Function &f, InstIterator it,
-                                      CongruenceClasses &phiCongruent,
-                                      InterferenceGraph &interferenceGraph,
-                                      Liveness &liveness);
+                                      CongruenceClasses &phiCongruent);
 
-  void removeCopies(Function &f, const CongruenceClasses &phiCongruent,
-                    const InterferenceGraph &interferenceGraph);
+  void removeCopies(Function &f, const CongruenceClasses &phiCongruent);
   Set<const Variable *> intersect(const Set<const Variable *> &lhs,
                                   const Set<const Variable *> &rhs);
   CongruenceClasses createPhiCongruenceClasses(Function &f);
   void computeSourceConflicts(const PhiNode *phi,
                               const CongruenceClasses &phiCongruent,
-                              InterferenceGraph &interferenceGraph,
-                              const Liveness &liveness, MarkedSet &marked,
-                              DeferredSet &deferred);
+                              MarkedSet &marked, DeferredSet &deferred);
   void computeResultConflicts(const PhiNode *phi,
                               const CongruenceClasses &phiCongruent,
-                              InterferenceGraph &interferenceGraph,
-                              const Liveness &liveness, MarkedSet &marked,
-                              DeferredSet &deferred);
+                              MarkedSet &marked, DeferredSet &deferred);
   void moveDeferredToMarked(MarkedSet &marked, DeferredSet &deferred);
   void removeMarkedFromDeferred(MarkedSet &marked, DeferredSet &deferred);
   InstIterator processMarkedSet(Function &f, InstIterator it,
                                 CongruenceClasses &phiCongruent,
-                                InterferenceGraph &interferenceGraph,
-                                Liveness &liveness, const MarkedSet &marked);
+                                const MarkedSet &marked);
   void mergePhiCongruenceClasses(InstIterator inst,
                                  CongruenceClasses &phiCongruent);
   void invalidateSingletons(CongruenceClasses &phiCongruent);
@@ -51,12 +44,13 @@ private:
                                 CongruenceClasses &phiCongruent);
 
   void processResultConflict(Function &f, const Variable *x,
-                             const Variable *xPrime, InstIterator it,
-                             InterferenceGraph &interferenceGraph,
-                             Liveness &liveness);
+                             const Variable *xPrime, InstIterator it);
 
   void processSourceConflict(Function &f, const Variable *x,
-                             const Variable *xPrime, InstIterator it,
-                             InterferenceGraph &interferenceGraph,
-                             Liveness &liveness);
+                             const Variable *xPrime, InstIterator it);
+
+  InterferenceGraph *interferenceGraph = nullptr;
+  Liveness *liveness = nullptr;
+  UseDefs *useDefs = nullptr;
+  BasicBlock *entryBlock = nullptr;
 };
