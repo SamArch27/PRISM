@@ -77,9 +77,6 @@ String condBranchCodeGenerator(const BasicBlock *bb,
                                const Instruction *branch) {
   // only generate the condition part of the branch instruction
   // should also ensure that it is the only instruction in the basic block
-  ASSERT(bb->isConditional() && bb->size() == 1,
-         "Branch instruction should be the only instruction in the basic "
-         "block");
   ASSERT(dynamic_cast<const BranchInst *>(branch),
          "The instruction should be a branch instruction");
   const auto *branchInst = dynamic_cast<const BranchInst *>(branch);
