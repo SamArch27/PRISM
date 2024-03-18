@@ -179,9 +179,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> basicBlocks,
   auto newFunction = f.partialCloneAndRename(newFunctionName, newFunctionArgs,
                                              returnType, basicBlocks);
 
-  COUT << "Outlined Function: " << newFunction->getFunctionName() << ENDL;
-  COUT << *newFunction << ENDL;
-
   if (!returnRegion) {
     // add explicit return of the return variable to the end of the function
     auto *returnBlock = newFunction->makeBasicBlock("return");
@@ -190,6 +187,10 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> basicBlocks,
 
     newFunction->renameBasicBlocks({{nextBasicBlock, returnBlock}});
   }
+
+  std::cout << "Outlined Function: " << newFunction->getFunctionName()
+            << std::endl;
+  std::cout << *newFunction << std::endl;
 
   outlineFunction(*newFunction);
 
@@ -230,91 +231,67 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> basicBlocks,
   return false;
 }
 
-bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
-  // traverse the region top down
-  Queue<const Region *> worklist;
-  worklist.push(rootRegion);
-  // Vec<const Region *> regionsToOutline;
-  Vec<BasicBlock *> basicBlocksToOutline;
-  while (!worklist.empty()) {
-    auto *region = worklist.front();
-    worklist.pop();
-    if (!region->hasSelect()) {
+bool OutliningPass::runOnRegion(const Region *region, Function &f,
+                                Vec<BasicBlock *> &queuedBlocks) {
 
-      if (region == f.getRegion()) {
-        COUT << "The entire function " << f.getFunctionName()
-             << " is a compilable!" << ENDL << ENDL;
-        return true;
-      }
+  auto queueBlock = [&](BasicBlock *block) {
+    if (block != f.getEntryBlock()) {
+      queuedBlocks.push_back(block);
+    }
+  };
 
-      // outline the region
-      // ASSERT(dynamic_cast<const SequentialRegion *>(region),
-      //        "Unexpected region type");
-      // regionsToOutline.push_back(region);
-      for (auto *block : region->getBasicBlocks()) {
-        basicBlocksToOutline.push_back(block);
-      }
+  auto queueBlocksFromRegion = [&](const Region *region) {
+    for (auto *block : region->getBasicBlocks()) {
+      queueBlock(block);
+    }
+  };
 
-    } else {
-      if (auto *loopRegion = dynamic_cast<const LoopRegion *>(region)) {
-        ASSERT(loopRegion->getHeader()->getPredecessors().size() >= 2,
-               "Loop region should have at least two predecessors");
-        outlineBasicBlocks(basicBlocksToOutline, f);
-        basicBlocksToOutline.clear();
-        // if (!loopRegion->getHeader()->hasSelect()) {
-        //   regionsToOutline.push();
-        // }
-        for (auto *nestedRegion : loopRegion->getNestedRegions()) {
-          runOnRegion(nestedRegion, f);
-        }
-      } else if (auto *conditionalRegion =
-                     dynamic_cast<const ConditionalRegion *>(region)) {
-        outlineBasicBlocks(basicBlocksToOutline, f);
-        basicBlocksToOutline.clear();
+  auto outlineQueuedBlocks = [&]() {
+    outlineBasicBlocks(queuedBlocks, f);
+    queuedBlocks.clear();
+  };
 
-        for (auto *nestedRegion : conditionalRegion->getNestedRegions()) {
-          runOnRegion(nestedRegion, f);
-        }
-      } else if (auto *sequentialRegion =
-                     dynamic_cast<const SequentialRegion *>(region)) {
-        // sequential region is an exception because other part of the region
-        // does not affect regions inside it being outlined
-        if (!sequentialRegion->getHeader()->hasSelect()) {
-          basicBlocksToOutline.push_back(sequentialRegion->getHeader());
-        }
-        for (auto *nestedRegion : sequentialRegion->getNestedRegions()) {
-          if (nestedRegion->hasSelect()) {
-            outlineBasicBlocks(basicBlocksToOutline, f);
-            basicBlocksToOutline.clear();
-            runOnRegion(nestedRegion, f);
-          } else {
-            for (auto *block : nestedRegion->getBasicBlocks()) {
-              basicBlocksToOutline.push_back(block);
-            }
-          }
-        }
-      } else if (auto *leafRegion = dynamic_cast<const LeafRegion *>(region)) {
-        outlineBasicBlocks(basicBlocksToOutline, f);
+  // travers the regions top down
+  if (region->hasSelect()) {
+    if (auto *sequentialRegion =
+            dynamic_cast<const SequentialRegion *>(region)) {
+      // sequential region is an exception because other part of the region
+      // does not affect regions inside it being outlined
+      auto *header = sequentialRegion->getHeader();
+      if (!header->hasSelect()) {
+        queueBlock(header);
       } else {
-        ASSERT(false, "Unexpected region type");
+        outlineQueuedBlocks();
+      }
+      for (auto *nestedRegion : sequentialRegion->getNestedRegions()) {
+        if (nestedRegion->hasSelect()) {
+          runOnRegion(nestedRegion, f, queuedBlocks);
+        } else {
+          queueBlocksFromRegion(nestedRegion);
+        }
+      }
+    } else {
+      outlineQueuedBlocks();
+      if (auto *recursiveRegion =
+              dynamic_cast<const RecursiveRegion *>(region)) {
+        for (auto *nestedRegion : recursiveRegion->getNestedRegions()) {
+          runOnRegion(nestedRegion, f, queuedBlocks);
+        }
       }
     }
+  } else {
+    queueBlocksFromRegion(region);
   }
 
-  outlineBasicBlocks(basicBlocksToOutline, f);
-
+  outlineQueuedBlocks();
   return true;
 }
 
 bool OutliningPass::runOnFunction(Function &f) {
   // drawGraph(f.getCFGString(), "cfg_" + f.getFunctionName() + ".dot");
   // drawGraph(f.getRegionString(), "region_" + f.getFunctionName() + ".dot");
-  std::cout << "OUTLINING ORIGINAL FUNCTION" << std::endl;
+  std::cout << "OUTLINING PASS ON FUNCTION" << std::endl;
   std::cout << f << std::endl;
-
-  // get live variable going into the region
-  LivenessAnalysis livenessAnalysis(f);
-  livenessAnalysis.runAnalysis();
-  const auto &liveness = livenessAnalysis.getLiveness();
-  return runOnRegion(f.getRegion(), f);
+  Vec<BasicBlock *> queuedBlocks;
+  return runOnRegion(f.getRegion(), f, queuedBlocks);
 }

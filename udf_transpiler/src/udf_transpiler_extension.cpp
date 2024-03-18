@@ -39,21 +39,13 @@ static String doubleQuote(const String &str) {
   return result;
 }
 
-static String CompilerRun(String udfString){
+static String CompilerRun(String udfString) {
   YAMLConfig config;
   Connection con(*db_instance);
 
   udfCount++;
   auto compiler = Compiler(&con, udfString, config, udfCount);
   auto res = compiler.run();
-  COUT << "Transpiling the UDF..." << ENDL;
-  insertDefAndReg(res.code, res.registration, udfCount);
-  // compile the template
-  COUT << "Compiling the UDF..." << ENDL;
-  compileUDF();
-  // load the compiled library
-  COUT << "Installing and loading the UDF..." << ENDL;
-  loadUDF(con);
   return "select '' as 'Transpilation Done.';";
 }
 
@@ -146,14 +138,12 @@ inline String LOCodeGenPragmaFun(ClientContext &_context,
   if (enable_optimizer) {
     if (config.options.disabled_optimizers.count(
             OptimizerType::STATISTICS_PROPAGATION) == 0)
-      tmpOptimizerDisableFlag.insert(
-          OptimizerType::STATISTICS_PROPAGATION);
+      tmpOptimizerDisableFlag.insert(OptimizerType::STATISTICS_PROPAGATION);
     config.options.disabled_optimizers.insert(
         OptimizerType::STATISTICS_PROPAGATION);
     if (config.options.disabled_optimizers.count(
             OptimizerType::COMMON_SUBEXPRESSIONS) == 0)
-      tmpOptimizerDisableFlag.insert(
-          OptimizerType::COMMON_SUBEXPRESSIONS);
+      tmpOptimizerDisableFlag.insert(OptimizerType::COMMON_SUBEXPRESSIONS);
     config.options.disabled_optimizers.insert(
         OptimizerType::COMMON_SUBEXPRESSIONS);
   }

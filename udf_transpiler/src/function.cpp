@@ -54,19 +54,34 @@ Own<SelectExpression> Function::renameVarInExpression(
 
 void Function::renameBasicBlocks(
     const Map<BasicBlock *, BasicBlock *> &oldToNew) {
-  for (auto &basicBlock : *this) {
-    for (auto &inst : basicBlock) {
-      // based on the fact that only branch instruction can reference basic
-      // blocks
+
+  std::cout << "renameBasicBlocks" << std::endl;
+  for (auto &block : *this) {
+    for (auto it = block.begin(); it != block.end(); ++it) {
+      auto &inst = *it;
       if (auto *branchInst = dynamic_cast<BranchInst *>(&inst)) {
+        auto *trueBlock = branchInst->getIfTrue();
+        auto *falseBlock = branchInst->getIfFalse();
+
+        if (oldToNew.find(branchInst->getIfTrue()) != oldToNew.end()) {
+          block.removeSuccessor(trueBlock);
+          trueBlock = oldToNew.at(trueBlock);
+          block.addSuccessor(trueBlock);
+          trueBlock->addPredecessor(&block);
+        }
+        if (oldToNew.find(branchInst->getIfFalse()) != oldToNew.end()) {
+          block.removeSuccessor(falseBlock);
+          falseBlock = oldToNew.at(falseBlock);
+          block.addSuccessor(falseBlock);
+          falseBlock->addPredecessor(&block);
+        }
+
         if (branchInst->isUnconditional()) {
-          branchInst->replaceWith(
-              Make<BranchInst>(oldToNew.at(branchInst->getIfTrue())));
+          it = block.replaceInst(it, Make<BranchInst>(trueBlock));
         } else {
-          branchInst->replaceWith(
-              Make<BranchInst>(oldToNew.at(branchInst->getIfTrue()),
-                               oldToNew.at(branchInst->getIfFalse()),
-                               branchInst->getCond()->clone()));
+          it = block.replaceInst(
+              it, Make<BranchInst>(trueBlock, falseBlock,
+                                   branchInst->getCond()->clone()));
         }
       }
     }
@@ -433,13 +448,9 @@ Own<Function> Function::partialCloneAndRename(
   auto newFunction = Make<Function>(conn, newName, newReturnType);
   for (const auto &arg : newArgs) {
     newFunction->addArgument(arg->getName() + "_arg", arg->getType());
-    // variableMap[arg] = newFunction->getBinding(arg->getName());
   }
 
   for (const auto &[name, var] : bindings) {
-    // if (variableMap.find(var) != variableMap.end()) {
-    //   continue;
-    // }
     newFunction->addVariable(name, var->getType(), var->isNull());
     variableMap[var] = newFunction->getBinding(name);
   }
