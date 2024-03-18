@@ -14,9 +14,8 @@
 /**
  * Robust way to find the outgoing branch out of this list of blocks
  */
-Set<BasicBlock *>
-getNextBasicBlock(const Vec<const BasicBlock *> &basicBlocks) {
-  Set<const BasicBlock *> blockSet;
+Set<BasicBlock *> getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
+  Set<BasicBlock *> blockSet;
   Set<BasicBlock *> nextBlocks;
   for (auto *block : basicBlocks) {
     blockSet.insert(block);
@@ -53,7 +52,7 @@ void OutliningPass::outlineFunction(Function &f) {
   loadUDF(*compiler.getConnection());
 }
 
-bool allBlocksNaive(const Vec<const BasicBlock *> &basicBlocks) {
+bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
   // check if all the basic blocks are naive (just jmps)
   for (auto *block : basicBlocks) {
     size_t instCount = 0;
@@ -73,7 +72,7 @@ bool allBlocksNaive(const Vec<const BasicBlock *> &basicBlocks) {
 /**
  * returns outlined or not
  */
-bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
+bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> basicBlocks,
                                        Function &f) {
   if (basicBlocks.empty()) {
     return false;
@@ -91,6 +90,12 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
   COUT << ENDL;
 
   auto nextBasicBlocks = getNextBasicBlock(basicBlocks);
+
+  for (auto *nextBasicBlock : nextBasicBlocks) {
+    std::cout << "Next basic block: " << nextBasicBlock->getLabel()
+              << std::endl;
+  }
+
   if (nextBasicBlocks.size() > 1) {
     ERROR("Should not have a case where there are multiple next blocks for an "
           "outlined region");
@@ -106,6 +111,9 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
       break;
     }
   }
+
+  std::cout << "hasReturn is set to: " << (hasReturn ? "true" : "false")
+            << std::endl;
 
   if (nextBasicBlock != nullptr && hasReturn) {
     COUT << "Cannot outline region with return" << ENDL;
@@ -124,7 +132,9 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
-  auto liveIn = liveness->getBlockLiveIn(basicBlocks.front());
+  std::cout << *liveness << std::endl;
+  auto *regionHeader = basicBlocks.front();
+  auto liveIn = liveness->getBlockLiveIn(regionHeader);
 
   // get live variable going out of the region
   Set<const Variable *> liveOut;
@@ -159,7 +169,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
   COUT << ENDL;
 
   String newFunctionName =
-      fmt::format("{}_outlined{}", f.getFunctionName(), outlinedCount);
+      fmt::format("{}_outlined_{}", f.getFunctionName(), outlinedCount);
   Vec<const Variable *> newFunctionArgs;
   for (auto *var : liveIn) {
     newFunctionArgs.push_back(var);
@@ -175,8 +185,8 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
   if (!returnRegion) {
     // add explicit return of the return variable to the end of the function
     auto *returnBlock = newFunction->makeBasicBlock("return");
-    returnBlock->addInstruction(Make<ReturnInst>(
-        newFunction->bindExpression((*returnVars.begin())->getName(), (*returnVars.begin())->getType())));
+    returnBlock->addInstruction(Make<ReturnInst>(newFunction->bindExpression(
+        (*returnVars.begin())->getName(), (*returnVars.begin())->getType())));
 
     newFunction->renameBasicBlocks({{nextBasicBlock, returnBlock}});
   }
@@ -184,6 +194,37 @@ bool OutliningPass::outlineBasicBlocks(Vec<const BasicBlock *> basicBlocks,
   outlineFunction(*newFunction);
 
   // TODO: rewrite the original function
+  String args = "";
+  for (auto &arg : newFunctionArgs) {
+    if (args != "") {
+      args += ", ";
+    }
+    args += arg->getName();
+  }
+
+  auto retInst = Make<ReturnInst>(f.bindExpression(
+      newFunctionName + "(" + args + ")", newFunction->getReturnType()));
+  std::cout << "Return Instruction to Attach: " << *retInst;
+
+  // remove all instructions from regionHeader
+  for (auto it = regionHeader->begin(); it != regionHeader->end();) {
+    regionHeader->removeInst(it);
+  }
+
+  // add the new return instruction
+  regionHeader->addInstruction(std::move(retInst));
+
+  // replace the region
+  auto newLeafRegion = Make<LeafRegion>(regionHeader);
+  auto *currentRegion =
+      dynamic_cast<RecursiveRegion *>(regionHeader->getRegion());
+  ASSERT(currentRegion != nullptr,
+         "Current region should not be a leaf region!");
+  auto *parentRegion = currentRegion->getParentRegion();
+  parentRegion->replaceNestedRegion(currentRegion, newLeafRegion.release());
+
+  std::cout << "AFTER OUTLINING THE NEW FUNCTION LOOKS LIKE: " << std::endl;
+  std::cout << f << std::endl;
 
   outlinedCount++;
   return false;
@@ -194,7 +235,7 @@ bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
   Queue<const Region *> worklist;
   worklist.push(rootRegion);
   // Vec<const Region *> regionsToOutline;
-  Vec<const BasicBlock *> basicBlocksToOutline;
+  Vec<BasicBlock *> basicBlocksToOutline;
   while (!worklist.empty()) {
     auto *region = worklist.front();
     worklist.pop();
@@ -266,8 +307,16 @@ bool OutliningPass::runOnRegion(const Region *rootRegion, Function &f) {
 }
 
 bool OutliningPass::runOnFunction(Function &f) {
-  drawGraph(f.getCFGString(), "cfg_" + f.getFunctionName() + ".dot");
-  drawGraph(f.getRegionString(), "region_" + f.getFunctionName() + ".dot");
+  // drawGraph(f.getCFGString(), "cfg_" + f.getFunctionName() + ".dot");
+  // drawGraph(f.getRegionString(), "region_" + f.getFunctionName() + ".dot");
+  std::cout << "OUTLINING ORIGINAL FUNCTION" << std::endl;
+  std::cout << f << std::endl;
+
+  // get live variable going into the region
+  LivenessAnalysis livenessAnalysis(f);
+  livenessAnalysis.runAnalysis();
+  const auto &liveness = livenessAnalysis.getLiveness();
+  std::cout << *liveness << std::endl;
 
   return runOnRegion(f.getRegion(), f);
 }

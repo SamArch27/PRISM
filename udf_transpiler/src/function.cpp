@@ -53,7 +53,7 @@ Own<SelectExpression> Function::renameVarInExpression(
 }
 
 void Function::renameBasicBlocks(
-    const Map<const BasicBlock *, BasicBlock *> &oldToNew) {
+    const Map<BasicBlock *, BasicBlock *> &oldToNew) {
   for (auto &basicBlock : *this) {
     for (auto &inst : basicBlock) {
       // based on the fact that only branch instruction can reference basic
@@ -427,13 +427,12 @@ FunctionCloneAndRenameHelper::cloneAndRename(const Instruction &inst) {
 
 Own<Function> Function::partialCloneAndRename(
     const String &newName, const Vec<const Variable *> &newArgs,
-    const Type &newReturnType,
-    const Vec<const BasicBlock *> basicBlocks) const {
+    const Type &newReturnType, const Vec<BasicBlock *> basicBlocks) const {
   Map<const Variable *, const Variable *> variableMap;
-  Map<const BasicBlock *, BasicBlock *> basicBlockMap;
+  Map<BasicBlock *, BasicBlock *> basicBlockMap;
   auto newFunction = Make<Function>(conn, newName, newReturnType);
   for (const auto &arg : newArgs) {
-    newFunction->addArgument(arg->getName()+"_arg", arg->getType());
+    newFunction->addArgument(arg->getName() + "_arg", arg->getType());
     // variableMap[arg] = newFunction->getBinding(arg->getName());
   }
 
@@ -471,7 +470,7 @@ Own<Function> Function::partialCloneAndRename(
   for (auto &arg : newArgs) {
     entry->addInstruction(Make<Assignment>(
         variableMap.at(arg),
-        newFunction->bindExpression(arg->getName()+"_arg", arg->getType())));
+        newFunction->bindExpression(arg->getName() + "_arg", arg->getType())));
   }
   entry->addInstruction(
       Make<BranchInst>(basicBlockMap.at(basicBlocks.front())));

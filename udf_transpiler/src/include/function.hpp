@@ -41,12 +41,10 @@ public:
     return tmp;
   }
 
-  friend bool operator==(const BasicBlockIterator &a,
-                         const BasicBlockIterator &b) {
+  friend bool operator==(BasicBlockIterator &a, BasicBlockIterator &b) {
     return a.iter == b.iter;
   };
-  friend bool operator!=(const BasicBlockIterator &a,
-                         const BasicBlockIterator &b) {
+  friend bool operator!=(BasicBlockIterator &a, BasicBlockIterator &b) {
     return !(a == b);
   };
 
@@ -112,7 +110,7 @@ struct FunctionCloneAndRenameHelper {
   }
 
   Map<const Variable *, const Variable *> variableMap;
-  Map<const BasicBlock *, BasicBlock *> basicBlockMap;
+  Map<BasicBlock *, BasicBlock *> basicBlockMap;
 };
 
 class Function {
@@ -274,15 +272,14 @@ public:
   Own<SelectExpression> renameVarInExpression(
       const SelectExpression *original,
       const Map<const Variable *, const Variable *> &oldToNew);
-  
-  void renameBasicBlocks(const Map<const BasicBlock *, BasicBlock *> &oldToNew);
+
+  void renameBasicBlocks(const Map<BasicBlock *, BasicBlock *> &oldToNew);
 
   Own<SelectExpression> replaceVarWithExpression(
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  int typeMatches(const String &rhs, const Type &type,
-                 bool needContext = true);
+  int typeMatches(const String &rhs, const Type &type, bool needContext = true);
 
   Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
                                        bool needContext = true);
@@ -313,11 +310,9 @@ public:
     return ss.str();
   }
 
-  Own<Function>
-  partialCloneAndRename(const String &newName,
-                        const Vec<const Variable *> &newArgs,
-                        const Type &newReturnType,
-                        const Vec<const BasicBlock *> basicBlocks) const;
+  Own<Function> partialCloneAndRename(
+      const String &newName, const Vec<const Variable *> &newArgs,
+      const Type &newReturnType, const Vec<BasicBlock *> basicBlocks) const;
 
 protected:
   void print(std::ostream &os) const {

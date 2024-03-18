@@ -182,19 +182,20 @@ Own<Region> AstToCFG::constructAssignmentCFG(const json &assignmentJson,
   auto *var = f.getBinding(left);
   auto expr = f.bindExpression(right, var->getType());
 
+  auto preHeader = f.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
+
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
 
   auto nestedRegion =
       constructCFG(f, statements, continuations, attachFallthrough);
   newBlock->addInstruction(Make<BranchInst>(nestedRegion->getHeader()));
 
-  Own<Region> assignmentRegion = Make<LeafRegion>(newBlock);
-  if (attachFallthrough) {
-    assignmentRegion =
-        Make<SequentialRegion>(newBlock, std::move(nestedRegion));
-  }
-
-  return assignmentRegion;
+  return attachFallthrough
+             ? Make<SequentialRegion>(
+                   preHeader,
+                   Make<SequentialRegion>(newBlock, std::move(nestedRegion)))
+             : Make<SequentialRegion>(preHeader, Make<LeafRegion>(newBlock));
 }
 
 Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,

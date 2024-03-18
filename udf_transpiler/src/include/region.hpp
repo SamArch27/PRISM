@@ -45,7 +45,7 @@ public:
    */
   virtual bool hasSelect() const = 0;
 
-  virtual Vec<const BasicBlock *> getBasicBlocks() const = 0;
+  virtual Vec<BasicBlock *> getBasicBlocks() const = 0;
 
 private:
   RecursiveRegion *parentRegion = nullptr;
@@ -63,9 +63,7 @@ public:
   virtual String getRegionLabel() const override = 0;
 
   bool hasSelect() const override { return getHeader()->hasSelect(); }
-  Vec<const BasicBlock *> getBasicBlocks() const override {
-    return {getHeader()};
-  }
+  Vec<BasicBlock *> getBasicBlocks() const override { return {getHeader()}; }
 };
 
 class RecursiveRegion : public Region {
@@ -128,8 +126,8 @@ public:
     return false;
   }
 
-  Vec<const BasicBlock *> getBasicBlocks() const override {
-    Vec<const BasicBlock *> result = {getHeader()};
+  Vec<BasicBlock *> getBasicBlocks() const override {
+    Vec<BasicBlock *> result = {getHeader()};
     for (auto &region : nestedRegions) {
       if (region) {
         auto blocks = region->getBasicBlocks();

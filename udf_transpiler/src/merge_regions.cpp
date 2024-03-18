@@ -4,7 +4,6 @@
 
 bool MergeRegionsPass::runOnFunction(Function &f) {
   bool changed = false;
-
   // visit the CFG in a BFS fashion, merging blocks as we go
   Set<BasicBlock *> worklist;
   for (auto &block : f) {
