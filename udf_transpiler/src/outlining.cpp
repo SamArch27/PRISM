@@ -20,7 +20,6 @@ Set<BasicBlock *> getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
   for (auto *block : basicBlocks) {
     blockSet.insert(block);
   }
-  BasicBlock *nextBlock = nullptr;
   for (auto *block : basicBlocks) {
     for (auto *succ : block->getSuccessors()) {
       if (blockSet.count(succ) == 0) {
@@ -126,10 +125,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   // rest two cases are both valid
   bool outliningEndRegion = nextBasicBlock == nullptr && hasReturn;
 
-  UseDefAnalysis useDefAnalysis(f);
-  useDefAnalysis.runAnalysis();
-  const auto useDefs = useDefAnalysis.getUseDefs();
-
   // get live variable going into the region
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
@@ -157,7 +152,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
                        returnVars.size()));
   }
 
-  auto *returnVariable = *returnVars.begin();
+  auto *returnVariable = returnVars.empty() ? nullptr : *returnVars.begin();
 
   COUT << ENDL;
   COUT << "Return variables: " << ENDL;
@@ -209,51 +204,31 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
             << std::endl;
   if (outliningEndRegion) {
     auto retInst = Make<ReturnInst>(std::move(result));
-    std::cout << "Return Instruction to Attach: " << *retInst;
-
-    // remove all instructions from regionHeader
-    for (auto it = regionHeader->begin(); it != regionHeader->end();) {
-      regionHeader->removeInst(it);
-    }
-
-    // add the new return instruction
-    regionHeader->addInstruction(std::move(retInst));
-
-    // replace the region
-    auto newLeafRegion = Make<LeafRegion>(regionHeader);
-    auto *currentRegion =
-        dynamic_cast<RecursiveRegion *>(regionHeader->getRegion());
-    ASSERT(currentRegion != nullptr,
-           "Current region should not be a leaf region!");
-    auto *parentRegion = currentRegion->getParentRegion();
-    parentRegion->replaceNestedRegion(currentRegion, newLeafRegion.release());
+    ASSERT(nextBasicBlock == nullptr, "Must not have a next basic block!");
+    nextBasicBlock = f.makeBasicBlock();
+    nextBasicBlock->addInstruction(std::move(retInst));
+    auto leafRegion = Make<LeafRegion>(nextBasicBlock).release();
   } else {
     auto assign = Make<Assignment>(returnVariable, std::move(result));
     ASSERT(nextBasicBlock != nullptr, "NextBasicBlock cannot be nullptr!!");
     nextBasicBlock->insertBefore(nextBasicBlock->begin(), std::move(assign));
+  }
 
-    auto &preds = regionHeader->getPredecessors();
-    ASSERT(preds.size() == 1, "Must have exactly one predecessor for region!");
-    auto *pred = preds.front();
+  auto &preds = regionHeader->getPredecessors();
+  ASSERT(preds.size() == 1, "Must have exactly one predecessor for region!");
+  auto *pred = preds.front();
 
-    auto *terminator = pred->getTerminator();
+  Map<BasicBlock *, BasicBlock *> oldToNew = {{regionHeader, nextBasicBlock}};
+  pred->renameBasicBlock(oldToNew);
 
-    Map<BasicBlock *, BasicBlock *> oldToNew = {{regionHeader, nextBasicBlock}};
-    pred->renameBasicBlock(oldToNew);
+  auto *replacement = nextBasicBlock->getRegion();
+  auto *currentRegion = regionHeader->getRegion();
+  auto *parentRegion = currentRegion->getParentRegion();
 
-    auto *replacement = nextBasicBlock->getRegion();
-    auto *currentRegion = regionHeader->getRegion();
-    auto *parentRegion = currentRegion->getParentRegion();
+  parentRegion->replaceNestedRegion(currentRegion, replacement);
 
-    std::cout << "Calling: " << parentRegion->getRegionLabel()
-              << "->replaceNestedRegion(" << currentRegion->getRegionLabel()
-              << ", " << replacement->getRegionLabel() << ");" << std::endl;
-
-    parentRegion->replaceNestedRegion(currentRegion, replacement);
-
-    for (auto *block : blocksToOutline) {
-      f.removeBasicBlock(block);
-    }
+  for (auto *block : blocksToOutline) {
+    f.removeBasicBlock(block);
   }
 
   std::cout << "ORIGINAL FUNCTION AFTER OUTLINING: " << std::endl;

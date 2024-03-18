@@ -58,9 +58,6 @@ CompilationResult Compiler::run() {
 
   for (auto &f : functions) {
     optimize(*f);
-    auto res = generateCode(*f);
-    codeRes.code += res.code;
-    codeRes.registration += res.registration;
   }
   codeRes.success = true;
   return codeRes;
