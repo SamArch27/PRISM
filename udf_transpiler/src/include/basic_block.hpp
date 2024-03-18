@@ -124,6 +124,38 @@ public:
 
   BasicBlock *getPred(std::size_t offset) const { return predecessors[offset]; }
 
+  void renameBasicBlock(const Map<BasicBlock *, BasicBlock *> &oldToNew) {
+
+    for (auto it = begin(); it != end(); ++it) {
+      auto &inst = *it;
+      if (auto *branchInst = dynamic_cast<BranchInst *>(&inst)) {
+        auto *trueBlock = branchInst->getIfTrue();
+        auto *falseBlock = branchInst->getIfFalse();
+
+        if (oldToNew.find(branchInst->getIfTrue()) != oldToNew.end()) {
+          removeSuccessor(trueBlock);
+          trueBlock = oldToNew.at(trueBlock);
+          addSuccessor(trueBlock);
+          trueBlock->addPredecessor(this);
+        }
+        if (oldToNew.find(branchInst->getIfFalse()) != oldToNew.end()) {
+          removeSuccessor(falseBlock);
+          falseBlock = oldToNew.at(falseBlock);
+          addSuccessor(falseBlock);
+          falseBlock->addPredecessor(this);
+        }
+
+        if (branchInst->isUnconditional()) {
+          it = replaceInst(it, Make<BranchInst>(trueBlock));
+        } else {
+          it =
+              replaceInst(it, Make<BranchInst>(trueBlock, falseBlock,
+                                               branchInst->getCond()->clone()));
+        }
+      }
+    }
+  }
+
   const Vec<BasicBlock *> &getSuccessors() const;
   const Vec<BasicBlock *> &getPredecessors() const;
   void addSuccessor(BasicBlock *succ);
@@ -160,7 +192,7 @@ public:
 
   size_t size() const { return instructions.size(); }
 
-  bool hasSelect() const{
+  bool hasSelect() const {
     for (auto &inst : *this) {
       if (inst.hasSelect()) {
         return true;

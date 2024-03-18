@@ -54,36 +54,8 @@ Own<SelectExpression> Function::renameVarInExpression(
 
 void Function::renameBasicBlocks(
     const Map<BasicBlock *, BasicBlock *> &oldToNew) {
-
   for (auto &block : *this) {
-    for (auto it = block.begin(); it != block.end(); ++it) {
-      auto &inst = *it;
-      if (auto *branchInst = dynamic_cast<BranchInst *>(&inst)) {
-        auto *trueBlock = branchInst->getIfTrue();
-        auto *falseBlock = branchInst->getIfFalse();
-
-        if (oldToNew.find(branchInst->getIfTrue()) != oldToNew.end()) {
-          block.removeSuccessor(trueBlock);
-          trueBlock = oldToNew.at(trueBlock);
-          block.addSuccessor(trueBlock);
-          trueBlock->addPredecessor(&block);
-        }
-        if (oldToNew.find(branchInst->getIfFalse()) != oldToNew.end()) {
-          block.removeSuccessor(falseBlock);
-          falseBlock = oldToNew.at(falseBlock);
-          block.addSuccessor(falseBlock);
-          falseBlock->addPredecessor(&block);
-        }
-
-        if (branchInst->isUnconditional()) {
-          it = block.replaceInst(it, Make<BranchInst>(trueBlock));
-        } else {
-          it = block.replaceInst(
-              it, Make<BranchInst>(trueBlock, falseBlock,
-                                   branchInst->getCond()->clone()));
-        }
-      }
-    }
+    block.renameBasicBlock(oldToNew);
   }
 }
 
