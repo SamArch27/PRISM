@@ -174,13 +174,13 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
     auto *result = phi->getResultOperand();
     phiDefs[block].insert(useDefs->getDef(result));
 
-    // Add the uses to every predecessor block
-    for (auto *operand : phi->getOperands()) {
-      auto *definingInst = useDefs->getDef(operand);
-      for (auto *predBlock : block->getPredecessors()) {
+    // For each predecessor, consider a use in the phi
+    for (auto *predBlock : block->getPredecessors()) {
+      auto index = block->getPredNumber(predBlock);
+      auto *phiOp = phi->getRHS()[index];
+      for (auto *operand : phiOp->getUsedVariables()) {
+        auto *definingInst = useDefs->getDef(operand);
         phiUses[predBlock].insert(definingInst);
-
-        // Also update upwards exposed
         if (definingInst->getParent() != predBlock) {
           upwardsExposed[predBlock].insert(definingInst);
         }
