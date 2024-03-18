@@ -193,10 +193,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     newFunction->renameBasicBlocks({{nextBasicBlock, returnBlock}});
   }
 
-  std::cout << "Outlined Function: " << newFunction->getFunctionName()
-            << std::endl;
-  std::cout << *newFunction << std::endl;
-
   outlineFunction(*newFunction);
 
   // TODO: rewrite the original function
@@ -209,6 +205,9 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   }
   auto result = f.bindExpression(newFunctionName + "(" + args + ")",
                                  newFunction->getReturnType());
+
+  std::cout << "OutliningEndRegion? " << (outliningEndRegion ? "true" : "false")
+            << std::endl;
   if (outliningEndRegion) {
     auto retInst = Make<ReturnInst>(std::move(result));
     std::cout << "Return Instruction to Attach: " << *retInst;
@@ -243,12 +242,24 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     Map<BasicBlock *, BasicBlock *> oldToNew = {{regionHeader, nextBasicBlock}};
     pred->renameBasicBlock(oldToNew);
 
+    auto *replacement = nextBasicBlock->getRegion();
+    auto *currentRegion =
+        dynamic_cast<RecursiveRegion *>(regionHeader->getRegion());
+    ASSERT(currentRegion != nullptr, "Current Region must be recursive!");
+    auto *parentRegion = currentRegion->getParentRegion();
+
+    parentRegion->replaceNestedRegion(currentRegion, replacement);
+
+    std::cout << "Calling: " << parentRegion->getRegionLabel()
+              << "->replaceNestedRegion(" << currentRegion->getRegionLabel()
+              << ", " << replacement->getRegionLabel() << ");" << std::endl;
+
     for (auto *block : blocksToOutline) {
       f.removeBasicBlock(block);
     }
   }
 
-  std::cout << "AFTER OUTLINING THE NEW FUNCTION LOOKS LIKE: " << std::endl;
+  std::cout << "ORIGINAL FUNCTION AFTER OUTLINING: " << std::endl;
   std::cout << f << std::endl;
 
   outlinedCount++;
