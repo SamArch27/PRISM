@@ -31,25 +31,23 @@ Set<BasicBlock *> getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
 }
 
 void OutliningPass::outlineFunction(Function &f) {
-  COUT << "Optimizing function " << f.getFunctionName() << ENDL;
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
       Make<AggressiveMergeRegionsPass>());
   ssaDestructionPipeline->runOnFunction(f);
 
-  std::cout << "AFTER OPTIMIZATIONS:" << std::endl;
-
-  COUT << fmt::format("Transpiling UDF {}...", f.getFunctionName()) << ENDL;
+  std::cout << fmt::format("Transpiling UDF {}...", f.getFunctionName())
+            << std::endl;
   compiler.getUdfCount()++;
   CFGCodeGenerator codeGenerator(compiler.getConfig());
   auto res = codeGenerator.run(f);
 
   insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
   // compile the template
-  COUT << "Compiling the UDF..." << ENDL;
+  std::cout << "Compiling the UDF..." << std::endl;
   compileUDF();
   // load the compiled library
-  COUT << "Installing and loading the UDF..." << ENDL;
+  std::cout << "Installing and loading the UDF..." << std::endl;
   loadUDF(*compiler.getConnection());
 }
 
@@ -80,22 +78,10 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   }
 
   if (allBlocksNaive(blocksToOutline)) {
-    COUT << "Ignoring naive region" << ENDL;
     return false;
   }
 
-  COUT << "Outlining basic blocks: " << ENDL;
-  for (auto *block : blocksToOutline) {
-    COUT << block->getLabel() << " ";
-  }
-  COUT << ENDL;
-
   auto nextBasicBlocks = getNextBasicBlock(blocksToOutline);
-
-  for (auto *nextBasicBlock : nextBasicBlocks) {
-    std::cout << "Next basic block: " << nextBasicBlock->getLabel()
-              << std::endl;
-  }
 
   if (nextBasicBlocks.size() > 1) {
     ERROR("Should not have a case where there are multiple next blocks for an "
@@ -113,11 +99,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     }
   }
 
-  std::cout << "hasReturn is set to: " << (hasReturn ? "true" : "false")
-            << std::endl;
-
   if (nextBasicBlock != nullptr && hasReturn) {
-    COUT << "Cannot outline region with return" << ENDL;
     return false;
   } else if (nextBasicBlock == nullptr && !hasReturn) {
     EXCEPTION(fmt::format("Control logic goes to end but no return."));
@@ -129,7 +111,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
-  std::cout << *liveness << std::endl;
   auto *regionHeader = blocksToOutline.front();
   auto liveIn = liveness->getBlockLiveIn(regionHeader);
 
@@ -153,19 +134,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   }
 
   auto *returnVariable = returnVars.empty() ? nullptr : *returnVars.begin();
-
-  COUT << ENDL;
-  COUT << "Return variables: " << ENDL;
-  for (auto *var : returnVars) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
-  COUT << "Input variables: " << ENDL;
-  for (auto *var : liveIn) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
-  COUT << ENDL;
 
   String newFunctionName =
       fmt::format("{}_outlined_{}", f.getFunctionName(), outlinedCount);
@@ -200,8 +168,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   auto result = f.bindExpression(newFunctionName + "(" + args + ")",
                                  newFunction->getReturnType());
 
-  std::cout << "OutliningEndRegion? " << (outliningEndRegion ? "true" : "false")
-            << std::endl;
   if (outliningEndRegion) {
     auto retInst = Make<ReturnInst>(std::move(result));
     ASSERT(nextBasicBlock == nullptr, "Must not have a next basic block!");
@@ -230,9 +196,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   for (auto *block : blocksToOutline) {
     f.removeBasicBlock(block);
   }
-
-  std::cout << "ORIGINAL FUNCTION AFTER OUTLINING: " << std::endl;
-  std::cout << f << std::endl;
 
   outlinedCount++;
   return false;
@@ -295,10 +258,6 @@ bool OutliningPass::runOnRegion(const Region *region, Function &f,
 }
 
 bool OutliningPass::runOnFunction(Function &f) {
-  // drawGraph(f.getCFGString(), "cfg_" + f.getFunctionName() + ".dot");
-  // drawGraph(f.getRegionString(), "region_" + f.getFunctionName() + ".dot");
-  std::cout << "OUTLINING PASS ON FUNCTION" << std::endl;
-  std::cout << f << std::endl;
   Vec<BasicBlock *> queuedBlocks;
   return runOnRegion(f.getRegion(), f, queuedBlocks);
 }
