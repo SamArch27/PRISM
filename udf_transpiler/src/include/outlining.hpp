@@ -4,6 +4,8 @@
 
 class Compiler;
 
+using SelectRegions = Map<const Region *, bool>;
+
 class OutliningPass : public FunctionPass {
 public:
   OutliningPass(Compiler &compiler) : FunctionPass(), compiler(compiler) {}
@@ -11,10 +13,11 @@ public:
   String getPassName() const override { return "OutliningPass"; }
 
 private:
+  SelectRegions computeSelectRegions(const Region *root) const;
   void outlineFunction(Function &f);
   bool outlineBasicBlocks(Vec<BasicBlock *> basicBlocks, Function &f);
-  bool runOnRegion(const Region *rootRegion, Function &f,
-                   Vec<BasicBlock *> &queuedBlocks);
+  bool runOnRegion(SelectRegions &selectRegions, const Region *rootRegion,
+                   Function &f, Vec<BasicBlock *> &queuedBlocks);
 
   Compiler &compiler;
   int outlinedCount = 0;

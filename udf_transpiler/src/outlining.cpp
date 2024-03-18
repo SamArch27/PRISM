@@ -201,7 +201,8 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   return false;
 }
 
-bool OutliningPass::runOnRegion(const Region *region, Function &f,
+bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
+                                const Region *region, Function &f,
                                 Vec<BasicBlock *> &queuedBlocks) {
 
   auto queueBlock = [&](BasicBlock *block) {
@@ -222,7 +223,7 @@ bool OutliningPass::runOnRegion(const Region *region, Function &f,
   };
 
   // travers the regions top down
-  if (region->hasSelect()) {
+  if (containsSelect[region]) {
     if (auto *sequentialRegion =
             dynamic_cast<const SequentialRegion *>(region)) {
       // sequential region is an exception because other part of the region
@@ -234,8 +235,8 @@ bool OutliningPass::runOnRegion(const Region *region, Function &f,
         outlineQueuedBlocks();
       }
       for (auto *nestedRegion : sequentialRegion->getNestedRegions()) {
-        if (nestedRegion->hasSelect()) {
-          runOnRegion(nestedRegion, f, queuedBlocks);
+        if (containsSelect[nestedRegion]) {
+          runOnRegion(containsSelect, nestedRegion, f, queuedBlocks);
         } else {
           queueBlocksFromRegion(nestedRegion);
         }
@@ -245,7 +246,7 @@ bool OutliningPass::runOnRegion(const Region *region, Function &f,
       if (auto *recursiveRegion =
               dynamic_cast<const RecursiveRegion *>(region)) {
         for (auto *nestedRegion : recursiveRegion->getNestedRegions()) {
-          runOnRegion(nestedRegion, f, queuedBlocks);
+          runOnRegion(containsSelect, nestedRegion, f, queuedBlocks);
         }
       }
     }
@@ -257,7 +258,27 @@ bool OutliningPass::runOnRegion(const Region *region, Function &f,
   return true;
 }
 
+SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
+  SelectRegions selectRegions;
+
+  auto *header = region->getHeader();
+  if (header->hasSelect()) {
+    selectRegions[region] = true;
+  }
+
+  if (auto *rec = dynamic_cast<const RecursiveRegion *>(region)) {
+    for (auto *nested : rec->getNestedRegions()) {
+      for (auto &[selectRegion, _] : computeSelectRegions(nested)) {
+        selectRegions[selectRegion] = true;
+        selectRegions[region] = true;
+      }
+    }
+  }
+  return selectRegions;
+}
+
 bool OutliningPass::runOnFunction(Function &f) {
   Vec<BasicBlock *> queuedBlocks;
-  return runOnRegion(f.getRegion(), f, queuedBlocks);
+  auto containsSelect = computeSelectRegions(f.getRegion());
+  return runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks);
 }
