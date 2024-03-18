@@ -101,8 +101,10 @@ public:
     }
   }
 
-  void replaceNestedRegion(RecursiveRegion *toReplace, Region *newRegion) {
-    toReplace->releaseNestedRegions();
+  void replaceNestedRegion(Region *toReplace, Region *newRegion) {
+    if (auto *recursiveRegion = dynamic_cast<RecursiveRegion *>(toReplace)) {
+      recursiveRegion->releaseNestedRegions();
+    }
     for (auto &region : nestedRegions) {
       if (region.get() == toReplace) {
         newRegion->setParentRegion(this);

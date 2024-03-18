@@ -39,7 +39,6 @@ void OutliningPass::outlineFunction(Function &f) {
   ssaDestructionPipeline->runOnFunction(f);
 
   std::cout << "AFTER OPTIMIZATIONS:" << std::endl;
-  std::cout << f << std::endl;
 
   COUT << fmt::format("Transpiling UDF {}...", f.getFunctionName()) << ENDL;
   compiler.getUdfCount()++;
@@ -243,16 +242,14 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     pred->renameBasicBlock(oldToNew);
 
     auto *replacement = nextBasicBlock->getRegion();
-    auto *currentRegion =
-        dynamic_cast<RecursiveRegion *>(regionHeader->getRegion());
-    ASSERT(currentRegion != nullptr, "Current Region must be recursive!");
+    auto *currentRegion = regionHeader->getRegion();
     auto *parentRegion = currentRegion->getParentRegion();
-
-    parentRegion->replaceNestedRegion(currentRegion, replacement);
 
     std::cout << "Calling: " << parentRegion->getRegionLabel()
               << "->replaceNestedRegion(" << currentRegion->getRegionLabel()
               << ", " << replacement->getRegionLabel() << ");" << std::endl;
+
+    parentRegion->replaceNestedRegion(currentRegion, replacement);
 
     for (auto *block : blocksToOutline) {
       f.removeBasicBlock(block);
