@@ -316,7 +316,5 @@ bool OutliningPass::runOnFunction(Function &f) {
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
-  std::cout << *liveness << std::endl;
-
   return runOnRegion(f.getRegion(), f);
 }

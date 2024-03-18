@@ -34,19 +34,19 @@ public:
     blockLiveIn.at(block).erase(liveVariable);
   }
 
-  void addBlockLiveOut(const BasicBlock *block, const Variable *liveVariable) {
+  void addBlockLiveOut(BasicBlock *block, const Variable *liveVariable) {
     blockLiveOut.at(block).insert(liveVariable);
   }
 
-  void removeBlockLiveOut(const BasicBlock *block, const Variable *liveVariable) {
+  void removeBlockLiveOut(BasicBlock *block, const Variable *liveVariable) {
     blockLiveOut.at(block).erase(liveVariable);
   }
 
-  const Set<const Variable *> &getBlockLiveIn(const BasicBlock *block) const {
+  const Set<const Variable *> &getBlockLiveIn(BasicBlock *block) const {
     return blockLiveIn.at(block);
   }
 
-  const Set<const Variable *> &getBlockLiveOut(const BasicBlock *block) const {
+  const Set<const Variable *> &getBlockLiveOut(BasicBlock *block) const {
     return blockLiveOut.at(block);
   }
 
@@ -81,10 +81,10 @@ protected:
   }
 
 private:
-  Map<const Instruction *, Set<const Variable *>> liveIn;
-  Map<const Instruction *, Set<const Variable *>> liveOut;
-  Map<const BasicBlock *, Set<const Variable *>> blockLiveIn;
-  Map<const BasicBlock *, Set<const Variable *>> blockLiveOut;
+  Map<Instruction *, Set<const Variable *>> liveIn;
+  Map<Instruction *, Set<const Variable *>> liveOut;
+  Map<BasicBlock *, Set<const Variable *>> blockLiveIn;
+  Map<BasicBlock *, Set<const Variable *>> blockLiveOut;
 };
 
 class InterferenceGraph {
@@ -127,10 +127,6 @@ private:
       }
       os << "\t" << var->getName() << " [label=\"" << var->getName() << "\"];";
       for (const auto *other : others) {
-        // only print left to right edges
-        if (var->getName() < other->getName()) {
-          continue;
-        }
         os << "\t" << var->getName() << " -> " << other->getName()
            << " [dir=none];" << std::endl;
       }
@@ -160,7 +156,7 @@ public:
 
 private:
   BitVector transfer(BitVector out, BasicBlock *block);
-  BitVector meet(BitVector in, BasicBlock *succ, BasicBlock *block);
+  BitVector meet(BitVector result, BitVector in, BasicBlock *block);
   void preprocess();
   void preprocessInst(Instruction *inst);
   void genBoundaryInner();
@@ -170,8 +166,10 @@ private:
   void computeLiveness();
   void computeInterferenceGraph();
 
-  Map<BasicBlock *, Set<const Instruction *>> defs;
-  Map<BasicBlock *, Set<const Instruction *>> uses;
+  Map<BasicBlock *, Set<const Instruction *>> allDefs;
+  Map<BasicBlock *, Set<const Instruction *>> phiDefs;
+  Map<BasicBlock *, Set<const Instruction *>> phiUses;
+  Map<BasicBlock *, Set<const Instruction *>> upwardsExposed;
   Vec<const Instruction *> definingInstructions;
   Map<const Instruction *, std::size_t> instToIndex;
 
