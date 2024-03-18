@@ -197,7 +197,7 @@ public:
     declarations.emplace_back(std::move(assignment));
   }
 
-  String getOriginalName(const String &ssaName) {
+  String getOriginalName(const String &ssaName) const {
     return ssaName.substr(0, ssaName.find_first_of("_"));
   };
 

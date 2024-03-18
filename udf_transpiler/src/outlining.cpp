@@ -38,6 +38,9 @@ void OutliningPass::outlineFunction(Function &f) {
       Make<AggressiveMergeRegionsPass>());
   ssaDestructionPipeline->runOnFunction(f);
 
+  std::cout << "AFTER OPTIMIZATIONS:" << std::endl;
+  std::cout << f << std::endl;
+
   COUT << fmt::format("Transpiling UDF {}...", f.getFunctionName()) << ENDL;
   compiler.getUdfCount()++;
   CFGCodeGenerator codeGenerator(compiler.getConfig());
@@ -181,7 +184,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> basicBlocks,
 
   if (!returnRegion) {
     // add explicit return of the return variable to the end of the function
-    auto *returnBlock = newFunction->makeBasicBlock("return");
+    auto *returnBlock = newFunction->makeBasicBlock("returnBlock");
     returnBlock->addInstruction(Make<ReturnInst>(newFunction->bindExpression(
         (*returnVars.begin())->getName(), (*returnVars.begin())->getType())));
 

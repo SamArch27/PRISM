@@ -55,7 +55,6 @@ Own<SelectExpression> Function::renameVarInExpression(
 void Function::renameBasicBlocks(
     const Map<BasicBlock *, BasicBlock *> &oldToNew) {
 
-  std::cout << "renameBasicBlocks" << std::endl;
   for (auto &block : *this) {
     for (auto it = block.begin(); it != block.end(); ++it) {
       auto &inst = *it;
@@ -446,8 +445,8 @@ Own<Function> Function::partialCloneAndRename(
   Map<const Variable *, const Variable *> variableMap;
   Map<BasicBlock *, BasicBlock *> basicBlockMap;
   auto newFunction = Make<Function>(conn, newName, newReturnType);
-  for (const auto &arg : newArgs) {
-    newFunction->addArgument(arg->getName() + "_arg", arg->getType());
+  for (const auto *arg : newArgs) {
+    newFunction->addArgument(getOriginalName(arg->getName()), arg->getType());
   }
 
   for (const auto &[name, var] : bindings) {
@@ -478,13 +477,13 @@ Own<Function> Function::partialCloneAndRename(
 
   ASSERT(entry == newFunction->getEntryBlock(),
          "The entry block should be the first block created");
-  for (auto &arg : newArgs) {
-    entry->addInstruction(Make<Assignment>(
-        variableMap.at(arg),
-        newFunction->bindExpression(arg->getName() + "_arg", arg->getType())));
+  for (auto *arg : newArgs) {
+    entry->addInstruction(
+        Make<Assignment>(variableMap.at(arg),
+                         newFunction->bindExpression(
+                             getOriginalName(arg->getName()), arg->getType())));
   }
   entry->addInstruction(
       Make<BranchInst>(basicBlockMap.at(basicBlocks.front())));
-
   return newFunction;
 }
