@@ -47,11 +47,81 @@ PredicateAnalysis::getAllPathsToBlock(BasicBlock *startBlock) const {
   return allPaths;
 }
 
+String PredicateAnalysis::getCondFromPath(const Vec<BasicBlock *> &path) const {
+  String cond = "";
+  BasicBlock *prevBlock = nullptr;
+  for (auto *block : path) {
+    if (auto *branch =
+            dynamic_cast<const BranchInst *>(block->getTerminator())) {
+      if (branch->isConditional()) {
+        if (cond != "") {
+          cond += " AND ";
+        }
+
+        cond += "(";
+
+        if (prevBlock != branch->getIfFalse()) {
+          cond += "NOT ";
+        }
+        cond +=
+            "(" + branch->getCond()->getRawSQL() + " IS DISTINCT FROM TRUE)";
+        cond += ")";
+      }
+    }
+    prevBlock = block;
+  }
+  return cond;
+}
+
+String
+PredicateAnalysis::getExprOnPath(const Vec<BasicBlock *> &path,
+                                 const SelectExpression *returnValue) const {
+
+  auto resolvedValue = returnValue->clone();
+
+  while (true) {
+    // if the value only depends on the function arguments
+    auto usedVariables = resolvedValue->getUsedVariables();
+    bool allArguments =
+        std::all_of(usedVariables.begin(), usedVariables.end(),
+                    [&](const Variable *use) { return f.isArgument(use); });
+    if (allArguments) {
+      return resolvedValue->getRawSQL();
+    }
+
+    // not all arguments so we need to follow use-def chains
+    for (auto *use : usedVariables) {
+      if (!f.isArgument(use)) {
+        auto *def = useDefs->getDef(use);
+        if (auto *assign = dynamic_cast<const Assignment *>(def)) {
+          Map<const Variable *, const SelectExpression *> oldToNew;
+          oldToNew.insert({assign->getLHS(), assign->getRHS()});
+          resolvedValue =
+              f.replaceVarWithExpression(resolvedValue.get(), oldToNew);
+        } else if (auto *phi = dynamic_cast<const PhiNode *>(def)) {
+          // find the corresponding predecessor
+          auto *block = phi->getParent();
+          for (auto *pred : block->getPredecessors()) {
+            if (std::find(path.begin(), path.end(), pred) != path.end()) {
+              // for the matching predecessor, get the corresponding phi op
+              auto phiOp = phi->getRHS()[block->getPredNumber(pred)];
+              // then do the replacement
+              Map<const Variable *, const SelectExpression *> oldToNew;
+              oldToNew.insert({phi->getLHS(), phiOp});
+              resolvedValue =
+                  f.replaceVarWithExpression(resolvedValue.get(), oldToNew);
+            }
+          }
+        } else {
+          ERROR("Can't have definition which isn't a phi or assignment!");
+        }
+      }
+    }
+  }
+  return resolvedValue->getRawSQL();
+}
+
 void PredicateAnalysis::runAnalysis() {
-
-  std::cout << "\nPREDICATE ANALYSIS\n" << std::endl;
-  std::cout << f << std::endl;
-
   auto root = f.getRegion();
 
   Set<const Region *> worklist;
@@ -75,7 +145,7 @@ void PredicateAnalysis::runAnalysis() {
 
   UseDefAnalysis useDefAnalysis(f);
   useDefAnalysis.runAnalysis();
-  auto useDefs = useDefAnalysis.getUseDefs();
+  useDefs = useDefAnalysis.getUseDefs();
 
   for (auto &block : f) {
     for (auto &inst : block) {
@@ -90,47 +160,47 @@ void PredicateAnalysis::runAnalysis() {
     }
   }
 
+  // =, <=, >=, <, >
+  Vec<String> ops = {"=", "<=", ">=", "<", ">"};
+  Vec<String> suffix = {"eq", "leq", "geq", "lt", "gt"};
+  predicates.resize(5);
+
+  // add a variable t to compare against
+  f.addVariable("t", f.getReturnType(), false);
+
   for (auto &block : f) {
     for (auto &inst : block) {
       if (auto *ret = dynamic_cast<const ReturnInst *>(&inst)) {
-        std::cout << *ret << std::endl;
-
         auto pathsToReturn = getAllPathsToBlock(&block);
 
         for (auto &path : pathsToReturn) {
-          String cond = "";
 
-          std::cout << "Path: ";
-          BasicBlock *prevBlock = nullptr;
-          for (auto *block : path) {
-            std::cout << block->getLabel() << " ";
-            if (auto *branch =
-                    dynamic_cast<const BranchInst *>(block->getTerminator())) {
-              if (branch->isConditional()) {
-                if (cond != "") {
-                  cond += " AND ";
-                }
+          auto cond = getCondFromPath(path);
+          auto boundCondition = f.bindExpression(cond, Type::BOOLEAN);
+          auto returnValue = getExprOnPath(path, ret->getExpr());
+          auto condValue = getExprOnPath(path, boundCondition.get());
 
-                cond += "(";
-
-                if (prevBlock != branch->getIfFalse()) {
-                  cond += "NOT";
-                }
-                cond += "(" + branch->getCond()->getRawSQL() +
-                        ") IS DISTINCT FROM TRUE";
-                cond += ")";
-              }
-              prevBlock = block;
+          for (std::size_t i = 0; i < predicates.size(); ++i) {
+            auto &pred = predicates[i];
+            if (pred != "") {
+              pred += " OR ";
             }
+            pred += ("((" + condValue + " AND (NOT (" + returnValue + " " +
+                     ops[i] + " t)) IS DISTINCT FROM TRUE))");
           }
-
-          auto boundCondition = f.bindExpression(cond, f.getReturnType());
-          std::cout << std::endl;
-          std::cout << "Predicate: " << *boundCondition << std::endl;
         }
-
-        // Collect all conjunctions along the path
       }
     }
+  }
+
+  for (std::size_t i = 0; i < predicates.size(); ++i) {
+    auto &pred = predicates[i];
+    String args = "(t";
+    for (auto &arg : f.getArguments()) {
+      args += (", " + arg->getName());
+    }
+    args += ")";
+    pred = "CREATE MACRO " + f.getFunctionName() + "_" + suffix[i] + args +
+           " AS (" + pred + ");";
   }
 }

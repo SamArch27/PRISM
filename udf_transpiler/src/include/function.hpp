@@ -202,6 +202,16 @@ public:
   };
 
   duckdb::Connection *getConnection() const { return conn; }
+
+  bool isArgument(const Variable *var) const {
+    for (auto &arg : arguments) {
+      if (arg.get() == var) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   const VecOwn<Variable> &getArguments() const { return arguments; }
   const SetOwn<Variable> &getVariables() const { return variables; }
   Set<Variable *> getAllVariables() const {

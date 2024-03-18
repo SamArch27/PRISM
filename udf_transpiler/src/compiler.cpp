@@ -112,8 +112,6 @@ void Compiler::optimize(Function &f) {
       Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
       Make<AggressiveMergeRegionsPass>());
 
-  // PredicateAnalysis predicateAnalysis(f);
-
   // Convert to SSA
   ssaConstruction->runOnFunction(f);
 
@@ -121,8 +119,12 @@ void Compiler::optimize(Function &f) {
   coreOptimizations->runOnFunction(f);
 
   // Extract the predicates
-  // predicateAnalysis.runAnalysis();
-  // auto hoistedPredicates = predicateAnalysis.getPredicates();
+  auto predicateAnalysis = Make<PredicateAnalysis>(f);
+  predicateAnalysis->runAnalysis();
+  auto hoistedPredicates = predicateAnalysis->getPredicates();
+  for (auto &pred : hoistedPredicates) {
+    std::cout << pred << std::endl;
+  }
 
   // Now perform outlining
   beforeOutliningPipeline->runOnFunction(f);
