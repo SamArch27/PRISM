@@ -159,7 +159,6 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   Shared<LogicalPlan> boundExpression;
   Shared<duckdb::Binder> plannerBinder;
   try {
-    std::cout << selectExpressionCommand << std::endl;
     boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
                                                  plannerBinder);
 
@@ -268,7 +267,7 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
     }
   }
 
-  // update predecessors of bottom to jump to top
+  // update predecessors of top to jump to bottom
   for (auto *pred : top->getPredecessors()) {
     if (auto *terminator = dynamic_cast<BranchInst *>(pred->getTerminator())) {
       // replace the branch instruction to target the bottom block

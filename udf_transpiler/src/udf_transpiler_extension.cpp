@@ -26,6 +26,17 @@
 namespace duckdb {
 duckdb::DuckDB *db_instance;
 size_t udfCount = 0;
+Map<String, bool> optimizerPassOnMap = {
+    {"SSAConstruction", true},
+    {"SSADestruction", true},
+    {"DeadCodeElimination", true},
+    {"QueryMotion", true},
+    {"BreakPhiInterference", true},
+    {"MergeRegions", true},
+    {"AggressiveMergeRegions", true},
+    {"ExpressionPropagation", true},
+    {"AggressiveExpressionPropagation", true},
+    {"OutliningPass", true}};
 
 // replace every single quote with two single quotes
 static String doubleQuote(const String &str) {
@@ -44,9 +55,49 @@ static String CompilerRun(String udfString) {
   Connection con(*db_instance);
 
   udfCount++;
-  auto compiler = Compiler(&con, udfString, config, udfCount);
+  auto compiler =
+      Compiler(optimizerPassOnMap, &con, udfString, config, udfCount);
   auto res = compiler.run();
   return "select '' as 'Transpilation Done.';";
+}
+
+inline String ListCompilerPassPragmaFun(ClientContext &context,
+                                        const FunctionParameters &parameters) {
+  String result;
+  for (auto &pass : optimizerPassOnMap) {
+    result +=
+        fmt::format("('{}', {}),", pass.first, pass.second ? "true" : "false");
+  }
+  result = result.substr(0, result.size() - 1);
+  return fmt::format("select col0 as Pass, col1 as \"Enabled?\" from (values "
+                     "{}) order by Pass;",
+                     result);
+}
+
+inline String
+EnableCompilerPassPragmaFun(ClientContext &context,
+                            const FunctionParameters &parameters) {
+  auto passName = parameters.values[0].GetValue<String>();
+  if (optimizerPassOnMap.count(passName) == 0) {
+    String err = "Invalid compiler pass: " + doubleQuote(passName);
+    return "select '" + err + "' as 'Enable Failed.';";
+  }
+
+  optimizerPassOnMap[passName] = true;
+  return "select '' as 'Enable Done.';";
+}
+
+inline String
+DisableCompilerPassPragmaFun(ClientContext &context,
+                             const FunctionParameters &parameters) {
+  auto passName = parameters.values[0].GetValue<String>();
+  if (optimizerPassOnMap.count(passName) == 0) {
+    String err = "Invalid compiler pass: " + doubleQuote(passName);
+    return "select '" + err + "' as 'Disable Failed.';";
+  }
+
+  optimizerPassOnMap[passName] = false;
+  return "select '' as 'Disable Done.';";
 }
 
 inline String UdfTranspilerPragmaFun(ClientContext &context,
@@ -89,7 +140,8 @@ inline String UdfCodeGeneratorPragmaFun(ClientContext &context,
   Connection con(*db_instance);
   String code, registration;
   udfCount++;
-  auto compiler = Compiler(&con, buffer.str(), config, udfCount);
+  auto compiler =
+      Compiler(optimizerPassOnMap, &con, buffer.str(), config, udfCount);
   auto res = compiler.run();
   COUT << "Transpiling the UDF..." << ENDL;
   insertDefAndReg(res.code, res.registration, udfCount);
@@ -191,6 +243,17 @@ static void LoadInternal(DatabaseInstance &instance) {
       PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun,
                                  {LogicalType::VARCHAR, LogicalType::INTEGER});
   ExtensionUtil::RegisterFunction(instance, lo_codegen_pragma_function);
+  auto list_compiler_pass_pragma_function =
+      PragmaFunction::PragmaCall("list", ListCompilerPassPragmaFun, {});
+  ExtensionUtil::RegisterFunction(instance, list_compiler_pass_pragma_function);
+  auto enable_compiler_pass_pragma_function = PragmaFunction::PragmaCall(
+      "enable", EnableCompilerPassPragmaFun, {LogicalType::VARCHAR});
+  ExtensionUtil::RegisterFunction(instance,
+                                  enable_compiler_pass_pragma_function);
+  auto disable_compiler_pass_pragma_function = PragmaFunction::PragmaCall(
+      "disable", DisableCompilerPassPragmaFun, {LogicalType::VARCHAR});
+  ExtensionUtil::RegisterFunction(instance,
+                                  disable_compiler_pass_pragma_function);
 }
 
 void UdfTranspilerExtension::Load(DuckDB &db) {

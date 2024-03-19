@@ -33,6 +33,8 @@ public:
 
   String getPassName() const override { return "Pipeline"; }
 
+  VecOwn<FunctionPass> &getPipeline() { return pipeline; }
+
 private:
   VecOwn<FunctionPass> pipeline;
 };

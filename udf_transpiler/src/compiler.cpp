@@ -89,6 +89,28 @@ json Compiler::parseJson() const {
   return json;
 }
 
+template <> void Compiler::runPass(PipelinePass &pass, Function &f) {
+  auto &pipeline = pass.getPipeline();
+  auto iter = pipeline.begin();
+  while (iter != pipeline.end()) {
+    auto &cur = *iter;
+    if (!passOn(cur->getPassName())) {
+      iter = pipeline.erase(iter);
+    } else {
+      ++iter;
+    }
+  }
+  pass.runOnFunction(f);
+}
+
+template <> void Compiler::runPass(FixpointPass &pass, Function &f) {
+  if (auto pipeline = dynamic_cast<PipelinePass *>(&pass.getPass())) {
+    runPass(*pipeline, f);
+  } else {
+    runPass(pass.getPass(), f);
+  }
+}
+
 void Compiler::optimize(Function &f) {
   auto ssaConstruction =
       Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
@@ -110,10 +132,12 @@ void Compiler::optimize(Function &f) {
       Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>());
 
   // Convert to SSA
-  ssaConstruction->runOnFunction(f);
+  // ssaConstruction->runOnFunction(f);
+  runPass(*ssaConstruction, f);
 
   // Run the core optimizations
-  coreOptimizations->runOnFunction(f);
+  // coreOptimizations->runOnFunction(f);
+  runPass(*coreOptimizations, f);
 
   // Extract the predicates
   auto predicateAnalysis = Make<PredicateAnalysis>(f);
@@ -124,15 +148,19 @@ void Compiler::optimize(Function &f) {
   }
 
   // Now perform outlining
-  beforeOutliningPipeline->runOnFunction(f);
-  rightBeforeOutliningPipeline->runOnFunction(f);
-  outliningPipeline->runOnFunction(f);
+  // beforeOutliningPipeline->runOnFunction(f);
+  runPass(*beforeOutliningPipeline, f);
+  // rightBeforeOutliningPipeline->runOnFunction(f);
+  runPass(*rightBeforeOutliningPipeline, f);
+  // outliningPipeline->runOnFunction(f);
+  runPass(*outliningPipeline, f);
 
   std::cout << "AFTER OUTLINING PIPELINE" << std::endl;
   std::cout << f << std::endl;
 
   // Finally get out of SSA
-  ssaDestructionPipeline->runOnFunction(f);
+  // ssaDestructionPipeline->runOnFunction(f);
+  runPass(*ssaDestructionPipeline, f);
 
   std::cout << f << std::endl;
 

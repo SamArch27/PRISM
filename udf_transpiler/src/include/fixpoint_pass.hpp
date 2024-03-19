@@ -19,6 +19,8 @@ public:
 
   String getPassName() const override { return "Fixpoint"; }
 
+  FunctionPass &getPass() { return *pass; }
+
 private:
   Own<FunctionPass> pass;
 };

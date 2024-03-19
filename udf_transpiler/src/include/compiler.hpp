@@ -17,15 +17,34 @@ struct CompilationResult : CFGCodeGeneratorResult {
 
 class Compiler {
 public:
-  Compiler(duckdb::Connection *conn, const String &programText,
-           const YAMLConfig &config, size_t &udfCount)
-      : conn(conn), programText(programText), config(config), udfCount(udfCount) {}
+  Compiler(Map<String, bool> optimizerPassOnMap, duckdb::Connection *conn,
+           const String &programText, const YAMLConfig &config,
+           size_t &udfCount)
+      : optimizerPassOnMap(optimizerPassOnMap), conn(conn),
+        programText(programText), config(config), udfCount(udfCount) {}
 
   CompilationResult run();
 
+  bool passOn(const String &passName) const {
+    std::cout << "passName: " << passName
+              << ((optimizerPassOnMap.count(passName) > 0 &&
+                   optimizerPassOnMap.at(passName))
+                      ? " true"
+                      : " false")
+              << std::endl;
+    return optimizerPassOnMap.count(passName) > 0 &&
+           optimizerPassOnMap.at(passName);
+  }
+
+  template <typename T> void runPass(T &pass, Function &f) {
+    if (passOn(pass.getPassName())) {
+      pass.runOnFunction(f);
+    }
+  }
+
   /**
    * run on existing function rather than start from udf string
-  */
+   */
   CompilationResult runOnFunction(Function &f);
 
   CFGCodeGeneratorResult generateCode(const Function &function);
@@ -45,6 +64,7 @@ public:
       "CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+(\\w+)";
 
 private:
+  Map<String, bool> optimizerPassOnMap;
   json parseJson() const;
 
   duckdb::Connection *conn;
