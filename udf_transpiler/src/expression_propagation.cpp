@@ -42,8 +42,6 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
       }
 
       // replace all occurrences of LHS with RHS
-      std::cout << f << std::endl;
-      std::cout << "ExprProp on: " << *assign << std::endl;
       auto bracketedRHS =
           f.bindExpression("(" + assign->getRHS()->getRawSQL() + ")",
                            assign->getRHS()->getReturnType());

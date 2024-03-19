@@ -118,6 +118,22 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   Set<const Variable *> liveOut;
   Set<const Variable *> returnVars;
 
+  if (!outliningEndRegion) {
+    liveOut = liveness->getBlockLiveIn(nextBasicBlock);
+
+    // get the return variables:
+    // variables that are live out of the region and defined in the region
+
+    for (auto *var : liveOut) {
+      if (liveIn.count(var) == 0) {
+        returnVars.insert(var);
+      }
+    }
+    ASSERT(returnVars.size() == 1,
+           fmt::format("Do not support one region to return {} variables",
+                       returnVars.size()));
+  }
+
   COUT << "Outlining basic blocks: " << ENDL;
   for (auto *block : blocksToOutline) {
     COUT << block->getLabel() << " ";
@@ -135,22 +151,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   }
   COUT << ENDL;
   COUT << ENDL;
-
-  if (!outliningEndRegion) {
-    liveOut = liveness->getBlockLiveIn(nextBasicBlock);
-
-    // get the return variables:
-    // variables that are live out of the region and defined in the region
-
-    for (auto *var : liveOut) {
-      if (liveIn.count(var) == 0) {
-        returnVars.insert(var);
-      }
-    }
-    ASSERT(returnVars.size() == 1,
-           fmt::format("Do not support one region to return {} variables",
-                       returnVars.size()));
-  }
 
   auto *returnVariable = returnVars.empty() ? nullptr : *returnVars.begin();
 

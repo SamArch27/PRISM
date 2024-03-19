@@ -76,10 +76,10 @@ InstIterator BasicBlock::replaceInst(InstIterator targetInst,
 Instruction *BasicBlock::getInitiator() { return instructions.begin()->get(); }
 
 Instruction *BasicBlock::getTerminator() {
-  auto last = std::prev(instructions.end());
-  ASSERT((*last)->isTerminator(),
+  auto &last = instructions.back();
+  ASSERT(last->isTerminator(),
          "Last instruction of BasicBlock must be a Terminator instruction.");
-  return last->get();
+  return last.get();
 }
 
 String BasicBlock::getLabel() const { return label; }
