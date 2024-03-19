@@ -159,6 +159,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   Shared<LogicalPlan> boundExpression;
   Shared<duckdb::Binder> plannerBinder;
   try {
+    std::cout << selectExpressionCommand << std::endl;
     boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
                                                  plannerBinder);
 

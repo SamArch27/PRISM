@@ -141,6 +141,13 @@ void BreakPhiInterferencePass::computeSourceConflicts(
     for (auto *x_i : args[i]->getUsedVariables()) {
       for (std::size_t j = i + 1; j < args.size(); ++j) {
         for (auto *x_j : args[j]->getUsedVariables()) {
+          // // Ignore function arguments
+          // if (useDefs->getDef(x_i)->getParent() == entryBlock) {
+          //   continue;
+          // }
+          // if (useDefs->getDef(x_j)->getParent() == entryBlock) {
+          //   continue;
+          // }
           if (interferenceGraph->interferes(x_i, x_j)) {
             // Resolve according to the four cases
             auto *n_i = block->getPredecessors()[i];
@@ -183,6 +190,13 @@ void BreakPhiInterferencePass::computeResultConflicts(
   auto rhs = phi->getRHS();
   for (std::size_t j = 0; j < rhs.size(); ++j) {
     for (auto *x_j : rhs[j]->getUsedVariables()) {
+      // Ignore function arguments
+      // if (useDefs->getDef(x_i)->getParent() == entryBlock) {
+      //   continue;
+      // }
+      // if (useDefs->getDef(x_j)->getParent() == entryBlock) {
+      //   continue;
+      // }
       if (interferenceGraph->interferes(x_i, x_j)) {
         // Resolve according to the four cases
         auto *n = block; // defining block for x_i is trivially n

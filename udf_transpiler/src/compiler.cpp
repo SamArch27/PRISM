@@ -102,7 +102,9 @@ void Compiler::optimize(Function &f) {
                          Make<ExpressionPropagationPass>());
   auto rightBeforeOutliningPipeline =
       Make<FixpointPass>(Make<DeadCodeEliminationPass>());
-  auto outliningPipeline = Make<PipelinePass>(Make<OutliningPass>(*this));
+  auto outliningPipeline = Make<PipelinePass>(
+      Make<OutliningPass>(*this), Make<AggressiveExpressionPropagationPass>(),
+      Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
@@ -126,6 +128,9 @@ void Compiler::optimize(Function &f) {
   beforeOutliningPipeline->runOnFunction(f);
   rightBeforeOutliningPipeline->runOnFunction(f);
   outliningPipeline->runOnFunction(f);
+
+  std::cout << "AFTER OUTLINING PIPELINE" << std::endl;
+  std::cout << f << std::endl;
 
   // Finally get out of SSA
   ssaDestructionPipeline->runOnFunction(f);

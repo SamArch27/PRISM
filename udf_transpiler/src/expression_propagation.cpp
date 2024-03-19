@@ -37,13 +37,18 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
       }
 
       // don't do propagation of SQL statements
-      if (assign->getRHS()->isSQLExpression()) {
+      if (!aggressive && assign->getRHS()->isSQLExpression()) {
         continue;
       }
 
       // replace all occurrences of LHS with RHS
+      std::cout << f << std::endl;
+      std::cout << "ExprProp on: " << *assign << std::endl;
+      auto bracketedRHS =
+          f.bindExpression("(" + assign->getRHS()->getRawSQL() + ")",
+                           assign->getRHS()->getReturnType());
       Map<const Variable *, const SelectExpression *> oldToNew{
-          {assign->getLHS(), assign->getRHS()}};
+          {assign->getLHS(), bracketedRHS.get()}};
 
       // replace uses of RHS with LHS and add to the worklist
       for (auto &[oldInst, newInst] :
