@@ -264,6 +264,10 @@ SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
   auto *header = region->getHeader();
   if (header->hasSelect()) {
     selectRegions[region] = true;
+  } else {
+    if (selectRegions.find(region) == selectRegions.end()) {
+      selectRegions[region] = false;
+    }
   }
 
   if (auto *rec = dynamic_cast<const RecursiveRegion *>(region)) {
