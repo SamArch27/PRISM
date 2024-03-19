@@ -97,9 +97,9 @@ void Compiler::optimize(Function &f) {
       Make<MergeRegionsPass>(), Make<ExpressionPropagationPass>(),
       Make<DeadCodeEliminationPass>()));
 
-  auto beforeOutliningPipeline =
+  auto beforeOutliningPipeline = Make<FixpointPass>(
       Make<PipelinePass>(/*Make<QueryMotionPass>(), */ Make<MergeRegionsPass>(),
-                         Make<ExpressionPropagationPass>());
+                         Make<ExpressionPropagationPass>()));
   auto rightBeforeOutliningPipeline =
       Make<FixpointPass>(Make<DeadCodeEliminationPass>());
   auto outliningPipeline = Make<PipelinePass>(
@@ -107,8 +107,7 @@ void Compiler::optimize(Function &f) {
       Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
-      Make<AggressiveMergeRegionsPass>());
+      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>());
 
   // Convert to SSA
   ssaConstruction->runOnFunction(f);

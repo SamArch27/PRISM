@@ -1,0 +1,66 @@
+digraph cfg {
+        entry [label="entry:
+INTEGER itm_0_ = itm
+jmp  [B25] 
+"];     entry -> B25;
+        B3 [label="B3:
+br itm_0_ > 500 [B19,B22]
+"];     B3 -> B22;
+        B3 -> B19;
+        B4 [label="B4:
+INTEGER cnt1_3_ = cnt1_2_ + (SELECT COUNT(*) FROM generate_series(1,100))::INTEGER
+jmp  [B7] 
+"];     B4 -> B7;
+        B5 [label="B5:
+INTEGER cnt1_2_ = Φ((100), cnt1_1_)
+jmp  [B4] 
+"];     B5 -> B4;
+        B6 [label="B6:
+INTEGER cnt2_1_ = (0) + (SELECT COUNT(*) FROM generate_series(1,100))::INTEGER
+jmp  [B9] 
+"];     B6 -> B9;
+        B7 [label="B7:
+jmp  [B6] 
+"];     B7 -> B6;
+        B8 [label="B8:
+VARCHAR t_1_ = (SELECT (SELECT 'abc' FROM generate_series(1,100)) WHERE cnt1_3_ > 0 AND cnt2_1_ > 0)
+jmp  [B18] 
+"];     B8 -> B18;
+        B9 [label="B9:
+jmp  [B8] 
+"];     B9 -> B8;
+        B10 [label="B10:
+br (cnt1_3_ > 0 AND cnt2_1_ > 0) [B12,B15]
+"];     B10 -> B15;
+        B10 -> B12;
+        B11 [label="B11:
+VARCHAR man_2_ = Φ((t_1_), ('outdated item'))
+RETURN man_2_;
+"];     B12 [label="B12:
+VARCHAR man_3_ = t_1_
+jmp  [B11] 
+"];     B12 -> B11;
+        B15 [label="B15:
+VARCHAR man_4_ = 'outdated item'
+jmp  [B11] 
+"];     B15 -> B11;
+        B18 [label="B18:
+jmp  [B10] 
+"];     B18 -> B10;
+        B19 [label="B19:
+INTEGER cnt1_4_ = 100
+jmp  [B5] 
+"];     B19 -> B5;
+        B22 [label="B22:
+INTEGER cnt1_1_ = 101
+jmp  [B5] 
+"];     B22 -> B5;
+        B25 [label="B25:
+VARCHAR man_0_ = ''
+VARCHAR t_0_ = ''
+INTEGER cnt1_0_ = 0
+INTEGER cnt2_0_ = 0
+VARCHAR man_1_ = ''
+jmp  [B3] 
+"];     B25 -> B3;
+}

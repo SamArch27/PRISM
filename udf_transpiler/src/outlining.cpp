@@ -117,6 +117,25 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   // get live variable going out of the region
   Set<const Variable *> liveOut;
   Set<const Variable *> returnVars;
+
+  COUT << "Outlining basic blocks: " << ENDL;
+  for (auto *block : blocksToOutline) {
+    COUT << block->getLabel() << " ";
+  }
+  COUT << ENDL;
+  COUT << "End region: " << outliningEndRegion << ENDL;
+  COUT << "Return variables: " << ENDL;
+  for (auto *var : returnVars) {
+    COUT << var->getName() << " ";
+  }
+  COUT << ENDL;
+  COUT << "Input variables: " << ENDL;
+  for (auto *var : liveIn) {
+    COUT << var->getName() << " ";
+  }
+  COUT << ENDL;
+  COUT << ENDL;
+
   if (!outliningEndRegion) {
     liveOut = liveness->getBlockLiveIn(nextBasicBlock);
 
@@ -223,7 +242,7 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
   };
 
   // travers the regions top down
-  if (containsSelect[region]) {
+  if (containsSelect.find(region) != containsSelect.end()) {
     if (auto *sequentialRegion =
             dynamic_cast<const SequentialRegion *>(region)) {
       // sequential region is an exception because other part of the region
@@ -235,7 +254,7 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
         outlineQueuedBlocks();
       }
       for (auto *nestedRegion : sequentialRegion->getNestedRegions()) {
-        if (containsSelect[nestedRegion]) {
+        if (containsSelect.find(nestedRegion) != containsSelect.end()) {
           runOnRegion(containsSelect, nestedRegion, f, queuedBlocks);
         } else {
           queueBlocksFromRegion(nestedRegion);
@@ -264,10 +283,6 @@ SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
   auto *header = region->getHeader();
   if (header->hasSelect()) {
     selectRegions[region] = true;
-  } else {
-    if (selectRegions.find(region) == selectRegions.end()) {
-      selectRegions[region] = false;
-    }
   }
 
   if (auto *rec = dynamic_cast<const RecursiveRegion *>(region)) {
@@ -282,6 +297,8 @@ SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
 }
 
 bool OutliningPass::runOnFunction(Function &f) {
+  std::cout << f << std::endl;
+  drawGraph(f.getCFGString(), "cfg");
   Vec<BasicBlock *> queuedBlocks;
   auto containsSelect = computeSelectRegions(f.getRegion());
   return runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks);
