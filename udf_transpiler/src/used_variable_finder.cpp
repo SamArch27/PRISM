@@ -1,5 +1,6 @@
 #include "used_variable_finder.hpp"
 #include "duckdb/parser/expression/columnref_expression.hpp"
+#include "duckdb/planner/expression/bound_reference_expression.hpp"
 #include "duckdb/planner/expression/bound_columnref_expression.hpp"
 
 namespace duckdb {
@@ -23,6 +24,20 @@ void UsedVariableFinder::VisitExpression(unique_ptr<Expression> *expression) {
     }
     if (res.find(targetTableName) != res.end()) {
       usedVariables.push_back(bound_column_ref.GetName());
+    }
+  }
+  else if (expr->expression_class == ExpressionClass::BOUND_REF) {
+    auto &column_ref = expr->Cast<BoundReferenceExpression>();
+
+    auto res = plannerBinder->bind_context.GetMatchingBindings(
+        column_ref.GetName());
+
+    if (res.size() > 1 and res.find(targetTableName) != res.end()) {
+      ERROR("Unexpected multiple bindings for column " +
+            column_ref.GetName());
+    }
+    if (res.find(targetTableName) != res.end()) {
+      usedVariables.push_back(column_ref.GetName());
     }
   }
 

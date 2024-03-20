@@ -87,7 +87,7 @@ int Function::typeMatches(const String &rhs, const Type &type,
   Shared<LogicalPlan> boundExpression;
   Shared<duckdb::Binder> plannerBinder;
   try {
-    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
+    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, false,
                                                  plannerBinder);
 
   } catch (const std::exception &e) {
@@ -159,7 +159,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   Shared<LogicalPlan> boundExpression;
   Shared<duckdb::Binder> plannerBinder;
   try {
-    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
+    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, false,
                                                  plannerBinder);
 
     for (auto &type : tmpOptimizerDisableFlag) {
