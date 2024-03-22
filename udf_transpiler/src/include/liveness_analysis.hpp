@@ -145,7 +145,9 @@ public:
 
 class LivenessAnalysis : public Analysis {
 public:
-  LivenessAnalysis(Function &f) : Analysis(f) {}
+  LivenessAnalysis(Function &f) : Analysis(f) {
+    useDefAnalysis = Make<UseDefAnalysis>(f);
+  }
 
   void runAnalysis() override;
 
@@ -173,6 +175,7 @@ private:
   Vec<const Instruction *> definingInstructions;
   Map<const Instruction *, std::size_t> instToIndex;
 
+  Own<UseDefAnalysis> useDefAnalysis;
   Own<Liveness> liveness;
   Own<InterferenceGraph> interferenceGraph;
 
