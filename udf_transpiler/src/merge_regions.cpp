@@ -61,8 +61,6 @@ bool MergeRegionsPass::runOnFunction(Function &f) {
 
       // mark change, merge the basic blocks, and update the worklist
       changed = true;
-      std::cout << "Merging basic blocks: " << top->getLabel() << " and "
-                << bottom->getLabel() << std::endl;
       f.mergeBasicBlocks(top, bottom);
       worklist.insert(bottom);
     }

@@ -3,21 +3,15 @@
 #include "utils.hpp"
 
 void LivenessAnalysis::runAnalysis() {
-  std::cout << "Before preprocess" << std::endl;
   preprocess();
-  std::cout << "Before runBackwards" << std::endl;
   runBackwards();
-  std::cout << "Before finalize" << std::endl;
   finalize();
-  std::cout << "After finalize" << std::endl;
 }
 
 void LivenessAnalysis::preprocess() {
 
-  std::cout << "A" << std::endl;
   // run useDefAnalysis to do preprocessing
   useDefAnalysis->runAnalysis();
-  std::cout << "B" << std::endl;
 
   // save exit blocks
   for (auto &basicBlock : f) {
@@ -25,20 +19,15 @@ void LivenessAnalysis::preprocess() {
       exitBlocks.push_back(&basicBlock);
     }
   }
-  std::cout << "C" << std::endl;
 
   // call pre-process for each inst
   for (auto &basicBlock : f) {
     for (auto &inst : basicBlock) {
       auto *currentInst = &inst;
-      std::cout << "Preprocess called on: " << *currentInst << std::endl;
       preprocessInst(currentInst);
     }
   }
-  std::cout << "D" << std::endl;
-
   genBoundaryInner();
-  std::cout << "E" << std::endl;
 
   // initialize the IN/OUT sets
   for (auto &basicBlock : f) {
@@ -51,7 +40,6 @@ void LivenessAnalysis::preprocess() {
   for (auto *exitBlock : exitBlocks) {
     results[exitBlock].out = boundaryStart;
   }
-  std::cout << "F" << std::endl;
 }
 
 void LivenessAnalysis::runBackwards() {
@@ -162,16 +150,9 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
 
   auto useDefs = useDefAnalysis->getUseDefs();
 
-  for (auto *def : useDefs->getAllDefs()) {
-    std::cout << def->getResultOperand()->getName()
-              << " has pointer value: " << def->getResultOperand() << std::endl;
-  }
-
   // Collect definitions for each block, mapping them to bitvector positions
   const auto *resultOperand = inst->getResultOperand();
   auto *block = inst->getParent();
-
-  std::cout << "X1" << std::endl;
 
   if (resultOperand != nullptr) {
     auto *def = useDefs->getDef(resultOperand);
@@ -183,15 +164,12 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
     }
   }
 
-  std::cout << "X2" << std::endl;
-
   if (block == f.getEntryBlock()) {
     return;
   }
 
   // If the current instruction is a phi node
   if (auto *phi = dynamic_cast<const PhiNode *>(inst)) {
-    std::cout << "X3 start" << std::endl;
 
     // Add the def to the phiDefs for the block
     auto *result = phi->getResultOperand();
@@ -209,20 +187,15 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
         }
       }
     }
-    std::cout << "X3 end" << std::endl;
 
   }
   // Otherwise update the upwardsExposed
   else {
-    std::cout << "X4 start" << std::endl;
 
     // For each operatnd, check if it is "upwards exposed"
     for (auto *operand : inst->getOperands()) {
       // Get the block that it was defined in
-      std::cout << "Before def on x4" << std::endl;
-      std::cout << "Pointer value is: " << operand << std::endl;
       auto *definingInst = useDefs->getDef(operand);
-      std::cout << "After def on x4" << std::endl;
 
       auto *definingBlock = definingInst->getParent();
       // If it was defined outside of this block then it is "upwards exposed"
@@ -230,7 +203,6 @@ void LivenessAnalysis::preprocessInst(Instruction *inst) {
         upwardsExposed[block].insert(definingInst);
       }
     }
-    std::cout << "X4 end" << std::endl;
   }
 }
 
