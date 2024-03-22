@@ -168,12 +168,12 @@ private:
   void computeLiveness();
   void computeInterferenceGraph();
 
-  Map<BasicBlock *, Set<const Instruction *>> allDefs;
-  Map<BasicBlock *, Set<const Instruction *>> phiDefs;
-  Map<BasicBlock *, Set<const Instruction *>> phiUses;
-  Map<BasicBlock *, Set<const Instruction *>> upwardsExposed;
-  Vec<const Instruction *> definingInstructions;
-  Map<const Instruction *, std::size_t> instToIndex;
+  Map<BasicBlock *, Set<const Variable *>> allDefs;
+  Map<BasicBlock *, Set<const Variable *>> phiDefs;
+  Map<BasicBlock *, Set<const Variable *>> phiUses;
+  Map<BasicBlock *, Set<const Variable *>> upwardsExposed;
+  Vec<const Variable *> variables;
+  Map<const Variable *, std::size_t> varToIndex;
 
   Own<UseDefAnalysis> useDefAnalysis;
   Own<Liveness> liveness;

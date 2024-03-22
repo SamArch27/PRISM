@@ -110,6 +110,8 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
+  std::cout << f << std::endl;
+  std::cout << *liveness << std::endl;
 
   auto *regionHeader = blocksToOutline.front();
   auto liveIn = liveness->getBlockLiveIn(regionHeader);
