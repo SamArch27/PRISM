@@ -104,7 +104,8 @@ int Function::typeMatches(const String &rhs, const Type &type,
 
 Own<SelectExpression> Function::bindExpression(const String &expr,
                                                const Type &retType,
-                                               bool needContext) {
+                                               bool needContext,
+                                               bool enforeCast) {
   if (needContext) {
     destroyDuckDBContext();
     makeDuckDBContext();
@@ -115,16 +116,19 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   auto last = expr.find_last_not_of(' ');
   auto cleanedExpr = expr.substr(first, (last - first + 1));
 
-  int castCost = typeMatches(cleanedExpr, retType, needContext);
-  if (castCost < 0) {
-    destroyDuckDBContext();
-    EXCEPTION(fmt::format(
-        "Cannot bind expression {} to type {}, please add explicit cast.", expr,
-        retType.getDuckDBType()));
-  } else if (castCost > 0) {
-    cleanedExpr = fmt::format("({})::{}", cleanedExpr, retType.getDuckDBType());
-  } else {
-    // do nothing
+  if (enforeCast) {
+    int castCost = typeMatches(cleanedExpr, retType, needContext);
+    if (castCost < 0) {
+      destroyDuckDBContext();
+      EXCEPTION(fmt::format(
+          "Cannot bind expression {} to type {}, please add explicit cast.",
+          expr, retType.getDuckDBType()));
+    } else if (castCost > 0) {
+      cleanedExpr =
+          fmt::format("({})::{}", cleanedExpr, retType.getDuckDBType());
+    } else {
+      // do nothing
+    }
   }
 
   String selectExpressionCommand;

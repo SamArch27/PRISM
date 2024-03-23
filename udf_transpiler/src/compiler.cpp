@@ -112,6 +112,9 @@ template <> void Compiler::runPass(FixpointPass &pass, Function &f) {
 }
 
 void Compiler::optimize(Function &f) {
+  drawGraph(f.getCFGString(), "cfg_before_optimization");
+  drawGraph(f.getRegionString(), "region_before_optimization");
+
   auto ssaConstruction =
       Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
 
@@ -163,6 +166,7 @@ void Compiler::optimize(Function &f) {
   runPass(*ssaDestructionPipeline, f);
 
   std::cout << f << std::endl;
+  drawGraph(f.getCFGString(), "cfg_after_optimization");
 
   // Compile the UDF to PL/SQL
   PLpgSQLGenerator plpgsqlGenerator(config);

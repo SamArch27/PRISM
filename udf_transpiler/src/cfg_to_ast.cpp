@@ -24,7 +24,8 @@ const LoopRegion *findCurrentLoopRegion(const BasicBlock *bb) {
  * whether the basic block belongs to the loop region
  */
 bool belongToLoopRegion(const BasicBlock *bb, const LoopRegion *loopRegion) {
-  ASSERT(bb->getRegion(), "Basic block should have a parent region");
+  ASSERT(bb->getRegion(),
+         "Basic block " + bb->getLabel() + " should have a parent region");
   Region *parentRegion = bb->getRegion();
   while (parentRegion) {
     if (parentRegion == loopRegion) {

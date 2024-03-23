@@ -292,7 +292,7 @@ public:
   int typeMatches(const String &rhs, const Type &type, bool needContext = true);
 
   Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
-                                       bool needContext = true);
+                                       bool needContext = true, bool enforeCast = true);
 
   Map<Instruction *, Instruction *> replaceUsesWithExpr(
       const Map<const Variable *, const SelectExpression *> &oldToNew,
