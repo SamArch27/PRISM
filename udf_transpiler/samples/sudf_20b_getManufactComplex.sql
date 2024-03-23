@@ -3,15 +3,21 @@ RETURNS VARCHAR(50)
 AS
 $$
 DECLARE
-	man VARCHAR(50);
-	cnt1 int; cnt2 int;
+	man VARCHAR(50); t VARCHAR(50);
+	cnt1 int; cnt2 int; 
 BEGIN
 	man  := '';  
+	IF itm > 500 THEN
+		cnt1 = 100;
+	ELSE
+		cnt1 = 101;
+	END IF;
 	-- was this item sold in this year through store or catalog?
-	cnt1 := (SELECT COUNT(*) FROM bench.store_sales, bench.date_dim WHERE ss_item_sk=itm AND d_date_sk=ss_sold_date_sk AND d_year=2003);
-	cnt2  := (SELECT COUNT(*) FROM bench.catalog_sales, bench.date_dim WHERE cs_item_sk=itm AND d_date_sk=cs_sold_date_sk AND d_year=2003);
+	cnt1 := cnt1 + (SELECT COUNT(*) FROM generate_series(1,100))::INTEGER;
+	cnt2 := cnt2 + (SELECT COUNT(*) FROM generate_series(1,100))::INTEGER;
+	t := (SELECT (SELECT 'abc' FROM generate_series(1,100)) WHERE cnt1 > 0 AND cnt2 > 0);
 	IF (cnt1 > 0 AND cnt2 > 0) THEN
-		man := (SELECT i_manufact FROM bench.item WHERE i_item_sk = itm);
+		man := t; 
 	ELSE
 		man := 'outdated item'; --implies that this item is not sold in a recent year at all AND is probably outdated
 	END IF;

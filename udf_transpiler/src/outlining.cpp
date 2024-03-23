@@ -32,8 +32,7 @@ Set<BasicBlock *> getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
 
 void OutliningPass::outlineFunction(Function &f) {
   auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
-      Make<AggressiveMergeRegionsPass>());
+      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>());
   ssaDestructionPipeline->runOnFunction(f);
 
   std::cout << fmt::format("Transpiling UDF {}...", f.getFunctionName())
@@ -111,6 +110,9 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
+  std::cout << f << std::endl;
+  std::cout << *liveness << std::endl;
+
   auto *regionHeader = blocksToOutline.front();
   auto liveIn = liveness->getBlockLiveIn(regionHeader);
 

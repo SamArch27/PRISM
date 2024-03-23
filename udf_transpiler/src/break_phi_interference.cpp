@@ -12,7 +12,9 @@ bool BreakPhiInterferencePass::runOnFunction(Function &f) {
   auto livenessAnalysis = Make<LivenessAnalysis>(f);
   livenessAnalysis->runAnalysis();
   liveness = livenessAnalysis->getLiveness();
+
   interferenceGraph = livenessAnalysis->getInterferenceGraph();
+
   auto phiCongruent = createPhiCongruenceClasses(f);
 
   entryBlock = f.getEntryBlock();
@@ -23,9 +25,10 @@ bool BreakPhiInterferencePass::runOnFunction(Function &f) {
       it = resolvePhiInterference(f, it, phiCongruent);
     }
   }
-
   invalidateSingletons(phiCongruent);
+
   removeCopies(f, phiCongruent);
+
   return true;
 }
 
@@ -141,13 +144,6 @@ void BreakPhiInterferencePass::computeSourceConflicts(
     for (auto *x_i : args[i]->getUsedVariables()) {
       for (std::size_t j = i + 1; j < args.size(); ++j) {
         for (auto *x_j : args[j]->getUsedVariables()) {
-          // // Ignore function arguments
-          // if (useDefs->getDef(x_i)->getParent() == entryBlock) {
-          //   continue;
-          // }
-          // if (useDefs->getDef(x_j)->getParent() == entryBlock) {
-          //   continue;
-          // }
           if (interferenceGraph->interferes(x_i, x_j)) {
             // Resolve according to the four cases
             auto *n_i = block->getPredecessors()[i];
@@ -156,6 +152,7 @@ void BreakPhiInterferencePass::computeSourceConflicts(
             bool lhsConflict =
                 !intersect(phiCongruent.at(x_i), liveness->getBlockLiveOut(n_j))
                      .empty();
+
             bool rhsConflict =
                 !intersect(phiCongruent.at(x_j), liveness->getBlockLiveOut(n_i))
                      .empty();
@@ -190,13 +187,6 @@ void BreakPhiInterferencePass::computeResultConflicts(
   auto rhs = phi->getRHS();
   for (std::size_t j = 0; j < rhs.size(); ++j) {
     for (auto *x_j : rhs[j]->getUsedVariables()) {
-      // Ignore function arguments
-      // if (useDefs->getDef(x_i)->getParent() == entryBlock) {
-      //   continue;
-      // }
-      // if (useDefs->getDef(x_j)->getParent() == entryBlock) {
-      //   continue;
-      // }
       if (interferenceGraph->interferes(x_i, x_j)) {
         // Resolve according to the four cases
         auto *n = block; // defining block for x_i is trivially n
@@ -208,6 +198,7 @@ void BreakPhiInterferencePass::computeResultConflicts(
         bool lhsConflict =
             !intersect(phiCongruent.at(x_i), liveness->getBlockLiveOut(n_j))
                  .empty();
+
         bool rhsInConflict =
             !intersect(phiCongruent.at(x_j), liveness->getBlockLiveIn(n))
                  .empty();

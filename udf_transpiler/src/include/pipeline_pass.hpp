@@ -20,6 +20,7 @@ public:
     bool changed = false;
 
     for (auto &pass : pipeline) {
+      std::cout << "Running: " << pass->getPassName() << std::endl;
       auto start = std::chrono::high_resolution_clock::now();
       changed |= pass->runOnFunction(f);
       auto stop = std::chrono::high_resolution_clock::now();
