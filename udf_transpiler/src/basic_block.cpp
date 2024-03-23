@@ -26,6 +26,8 @@ void BasicBlock::addInstruction(Own<Instruction> inst) {
   // successor/predecessors appropriately
   inst->setParent(this);
   if (inst->isTerminator()) {
+    // clear current successors
+    successors.clear();
     for (auto *succBlock : inst->getSuccessors()) {
       addSuccessor(succBlock);
       succBlock->addPredecessor(this);

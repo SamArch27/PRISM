@@ -135,13 +135,17 @@ public:
         if (oldToNew.find(branchInst->getIfTrue()) != oldToNew.end()) {
           removeSuccessor(trueBlock);
           trueBlock = oldToNew.at(trueBlock);
+          successors.clear();
           addSuccessor(trueBlock);
+          trueBlock->predecessors.clear();
           trueBlock->addPredecessor(this);
         }
         if (oldToNew.find(branchInst->getIfFalse()) != oldToNew.end()) {
           removeSuccessor(falseBlock);
           falseBlock = oldToNew.at(falseBlock);
+          successors.clear();
           addSuccessor(falseBlock);
+          falseBlock->predecessors.clear();
           falseBlock->addPredecessor(this);
         }
 
