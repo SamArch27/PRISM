@@ -15,9 +15,8 @@ BEGIN
 	-- was this item sold in this year through store or catalog?
 	cnt1 := cnt1 + (SELECT COUNT(*) FROM generate_series(1,100))::INTEGER;
 	cnt2 := cnt2 + (SELECT COUNT(*) FROM generate_series(1,100))::INTEGER;
-	t := (SELECT (SELECT 'abc' FROM generate_series(1,100)) WHERE cnt1 > 0 AND cnt2 > 0);
 	IF (cnt1 > 0 AND cnt2 > 0) THEN
-		man := t; 
+		man := (SELECT (SELECT 'abc' FROM generate_series(1,100))); 
 	ELSE
 		man := 'outdated item'; --implies that this item is not sold in a recent year at all AND is probably outdated
 	END IF;
