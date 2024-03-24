@@ -293,7 +293,8 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  int typeMatches(const String &rhs, const Type &type, bool needContext = true);
+  int typeMatches(const String &rhs, const Type &type,
+                  duckdb::LogicalType &duckDBType, bool needContext = true);
 
   Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
                                        bool needContext = true,
@@ -327,7 +328,8 @@ public:
 
   Own<Function> partialCloneAndRename(
       const String &newName, const Vec<const Variable *> &newArgs,
-      const Type &newReturnType, const Vec<BasicBlock *> basicBlocks) const;
+      const Type &newReturnType, const Vec<BasicBlock *> basicBlocks,
+      Map<BasicBlock *, BasicBlock *> &oldToNew) const;
 
 protected:
   void print(std::ostream &os) const {

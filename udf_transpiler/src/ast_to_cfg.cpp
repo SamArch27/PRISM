@@ -534,20 +534,22 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
   // the block jumps immediately to the cond block
   newBlock->addInstruction(Make<BranchInst>(headerBlock));
 
-  // auto preHeader = f.makeBasicBlock();
-  // preHeader->addInstruction(Make<BranchInst>(newBlock));
+  // construct the regions and add useful annotations
+  loopBodyRegion->setMetadata(json({{"udf_info", "cursorLoopBodyRegion"}}));
+  auto cursorLoopRegion = Make<LoopRegion>(
+      headerBlock,
+      Make<ConditionalRegion>(
+          condBlock, Make<SequentialRegion>(
+                         incrementBlock,
+                         Make<SequentialRegion>(
+                             loopVarBlockPreHeader,
+                             Make<SequentialRegion>(
+                                 loopVarBlock, std::move(loopBodyRegion))))));
+  auto cursorLoopRegionMeta = cursorLoopJson;
+  cursorLoopRegionMeta["udf_info"] = "cursorLoopRegion";
+  cursorLoopRegion->setMetadata(cursorLoopRegionMeta);
   auto sequentialRegion = Make<SequentialRegion>(
-      newBlock,
-      Make<LoopRegion>(
-          headerBlock,
-          Make<ConditionalRegion>(
-              condBlock,
-              Make<SequentialRegion>(
-                  incrementBlock,
-                  Make<SequentialRegion>(
-                      loopVarBlockPreHeader,
-                      Make<SequentialRegion>(loopVarBlock,
-                                             std::move(loopBodyRegion)))))),
+      newBlock, std::move(cursorLoopRegion),
       attachFallthrough ? std::move(afterLoopRegion) : nullptr);
   return std::move(sequentialRegion);
 }

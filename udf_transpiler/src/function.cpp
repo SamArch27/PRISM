@@ -72,7 +72,7 @@ Own<SelectExpression> Function::replaceVarWithExpression(
 }
 
 int Function::typeMatches(const String &rhs, const Type &type,
-                          bool needContext) {
+                          duckdb::LogicalType &duckDBType, bool needContext) {
   String selectExpressionCommand;
   if (needContext) {
     selectExpressionCommand = fmt::format("SELECT ({}) FROM tmp;", rhs);
@@ -99,6 +99,7 @@ int Function::typeMatches(const String &rhs, const Type &type,
   boundExpression->ResolveOperatorTypes();
   auto castCost = duckdb::CastRules::ImplicitCast(boundExpression->types[0],
                                                   type.getDuckDBLogicalType());
+  duckDBType = boundExpression->types[0];
   return castCost;
 }
 
@@ -117,12 +118,13 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   auto cleanedExpr = expr.substr(first, (last - first + 1));
 
   if (enforeCast) {
-    int castCost = typeMatches(cleanedExpr, retType, needContext);
+    duckdb::LogicalType duckDBType;
+    int castCost = typeMatches(cleanedExpr, retType, duckDBType, needContext);
     if (castCost < 0) {
       destroyDuckDBContext();
-      EXCEPTION(fmt::format(
-          "Cannot bind expression {} to type {}, please add explicit cast.",
-          expr, retType.getDuckDBType()));
+      EXCEPTION(fmt::format("Cannot bind expression {} of type {} to type {}, "
+                            "please add explicit cast.",
+                            expr, duckDBType.ToString(), retType.getDuckDBType()));
     } else if (castCost > 0) {
       cleanedExpr =
           fmt::format("({})::{}", cleanedExpr, retType.getDuckDBType());
@@ -428,7 +430,8 @@ FunctionCloneAndRenameHelper::cloneAndRename(const Instruction &inst) {
 
 Own<Function> Function::partialCloneAndRename(
     const String &newName, const Vec<const Variable *> &newArgs,
-    const Type &newReturnType, const Vec<BasicBlock *> basicBlocks) const {
+    const Type &newReturnType, const Vec<BasicBlock *> basicBlocks,
+    Map<BasicBlock *, BasicBlock *> &oldToNew) const {
   Map<const Variable *, const Variable *> variableMap;
   Map<BasicBlock *, BasicBlock *> basicBlockMap;
   auto newFunction = Make<Function>(conn, newName, newReturnType);
@@ -448,6 +451,8 @@ Own<Function> Function::partialCloneAndRename(
     auto newBlock = newFunction->makeBasicBlock(basicBlock->getLabel());
     basicBlockMap[basicBlock] = newBlock;
   }
+
+  oldToNew = basicBlockMap;
 
   FunctionCloneAndRenameHelper cloneHelper{variableMap, basicBlockMap};
   for (auto &[oldBasicBlock, newBasicBlock] : basicBlockMap) {
@@ -472,8 +477,14 @@ Own<Function> Function::partialCloneAndRename(
                          newFunction->bindExpression(
                              getOriginalName(arg->getName()), arg->getType())));
   }
-  entry->addInstruction(
+
+  // create a preheader block to serve as the place for code insertation during
+  // phi node deconstruction, let it jump to the first block of the first region
+  auto preheader = newFunction->makeBasicBlock("preheader");
+  preheader->addInstruction(
       Make<BranchInst>(basicBlockMap.at(basicBlocks.front())));
+  entry->addInstruction(
+      Make<BranchInst>(preheader)); // let the entry jump to the preheader
 
   // update the successor/predecessor relationship even though some previous
   // code may have done this
@@ -493,9 +504,9 @@ Own<Function> Function::partialCloneAndRename(
         newBasicBlock->addPredecessor(basicBlockMap.at(pred));
       } else {
         // if there is no map for the predecessor
-        // it must be the entry, since we assume only one outside predecessor of
-        // the outlined basic blocks
-        newBasicBlock->addPredecessor(entry);
+        // it must be the preheader, since we assume only one outside
+        // predecessor of the outlined basic blocks
+        newBasicBlock->addPredecessor(preheader);
       }
     }
   }

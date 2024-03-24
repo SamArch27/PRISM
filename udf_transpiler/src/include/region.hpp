@@ -3,6 +3,8 @@
 
 #include "basic_block.hpp"
 
+using json = nlohmann::json;
+
 class RecursiveRegion;
 
 // Every region has a single entry point (a header)
@@ -10,7 +12,8 @@ class RecursiveRegion;
 class Region {
 protected:
   // Make the constructor protected to ensure no one is creating raw regions
-  Region(BasicBlock *header, bool attach) : header(header) {
+  Region(BasicBlock *header, bool attach, String metadata = "")
+      : header(header) {
     if (attach) {
       header->setRegion(this);
     }
@@ -42,9 +45,13 @@ public:
 
   virtual Vec<BasicBlock *> getBasicBlocks() const = 0;
 
+  void setMetadata(json metadata) { this->metadata = metadata; }
+  inline const json &getMetadata() const { return metadata; }
+
 private:
   RecursiveRegion *parentRegion = nullptr;
   BasicBlock *header;
+  json metadata;
 };
 
 class NonRecursiveRegion : public Region {

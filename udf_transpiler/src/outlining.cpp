@@ -14,7 +14,8 @@
 /**
  * Robust way to find the outgoing branch out of this list of blocks
  */
-Set<BasicBlock *> getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
+static Set<BasicBlock *>
+getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
   Set<BasicBlock *> blockSet;
   Set<BasicBlock *> nextBlocks;
   for (auto *block : basicBlocks) {
@@ -50,7 +51,7 @@ void OutliningPass::outlineFunction(Function &f) {
   loadUDF(*compiler.getConnection());
 }
 
-bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
+static bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
   // check if all the basic blocks are naive (just jmps)
   for (auto *block : basicBlocks) {
     size_t instCount = 0;
@@ -144,8 +145,9 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   }
   Type returnType =
       outliningEndRegion ? f.getReturnType() : returnVariable->getType();
+  Map<BasicBlock *, BasicBlock *> tmp;
   auto newFunction = f.partialCloneAndRename(newFunctionName, newFunctionArgs,
-                                             returnType, blocksToOutline);
+                                             returnType, blocksToOutline, tmp);
 
   if (!outliningEndRegion) {
     // add explicit return of the return variable to the end of the function
@@ -296,5 +298,6 @@ bool OutliningPass::runOnFunction(Function &f) {
   drawGraph(f.getCFGString(), "cfg");
   Vec<BasicBlock *> queuedBlocks;
   auto containsSelect = computeSelectRegions(f.getRegion());
-  return runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks);
+  runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks);
+  return false;
 }

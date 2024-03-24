@@ -1,16 +1,18 @@
-CREATE FUNCTION OrdersByCustomer(ckey integer)
+create table orders (o_orderkey bigint, o_custkey integer);
+
+CREATE FUNCTION OrdersByCustomer(ckey integer, tmp int)
     RETURNS integer
     STABLE AS
 $$
 DECLARE
     custkey integer := ckey;
     okey    bigint;
-    adsf   integer;
-    val     integer := 0;
+    adsf   integer := tmp;
+    val     integer := adsf+1;
 BEGIN
     FOR okey IN (SELECT O_ORDERKEY FROM orders WHERE O_CUSTKEY = custkey)
         LOOP
-            val := val + 1;
+            val := val + okey::int;
         END LOOP;
     RETURN val;
 END;

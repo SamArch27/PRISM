@@ -42,9 +42,7 @@ bool QueryMotionPass::runOnFunction(Function &f) {
           changed = true;
 
           // create a new boolean temp variable
-          auto *temp = f.createTempVariable(
-              Type(false, std::nullopt, std::nullopt, PostgresTypeTag::BOOLEAN),
-              false);
+          auto *temp = f.createTempVariable(Type::BOOLEAN, false);
 
           // and assignment temp = SELECT ...
           auto newAssign = Make<Assignment>(temp, cond->clone());
@@ -131,7 +129,8 @@ bool QueryMotionPass::runOnFunction(Function &f) {
         auto newRHS = "SELECT (" + assign->getRHS()->getRawSQL() + ") WHERE " +
                       branch->getCond()->getRawSQL();
         newAssign = Make<Assignment>(
-            temp, f.bindExpression(newRHS, assign->getRHS()->getReturnType()));
+            temp, f.bindExpression(newRHS, assign->getRHS()->getReturnType(),
+                                   true, false));
       }
     }
 
