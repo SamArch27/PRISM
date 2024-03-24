@@ -285,16 +285,14 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
         terminator->replaceWith(Make<BranchInst>(
             newTrue, newFalse, terminator->getCond()->clone()));
       }
-      // update the predecessors "successors"
-      pred->removeSuccessor(top);
-      pred->addSuccessor(bottom);
-
-      // add this predecessor as a predecessor to the bottom block
-      bottom->addPredecessor(pred);
     }
   }
 
-  // finally remove the basic block from the function
+  // remove all instructions of the block
+  for (auto it = top->begin(); it != top->end();) {
+    it = top->removeInst(it);
+  }
+  // erase the block
   removeBasicBlock(top);
 }
 
@@ -302,14 +300,6 @@ void Function::removeBasicBlock(BasicBlock *toRemove) {
   auto it = basicBlocks.begin();
   while (it != basicBlocks.end()) {
     if (it->get() == toRemove) {
-      // make all predecessors not reference this
-      for (auto &pred : toRemove->getPredecessors()) {
-        pred->removeSuccessor(toRemove);
-      }
-      // make all successors not reference this
-      for (auto &succ : toRemove->getSuccessors()) {
-        succ->removePredecessor(toRemove);
-      }
       // finally erase the block
       it = basicBlocks.erase(it);
     } else {

@@ -24,7 +24,6 @@ RegionDefs QueryMotionPass::computeDefs(const Region *root) const {
 }
 
 bool QueryMotionPass::runOnFunction(Function &f) {
-
   bool changed = false;
 
   // Handle the simplest case of a SELECT in a condition
@@ -105,8 +104,17 @@ bool QueryMotionPass::runOnFunction(Function &f) {
       continue;
     }
 
-    changed = true;
     auto *parentHeader = parentRegion->getHeader();
+    if (parentHeader == f.getEntryBlock()) {
+      continue;
+    }
+
+    // Don't hoist to join points
+    if (parentHeader->getPredecessors().size() > 1) {
+      continue;
+    }
+
+    changed = true;
 
     // create the temporary variable using the LHS of the assignment
     auto *temp = f.createTempVariable(assign->getLHS()->getType(),

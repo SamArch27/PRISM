@@ -7,27 +7,11 @@ const Vec<BasicBlock *> &BasicBlock::getPredecessors() const {
   return predecessors;
 }
 
-void BasicBlock::addSuccessor(BasicBlock *succ) { successors.push_back(succ); }
-void BasicBlock::addPredecessor(BasicBlock *pred) {
-  predecessors.push_back(pred);
-}
-void BasicBlock::removeSuccessor(BasicBlock *succ) {
-  successors.erase(std::remove(successors.begin(), successors.end(), succ),
-                   successors.end());
-}
-void BasicBlock::removePredecessor(BasicBlock *pred) {
-  predecessors.erase(
-      std::remove(predecessors.begin(), predecessors.end(), pred),
-      predecessors.end());
-}
-
 void BasicBlock::addInstruction(Own<Instruction> inst) {
   // if we are inserting a terminator instruction then we update the
   // successor/predecessors appropriately
   inst->setParent(this);
   if (inst->isTerminator()) {
-    // clear current successors
-    successors.clear();
     for (auto *succBlock : inst->getSuccessors()) {
       addSuccessor(succBlock);
       succBlock->addPredecessor(this);
@@ -46,14 +30,14 @@ InstIterator BasicBlock::insertBeforeTerminator(Own<Instruction> newInst) {
   return insertBefore(std::prev(instructions.end()), std::move(newInst));
 }
 
-InstIterator BasicBlock::insertAfter(InstIterator targetInst,
-                                     Own<Instruction> newInst) {
-  newInst->setParent(this);
-  ++targetInst; // import that we increment the iterator before to insert after
-  return instructions.insert(targetInst.iter, std::move(newInst));
-}
-
 InstIterator BasicBlock::removeInst(InstIterator targetInst) {
+  if (targetInst->isTerminator()) {
+    // clear current successors
+    for (auto *succ : successors) {
+      succ->removePredecessor(this);
+    }
+    successors.clear();
+  }
   return instructions.erase(targetInst.iter);
 }
 
@@ -70,9 +54,16 @@ InstIterator BasicBlock::findInst(Instruction *inst) {
 
 InstIterator BasicBlock::replaceInst(InstIterator targetInst,
                                      Own<Instruction> newInst) {
-  auto it = insertBefore(targetInst, std::move(newInst));
-  removeInst(targetInst);
-  return it;
+  // careful with terminators
+  if (newInst->isTerminator()) {
+    removeInst(targetInst);
+    addInstruction(std::move(newInst));
+    return InstIterator(std::prev(instructions.end()));
+  } else {
+    auto it = insertBefore(targetInst, std::move(newInst));
+    removeInst(targetInst);
+    return it;
+  }
 }
 
 Instruction *BasicBlock::getInitiator() { return instructions.begin()->get(); }
@@ -94,4 +85,18 @@ void BasicBlock::print(std::ostream &os) const {
 
     os << *inst << std::endl;
   }
+}
+
+void BasicBlock::addSuccessor(BasicBlock *succ) { successors.push_back(succ); }
+void BasicBlock::addPredecessor(BasicBlock *pred) {
+  predecessors.push_back(pred);
+}
+void BasicBlock::removeSuccessor(BasicBlock *succ) {
+  successors.erase(std::remove(successors.begin(), successors.end(), succ),
+                   successors.end());
+}
+void BasicBlock::removePredecessor(BasicBlock *pred) {
+  predecessors.erase(
+      std::remove(predecessors.begin(), predecessors.end(), pred),
+      predecessors.end());
 }

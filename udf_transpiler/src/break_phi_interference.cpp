@@ -313,7 +313,15 @@ void BreakPhiInterferencePass::processResultConflict(Function &f,
   auto newAssignment = Make<Assignment>(
       x, f.bindExpression(xPrime->getName(), xPrime->getType()));
   auto *block = it->getParent();
-  block->insertAfter(it, std::move(newAssignment));
+
+  // Iterate until the first non-phi instruction and insert before
+  for (auto re = block->begin(); re != block->end(); ++re) {
+    auto &inst = *re;
+    if (!dynamic_cast<PhiNode *>(&inst)) {
+      block->insertBefore(re, std::move(newAssignment));
+      break;
+    }
+  }
 
   // Update the live in/out and interference graph
   liveness->removeBlockLiveIn(block, x);

@@ -162,10 +162,7 @@ public:
 
   const Vec<BasicBlock *> &getSuccessors() const;
   const Vec<BasicBlock *> &getPredecessors() const;
-  void addSuccessor(BasicBlock *succ);
-  void addPredecessor(BasicBlock *pred);
-  void removeSuccessor(BasicBlock *succ);
-  void removePredecessor(BasicBlock *pred);
+
   void addInstruction(Own<Instruction> inst);
 
   ConstInstIterator begin() const {
@@ -179,7 +176,6 @@ public:
 
   InstIterator insertBefore(InstIterator targetInst, Own<Instruction> newInst);
   InstIterator insertBeforeTerminator(Own<Instruction> newInst);
-  InstIterator insertAfter(InstIterator targetInst, Own<Instruction> newInst);
 
   InstIterator findInst(Instruction *inst);
   InstIterator removeInst(InstIterator targetInst);
@@ -209,6 +205,11 @@ protected:
   void print(std::ostream &os) const;
 
 private:
+  void addSuccessor(BasicBlock *succ);
+  void addPredecessor(BasicBlock *pred);
+  void removeSuccessor(BasicBlock *succ);
+  void removePredecessor(BasicBlock *pred);
+
   String label;
   ListOwn<Instruction> instructions;
   Vec<BasicBlock *> predecessors;
