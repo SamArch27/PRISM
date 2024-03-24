@@ -88,28 +88,56 @@ bool QueryMotionPass::runOnFunction(Function &f) {
     auto *currentRegion = assign->getParent()->getRegion();
     auto regionDefs = regionDefinitions[currentRegion];
 
-    // If any usedVariable is defined in this region then we can't hoist
-    if (std::any_of(usedVariables.begin(), usedVariables.end(),
-                    [&](const Variable *usedVar) {
-                      return regionDefs.find(usedVar) != regionDefs.end();
-                    })) {
+    Vec<const SelectExpression *> conds;
+    Region *highestRegion = nullptr;
+    while (true) {
+      auto regionDefs = regionDefinitions[currentRegion];
+
+      // If any usedVariable is defined in this region then we can't hoist
+      if (std::any_of(usedVariables.begin(), usedVariables.end(),
+                      [&](const Variable *usedVar) {
+                        return regionDefs.find(usedVar) != regionDefs.end();
+                      })) {
+        break;
+      }
+
+      // If there's no parent region to hoist to then we can't hoist
+      auto *parentRegion = currentRegion->getParentRegion();
+      if (!parentRegion) {
+        break;
+      }
+
+      auto *parentHeader = parentRegion->getHeader();
+      if (parentHeader == f.getEntryBlock()) {
+        break;
+      }
+
+      // keep track of the variables used by conditions
+      auto *terminator = parentHeader->getTerminator();
+      if (auto *branch = dynamic_cast<const BranchInst *>(terminator)) {
+        if (branch->isConditional()) {
+          auto condVariables = branch->getCond()->getUsedVariables();
+          usedVariables.insert(condVariables.begin(), condVariables.end());
+          conds.push_back(branch->getCond());
+        }
+      }
+
+      // Don't hoist to join points
+      if (parentHeader->getPredecessors().size() <= 1) {
+        highestRegion = currentRegion;
+      }
+
+      currentRegion = currentRegion->getParentRegion();
+    }
+
+    // Failed to hoist
+    if (!highestRegion) {
       continue;
     }
 
-    // If there's no parent region to hoist to then we can't hoist
-    auto *parentRegion = currentRegion->getParentRegion();
-    if (!parentRegion) {
-      continue;
-    }
-
-    auto *parentHeader = parentRegion->getHeader();
-    if (parentHeader == f.getEntryBlock()) {
-      continue;
-    }
-
-    // Don't hoist to join points
-    if (parentHeader->getPredecessors().size() > 1) {
-      continue;
+    // We can always hoist one higher
+    if (highestRegion->getParentRegion()) {
+      highestRegion = highestRegion->getParentRegion();
     }
 
     changed = true;
@@ -122,23 +150,27 @@ bool QueryMotionPass::runOnFunction(Function &f) {
     auto newAssign = Make<Assignment>(temp, assign->getRHS()->clone());
 
     // we have to add the condition if it exists
-    auto *terminator = parentHeader->getTerminator();
-    if (auto *branch = dynamic_cast<const BranchInst *>(terminator)) {
-      if (branch->isConditional()) {
-        // SELECT <SELECT ...> WHERE <cond>
-        auto newRHS = "SELECT (" + assign->getRHS()->getRawSQL() + ") WHERE " +
-                      branch->getCond()->getRawSQL();
-        newAssign = Make<Assignment>(
-            temp, f.bindExpression(newRHS, assign->getRHS()->getReturnType(),
-                                   true, false));
+    auto newRHS = assign->getRHS()->getRawSQL();
+    String condString = "";
+    for (auto *cond : conds) {
+      if (condString != "") {
+        condString += " AND ";
       }
+      condString += "(" + cond->getRawSQL() + ")";
     }
 
-    // add the hoisted instruction to the worklist (we may hoist it further)
-    worklist.insert(newAssign.get());
+    if (condString != "") {
+      newRHS =
+          "SELECT (" + assign->getRHS()->getRawSQL() + ") WHERE " + condString;
+    }
+
+    // make the temporary
+    newAssign = Make<Assignment>(
+        temp, f.bindExpression(newRHS, assign->getRHS()->getReturnType(), true,
+                               false));
 
     // do the hoisting
-    parentHeader->insertBeforeTerminator(std::move(newAssign));
+    highestRegion->getHeader()->insertBeforeTerminator(std::move(newAssign));
 
     // finally update the old assignment
     assign->replaceWith(Make<Assignment>(

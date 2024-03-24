@@ -186,7 +186,7 @@ public:
   }
 
   const Variable *createTempVariable(Type type, bool isNULL) {
-    auto newName = "temp_" + std::to_string(tempVariableCounter) + "_";
+    auto newName = "temp" + std::to_string(tempVariableCounter) + "_";
     addVariable(newName, type, isNULL);
     ++tempVariableCounter;
     return getBinding(newName);
