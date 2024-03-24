@@ -146,6 +146,5 @@ bool QueryMotionPass::runOnFunction(Function &f) {
         assign->getLHS(),
         f.bindExpression(temp->getName(), assign->getLHS()->getType())));
   }
-
   return changed;
 }

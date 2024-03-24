@@ -156,6 +156,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     newFunction->renameBasicBlocks(nextBasicBlock, returnBlock);
   }
 
+  std::cout << "OUTLINING: " << *newFunction << std::endl;
   outlineFunction(*newFunction);
 
   String args = "";
@@ -211,8 +212,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     f.removeBasicBlock(block);
   }
 
-  std::cout << "AFTER OUTLINING" << std::endl;
-  std::cout << f << std::endl;
   outlinedCount++;
   return false;
 }
@@ -294,8 +293,6 @@ SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
 }
 
 bool OutliningPass::runOnFunction(Function &f) {
-  std::cout << "BEFORE OUTLINING" << std::endl;
-  std::cout << f << std::endl;
   drawGraph(f.getCFGString(), "cfg");
   Vec<BasicBlock *> queuedBlocks;
   auto containsSelect = computeSelectRegions(f.getRegion());
