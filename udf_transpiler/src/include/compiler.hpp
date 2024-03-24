@@ -8,6 +8,9 @@
 #include "utils.hpp"
 
 #include "cfg_code_generator.hpp"
+#include "fixpoint_pass.hpp"
+#include "function_pass.hpp"
+#include "pipeline_pass.hpp"
 
 using json = nlohmann::json;
 
@@ -36,9 +39,25 @@ public:
            optimizerPassOnMap.at(passName);
   }
 
-  template <typename T> void runPass(T &pass, Function &f) {
-    if (passOn(pass.getPassName())) {
+  void runPass(FunctionPass &pass, Function &f) {
+    if (auto *pipelinePass = dynamic_cast<PipelinePass *>(&pass)) {
+      auto &pipeline = pipelinePass->getPipeline();
+      auto iter = pipeline.begin();
+      while (iter != pipeline.end()) {
+        auto &cur = *iter;
+        if (!passOn(cur->getPassName())) {
+          iter = pipeline.erase(iter);
+        } else {
+          ++iter;
+        }
+      }
       pass.runOnFunction(f);
+    } else if (auto *fixpointPass = dynamic_cast<FixpointPass *>(&pass)) {
+      runPass(fixpointPass->getPass(), f);
+    } else {
+      if (passOn(pass.getPassName())) {
+        pass.runOnFunction(f);
+      }
     }
   }
 

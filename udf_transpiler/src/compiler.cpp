@@ -1,6 +1,6 @@
 #include "compiler.hpp"
 #include "aggify_code_generator.hpp"
-#include "aggify_dfa.hpp"
+#include "aggify_pass.hpp"
 #include "ast_to_cfg.hpp"
 #include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
@@ -11,13 +11,11 @@
 #include "expression_printer.hpp"
 #include "expression_propagation.hpp"
 #include "file.hpp"
-#include "fixpoint_pass.hpp"
 #include "function.hpp"
 #include "liveness_analysis.hpp"
 #include "merge_regions.hpp"
 #include "outlining.hpp"
 #include "pg_query.h"
-#include "pipeline_pass.hpp"
 #include "predicate_analysis.hpp"
 #include "query_motion.hpp"
 #include "ssa_construction.hpp"
@@ -90,28 +88,6 @@ json Compiler::parseJson() const {
   return json;
 }
 
-template <> void Compiler::runPass(PipelinePass &pass, Function &f) {
-  auto &pipeline = pass.getPipeline();
-  auto iter = pipeline.begin();
-  while (iter != pipeline.end()) {
-    auto &cur = *iter;
-    if (!passOn(cur->getPassName())) {
-      iter = pipeline.erase(iter);
-    } else {
-      ++iter;
-    }
-  }
-  pass.runOnFunction(f);
-}
-
-template <> void Compiler::runPass(FixpointPass &pass, Function &f) {
-  if (auto pipeline = dynamic_cast<PipelinePass *>(&pass.getPass())) {
-    runPass(*pipeline, f);
-  } else {
-    runPass(pass.getPass(), f);
-  }
-}
-
 void Compiler::optimize(Function &f) {
   drawGraph(f.getCFGString(), "cfg_before_optimization");
   drawGraph(f.getRegionString(), "region_before_optimization");
@@ -128,6 +104,11 @@ void Compiler::optimize(Function &f) {
                          Make<ExpressionPropagationPass>()));
   auto rightBeforeOutliningPipeline =
       Make<FixpointPass>(Make<DeadCodeEliminationPass>());
+
+  auto aggifyPipeline = Make<PipelinePass>(
+      Make<AggifyPass>(*this), Make<AggressiveExpressionPropagationPass>(),
+      Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
+
   auto outliningPipeline = Make<PipelinePass>(
       Make<OutliningPass>(*this), Make<AggressiveExpressionPropagationPass>(),
       Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
@@ -157,6 +138,7 @@ void Compiler::optimize(Function &f) {
   // rightBeforeOutliningPipeline->runOnFunction(f);
   runPass(*rightBeforeOutliningPipeline, f);
   // outliningPipeline->runOnFunction(f);
+  runPass(*aggifyPipeline, f);
   runPass(*outliningPipeline, f);
 
   // Finally get out of SSA
