@@ -102,6 +102,7 @@ public:
   static constexpr int DEFAULT_SCALE = 3;
 
   static Type BOOLEAN;
+  static Type INT;
 
   Type(bool decimal, Opt<int> width, Opt<int> scale,
        PostgresTypeTag postgresTag)

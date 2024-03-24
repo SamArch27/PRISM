@@ -283,7 +283,11 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const Variable *> &oldToNew);
 
-  void renameBasicBlocks(const Map<BasicBlock *, BasicBlock *> &oldToNew);
+  /**
+   * Assume the new block is a fresh block that has no predecessors or
+   * successors
+   */
+  void renameBasicBlocks(const BasicBlock *oldBlock, BasicBlock *newBlock);
 
   Own<SelectExpression> replaceVarWithExpression(
       const SelectExpression *original,
@@ -292,7 +296,8 @@ public:
   int typeMatches(const String &rhs, const Type &type, bool needContext = true);
 
   Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
-                                       bool needContext = true);
+                                       bool needContext = true,
+                                       bool enforeCast = true);
 
   Map<Instruction *, Instruction *> replaceUsesWithExpr(
       const Map<const Variable *, const SelectExpression *> &oldToNew,

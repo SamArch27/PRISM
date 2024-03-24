@@ -124,7 +124,13 @@ public:
 
   BasicBlock *getPred(std::size_t offset) const { return predecessors[offset]; }
 
-  void renameBasicBlock(const Map<BasicBlock *, BasicBlock *> &oldToNew) {
+  /**
+   * when newsPrevPred == nullptr,
+   * Assume the new block is a fresh block that has no predecessors or
+   * successors
+   */
+  void renameBasicBlock(const BasicBlock *oldBlock, BasicBlock *newBlock,
+                        const BasicBlock *newsPrevPred = nullptr) {
 
     for (auto it = begin(); it != end(); ++it) {
       auto &inst = *it;
@@ -132,21 +138,34 @@ public:
         auto *trueBlock = branchInst->getIfTrue();
         auto *falseBlock = branchInst->getIfFalse();
 
-        if (oldToNew.find(branchInst->getIfTrue()) != oldToNew.end()) {
-          removeSuccessor(trueBlock);
-          trueBlock = oldToNew.at(trueBlock);
-          successors.clear();
-          addSuccessor(trueBlock);
-          trueBlock->predecessors.clear();
-          trueBlock->addPredecessor(this);
+        if (trueBlock == oldBlock) {
+          trueBlock = newBlock;
+
+          // update the predecessor of the new block
+          if (newsPrevPred == nullptr) {
+            trueBlock->getPredecessorsRef().clear();
+            trueBlock->addPredecessor(this);
+          } else {
+            trueBlock->replacePredecessor(newsPrevPred, this);
+          }
         }
-        if (oldToNew.find(branchInst->getIfFalse()) != oldToNew.end()) {
-          removeSuccessor(falseBlock);
-          falseBlock = oldToNew.at(falseBlock);
-          successors.clear();
+        if (falseBlock != nullptr && falseBlock == oldBlock) {
+          falseBlock = newBlock;
+
+          // update the predecessor of the new block
+          if (newsPrevPred == nullptr) {
+            falseBlock->getPredecessorsRef().clear();
+            falseBlock->addPredecessor(this);
+          } else {
+            falseBlock->replacePredecessor(newsPrevPred, this);
+          }
+        }
+
+        // update the successor of the current block
+        successors.clear();
+        addSuccessor(trueBlock);
+        if (falseBlock != nullptr) {
           addSuccessor(falseBlock);
-          falseBlock->predecessors.clear();
-          falseBlock->addPredecessor(this);
         }
 
         if (branchInst->isUnconditional()) {
@@ -162,6 +181,11 @@ public:
 
   const Vec<BasicBlock *> &getSuccessors() const;
   const Vec<BasicBlock *> &getPredecessors() const;
+  void addSuccessor(BasicBlock *succ);
+  void addPredecessor(BasicBlock *pred);
+  void removeSuccessor(BasicBlock *succ);
+  void removePredecessor(BasicBlock *pred);
+  void replacePredecessor(const BasicBlock *oldPred, BasicBlock *newPred);
 
   void addInstruction(Own<Instruction> inst);
 
@@ -201,15 +225,13 @@ public:
     return false;
   }
 
+  inline Vec<BasicBlock *> &getSuccessorsRef() { return successors; }
+  inline Vec<BasicBlock *> &getPredecessorsRef() { return predecessors; }
+
 protected:
   void print(std::ostream &os) const;
 
 private:
-  void addSuccessor(BasicBlock *succ);
-  void addPredecessor(BasicBlock *pred);
-  void removeSuccessor(BasicBlock *succ);
-  void removePredecessor(BasicBlock *pred);
-
   String label;
   ListOwn<Instruction> instructions;
   Vec<BasicBlock *> predecessors;

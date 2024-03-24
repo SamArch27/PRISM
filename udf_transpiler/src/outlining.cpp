@@ -152,7 +152,8 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     auto *returnBlock = newFunction->makeBasicBlock("returnBlock");
     returnBlock->addInstruction(Make<ReturnInst>(newFunction->bindExpression(
         returnVariable->getName(), returnVariable->getType())));
-    newFunction->renameBasicBlocks({{nextBasicBlock, returnBlock}});
+
+    newFunction->renameBasicBlocks(nextBasicBlock, returnBlock);
   }
 
   std::cout << "OUTLINING: " << *newFunction << std::endl;
@@ -185,14 +186,27 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   ASSERT(preds.size() == 1, "Must have exactly one predecessor for region!");
   auto *pred = preds.front();
 
-  Map<BasicBlock *, BasicBlock *> oldToNew = {{regionHeader, nextBasicBlock}};
-  pred->renameBasicBlock(oldToNew);
+  // get the predecessor of nextBasicBlock that is in the region
+  BasicBlock *nextPred = nullptr;
+  Set<BasicBlock *> blocksToOutlineSet;
+  for (auto *block : blocksToOutline) {
+    blocksToOutlineSet.insert(block);
+  }
+  for (auto *pred : nextBasicBlock->getPredecessors()) {
+    if (blocksToOutlineSet.count(pred) > 0) {
+      ASSERT(nextPred == nullptr, "Should not have multiple preds in region");
+      nextPred = pred;
+    }
+  }
+  pred->renameBasicBlock(regionHeader, nextBasicBlock, nextPred);
 
   auto *replacement = nextBasicBlock->getRegion();
   auto *currentRegion = regionHeader->getRegion();
   auto *parentRegion = currentRegion->getParentRegion();
 
   parentRegion->replaceNestedRegion(currentRegion, replacement);
+
+  drawGraph(f.getCFGString(), "cfg");
 
   for (auto *block : blocksToOutline) {
     f.removeBasicBlock(block);

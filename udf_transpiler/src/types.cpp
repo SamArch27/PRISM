@@ -4,6 +4,7 @@
 #define FMT_HEADER_ONLY
 
 Type Type::BOOLEAN = Type(false, std::nullopt, std::nullopt, PostgresTypeTag::BOOLEAN);
+Type Type::INT = Type(false, std::nullopt, std::nullopt, PostgresTypeTag::INT);
 
 std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
   switch (tag) {
