@@ -110,8 +110,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
-  std::cout << f << std::endl;
-  std::cout << *liveness << std::endl;
 
   auto *regionHeader = blocksToOutline.front();
   auto liveIn = liveness->getBlockLiveIn(regionHeader);
@@ -135,24 +133,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
            fmt::format("Do not support one region to return {} variables",
                        returnVars.size()));
   }
-
-  COUT << "Outlining basic blocks: " << ENDL;
-  for (auto *block : blocksToOutline) {
-    COUT << block->getLabel() << " ";
-  }
-  COUT << ENDL;
-  COUT << "End region: " << outliningEndRegion << ENDL;
-  COUT << "Return variables: " << ENDL;
-  for (auto *var : returnVars) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
-  COUT << "Input variables: " << ENDL;
-  for (auto *var : liveIn) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
-  COUT << ENDL;
 
   auto *returnVariable = returnVars.empty() ? nullptr : *returnVars.begin();
 
@@ -178,7 +158,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 
   outlineFunction(*newFunction);
 
-  // TODO: rewrite the original function
   String args = "";
   for (auto &arg : newFunctionArgs) {
     if (args != "") {
@@ -194,11 +173,12 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     ASSERT(nextBasicBlock == nullptr, "Must not have a next basic block!");
     nextBasicBlock = f.makeBasicBlock();
     nextBasicBlock->addInstruction(std::move(retInst));
-    auto leafRegion = Make<LeafRegion>(nextBasicBlock).release();
+    nextBasicBlock->setRegion(Make<LeafRegion>(nextBasicBlock).release());
   } else {
     auto assign = Make<Assignment>(returnVariable, std::move(result));
     ASSERT(nextBasicBlock != nullptr, "NextBasicBlock cannot be nullptr!!");
     nextBasicBlock->insertBefore(nextBasicBlock->begin(), std::move(assign));
+    nextBasicBlock->getRegion()->getParentRegion()->releaseNestedRegions();
   }
 
   auto &preds = regionHeader->getPredecessors();
@@ -231,6 +211,8 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     f.removeBasicBlock(block);
   }
 
+  std::cout << "AFTER OUTLINING" << std::endl;
+  std::cout << f << std::endl;
   outlinedCount++;
   return false;
 }
@@ -312,6 +294,7 @@ SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
 }
 
 bool OutliningPass::runOnFunction(Function &f) {
+  std::cout << "BEFORE OUTLINING" << std::endl;
   std::cout << f << std::endl;
   drawGraph(f.getCFGString(), "cfg");
   Vec<BasicBlock *> queuedBlocks;

@@ -207,11 +207,13 @@ Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
     EXCEPTION("There is a path without return value.");
     return nullptr;
   }
+  auto preHeader = f.makeBasicBlock();
   auto newBlock = f.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
   String ret = getJsonExpr(returnJson["expr"]);
   newBlock->addInstruction(
       Make<ReturnInst>(f.bindExpression(ret, f.getReturnType())));
-  return Make<LeafRegion>(newBlock);
+  return Make<SequentialRegion>(preHeader, Make<LeafRegion>(newBlock));
 }
 
 Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,

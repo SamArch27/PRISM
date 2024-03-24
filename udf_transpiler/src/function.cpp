@@ -256,6 +256,8 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
   auto *bottomRegion = bottom->getRegion();
   auto *topRegion = bottomRegion->getParentRegion();
   auto *parent = topRegion->getParentRegion();
+
+  topRegion->releaseNestedRegions();
   parent->replaceNestedRegion(topRegion, bottomRegion);
 
   // copy instructions from top into bottom (in reverse order)
@@ -301,7 +303,11 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
     }
   }
 
-  // finally remove the basic block from the function
+  // remove all instructions of the block
+  for (auto it = top->begin(); it != top->end();) {
+    it = top->removeInst(it);
+  }
+  // erase the block
   removeBasicBlock(top);
 }
 

@@ -349,8 +349,10 @@ protected:
     os << "Control Flow Graph: \n" << std::endl;
     os << getCFGString() << std::endl;
 
-    // os << "Regions: \n" << std::endl;
-    // os << getRegionString() << std::endl;
+    if (functionRegion) {
+      os << "Regions: \n" << std::endl;
+      os << getRegionString() << std::endl;
+    }
   }
 
 private:
