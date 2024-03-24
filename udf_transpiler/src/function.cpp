@@ -252,6 +252,8 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
   auto *bottomRegion = bottom->getRegion();
   auto *topRegion = bottomRegion->getParentRegion();
   auto *parent = topRegion->getParentRegion();
+
+  topRegion->releaseNestedRegions();
   parent->replaceNestedRegion(topRegion, bottomRegion);
 
   // copy instructions from top into bottom (in reverse order)
