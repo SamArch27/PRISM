@@ -3,7 +3,6 @@
 #include "utils.hpp"
 
 bool MergeRegionsPass::runOnFunction(Function &f) {
-
   bool changed = false;
   // visit the CFG in a BFS fashion, merging blocks as we go
   Set<BasicBlock *> worklist;
@@ -48,6 +47,7 @@ bool MergeRegionsPass::runOnFunction(Function &f) {
       }
 
       if (!aggressive) {
+
         // don't merge conditionals
         if (dynamic_cast<ConditionalRegion *>(bottom->getRegion())) {
           continue;
@@ -55,6 +55,20 @@ bool MergeRegionsPass::runOnFunction(Function &f) {
 
         // don't merge loops
         if (dynamic_cast<LoopRegion *>(bottom->getRegion())) {
+          continue;
+        }
+
+        // don't merge preheaders of conditionals/loops
+        bool abortMerge = false;
+        for (auto *succ : bottom->getSuccessors()) {
+          if (dynamic_cast<ConditionalRegion *>(succ->getRegion())) {
+            abortMerge = true;
+          }
+          if (dynamic_cast<LoopRegion *>(succ->getRegion())) {
+            abortMerge = true;
+          }
+        }
+        if (abortMerge) {
           continue;
         }
       }

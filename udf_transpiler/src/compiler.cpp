@@ -156,9 +156,6 @@ void Compiler::optimize(Function &f) {
   // outliningPipeline->runOnFunction(f);
   runPass(*outliningPipeline, f);
 
-  std::cout << "AFTER OUTLINING PIPELINE" << std::endl;
-  std::cout << f << std::endl;
-
   // Finally get out of SSA
   // ssaDestructionPipeline->runOnFunction(f);
   runPass(*ssaDestructionPipeline, f);
