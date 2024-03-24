@@ -24,11 +24,6 @@ void SSADestructionPass::removePhis(Function &f) {
           }
 
           auto newAssignment = Make<Assignment>(phi->getLHS(), arg->clone());
-          if (pred->isConditional()) {
-            ASSERT(pred->getPredecessors().size() == 1,
-                   "Must have unique predecessor for conditional block!!");
-            pred = pred->getPredecessors().front();
-          }
           pred->insertBeforeTerminator(std::move(newAssignment));
         }
         // Remove the phi

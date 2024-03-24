@@ -158,9 +158,8 @@ void PLpgSQLGenerator::regionCodeGenerator(const Function &function,
     PLpgSQLContainer loopContainer;
     regionCodeGenerator(function, loopContainer, currentRegion->getBodyRegion(),
                         indent);
-    auto loopCode =
-        fmt::format("WHILE TRUE LOOP\n{}END LOOP;\n", joinCode(loopContainer));
-    container.regionCodes.push_back(headerCode);
+    auto loopCode = fmt::format("LOOP\n{}\n{}END LOOP;\n", headerCode,
+                                joinCode(loopContainer));
     container.regionCodes.push_back(loopCode);
   } else if (auto currentRegion =
                  dynamic_cast<const ConditionalRegion *>(region)) {
@@ -231,10 +230,10 @@ void PLpgSQLGenerator::bodyCodeGenerator(const Function &function,
  * based on the region of the cfg, generate the corresponding PL/pgSQL code
  */
 PLpgSQLGeneratorResult PLpgSQLGenerator::run(const Function &function) {
+
   PLpgSQLContainer container;
 
   // generate the region code
-  // String body = "empty now";
   bodyCodeGenerator(function, container);
   String body = joinCode(container);
 

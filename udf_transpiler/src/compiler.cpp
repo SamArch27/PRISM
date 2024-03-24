@@ -110,7 +110,8 @@ void Compiler::optimize(Function &f) {
       Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
 
   auto outliningPipeline = Make<PipelinePass>(
-      Make<OutliningPass>(*this), Make<AggressiveExpressionPropagationPass>(),
+      /*Make<OutliningPass>(*this),*/ Make<
+          AggressiveExpressionPropagationPass>(),
       Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
 
   auto ssaDestructionPipeline = Make<PipelinePass>(

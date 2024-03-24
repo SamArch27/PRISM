@@ -26,9 +26,7 @@ bool BreakPhiInterferencePass::runOnFunction(Function &f) {
     }
   }
   invalidateSingletons(phiCongruent);
-
   removeCopies(f, phiCongruent);
-
   return true;
 }
 
