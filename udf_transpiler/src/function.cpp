@@ -52,10 +52,10 @@ Own<SelectExpression> Function::renameVarInExpression(
   return bindExpression(replacedText, original->getReturnType())->clone();
 }
 
-void Function::renameBasicBlocks(
-    const Map<BasicBlock *, BasicBlock *> &oldToNew) {
+void Function::renameBasicBlocks(const BasicBlock *oldBlock,
+                                 BasicBlock *newBlock) {
   for (auto &block : *this) {
-    block.renameBasicBlock(oldToNew);
+    block.renameBasicBlock(oldBlock, newBlock);
   }
 }
 
@@ -277,6 +277,10 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
       // replace the branch instruction to target the bottom block
       if (terminator->isUnconditional()) {
         terminator->replaceWith(Make<BranchInst>(bottom));
+
+        // update succ relationship
+        pred->getSuccessorsRef().clear();
+        pred->addSuccessor(bottom);
       } else {
         auto *newTrue = terminator->getIfTrue();
         newTrue = (newTrue == top) ? bottom : newTrue;
@@ -286,13 +290,14 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
 
         terminator->replaceWith(Make<BranchInst>(
             newTrue, newFalse, terminator->getCond()->clone()));
-      }
-      // update the predecessors "successors"
-      pred->removeSuccessor(top);
-      pred->addSuccessor(bottom);
 
-      // add this predecessor as a predecessor to the bottom block
-      bottom->addPredecessor(pred);
+        // update succ relationship
+        pred->getSuccessorsRef().clear();
+        pred->addSuccessor(newTrue);
+        pred->addSuccessor(newFalse);
+      }
+      // update pred relationship
+      bottom->replacePredecessor(top, pred);
     }
   }
 
@@ -442,7 +447,9 @@ Own<Function> Function::partialCloneAndRename(
   for (auto &[oldBasicBlock, newBasicBlock] : basicBlockMap) {
     for (const auto &inst : *oldBasicBlock) {
       auto newInst = cloneHelper.cloneAndRename(inst);
-      newBasicBlock->addInstruction(std::move(newInst));
+      // cannot use addInstruction because it will update the successor and
+      // predecessor relationship which may be wrong at this point
+      newBasicBlock->insertBeforeTerminator(std::move(newInst));
     }
   }
 
@@ -461,5 +468,31 @@ Own<Function> Function::partialCloneAndRename(
   }
   entry->addInstruction(
       Make<BranchInst>(basicBlockMap.at(basicBlocks.front())));
+
+  // update the successor/predecessor relationship even though some previous
+  // code may have done this
+  for (auto &[oldBasicBlock, newBasicBlock] : basicBlockMap) {
+    newBasicBlock->getSuccessorsRef().clear();
+    for (auto *succ : oldBasicBlock->getSuccessors()) {
+      if (basicBlockMap.find(succ) != basicBlockMap.end()) {
+        newBasicBlock->addSuccessor(basicBlockMap.at(succ));
+      } else {
+        // make this pointer dangling because later it will be updated
+        newBasicBlock->addSuccessor(succ);
+      }
+    }
+    newBasicBlock->getPredecessorsRef().clear();
+    for (auto *pred : oldBasicBlock->getPredecessors()) {
+      if (basicBlockMap.find(pred) != basicBlockMap.end()) {
+        newBasicBlock->addPredecessor(basicBlockMap.at(pred));
+      } else {
+        // if there is no map for the predecessor
+        // it must be the entry, since we assume only one outside predecessor of
+        // the outlined basic blocks
+        newBasicBlock->addPredecessor(entry);
+      }
+    }
+  }
+
   return newFunction;
 }

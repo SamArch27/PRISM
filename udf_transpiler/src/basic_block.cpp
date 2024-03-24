@@ -21,6 +21,23 @@ void BasicBlock::removePredecessor(BasicBlock *pred) {
       predecessors.end());
 }
 
+/**
+ * Replace the old predecessor with the new predecessor
+ * If the old predecessor is not found, then add the new predecessor
+ */
+void BasicBlock::replacePredecessor(const BasicBlock *oldPred,
+                                    BasicBlock *newPred) {
+  auto it = std::find(predecessors.begin(), predecessors.end(), oldPred);
+  if (it != predecessors.end()) {
+    *it = newPred;
+  } else {
+    if (std::find(predecessors.begin(), predecessors.end(), newPred) ==
+        predecessors.end()) {
+      addPredecessor(newPred);
+    }
+  }
+}
+
 void BasicBlock::addInstruction(Own<Instruction> inst) {
   // if we are inserting a terminator instruction then we update the
   // successor/predecessors appropriately
@@ -30,7 +47,11 @@ void BasicBlock::addInstruction(Own<Instruction> inst) {
     successors.clear();
     for (auto *succBlock : inst->getSuccessors()) {
       addSuccessor(succBlock);
-      succBlock->addPredecessor(this);
+      if (std::find(succBlock->getPredecessors().begin(),
+                    succBlock->getPredecessors().end(),
+                    this) == succBlock->getPredecessors().end()) {
+        succBlock->addPredecessor(this);
+      }
     }
   }
   instructions.emplace_back(std::move(inst));
