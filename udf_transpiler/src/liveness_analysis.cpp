@@ -90,10 +90,7 @@ void LivenessAnalysis::genBoundaryInner() {
   boundaryStart = BitVector(varToIndex.size(), false);
 }
 
-void LivenessAnalysis::finalize() {
-  computeLiveness();
-  computeInterferenceGraph();
-}
+void LivenessAnalysis::finalize() { computeLiveness(); }
 
 BitVector LivenessAnalysis::transfer(BitVector out, BasicBlock *block) {
 
@@ -224,27 +221,6 @@ void LivenessAnalysis::computeLiveness() {
     for (std::size_t i = 0; i < out.size(); ++i) {
       if (out[i]) {
         liveness->addBlockLiveOut(&block, variables[i]);
-      }
-    }
-  }
-}
-
-void LivenessAnalysis::computeInterferenceGraph() {
-  interferenceGraph = Make<InterferenceGraph>();
-
-  for (auto &block : f) {
-    for (std::size_t i = 0; i < variables.size(); ++i) {
-      for (std::size_t j = i + 1; j < variables.size(); ++j) {
-        auto liveOut = liveness->getBlockLiveOut(&block);
-        auto *left = variables[i];
-        auto *right = variables[j];
-        if (liveOut.find(left) == liveOut.end()) {
-          continue;
-        }
-        if (liveOut.find(right) == liveOut.end()) {
-          continue;
-        }
-        interferenceGraph->addInterferenceEdge(left, right);
       }
     }
   }
