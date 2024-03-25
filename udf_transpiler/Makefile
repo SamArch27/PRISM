@@ -39,7 +39,7 @@ clean:
 debug:
 	mkdir -p  build/debug && \
 	cmake $(GENERATOR) $(FORCE_COLOR) $(EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Debug ${BUILD_FLAGS} -S ./duckdb/ -B build/debug && \
-	cmake --build build/debug --config Debug
+	cmake --build build/debug --config Debug -j10
 
 UDF_UDF1_EXTENSION_FLAGS=-DBUILD_MAIN_DUCKDB_LIBRARY=0 -DDISABLE_BUILTIN_EXTENSIONS=1 -DDUCKDB_EXTENSION_NAMES="udf1" -DDUCKDB_EXTENSION_UDF1_PATH="$(PROJ_DIR)udf1" -DDUCKDB_EXTENSION_UDF1_INCLUDE_PATH="$(PROJ_DIR)udf1/src/include"
 udfs:
