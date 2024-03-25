@@ -2,7 +2,6 @@
 #include "aggify_code_generator.hpp"
 #include "aggify_pass.hpp"
 #include "ast_to_cfg.hpp"
-#include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
 #include "cfg_to_ast.hpp"
 #include "dead_code_elimination.hpp"
@@ -64,8 +63,7 @@ CompilationResult Compiler::run() {
 
 CompilationResult Compiler::runOnFunction(Function &f) {
   auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
-      Make<AggressiveMergeRegionsPass>());
+      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
   ssaDestructionPipeline->runOnFunction(f);
 
   CompilationResult codeRes;
@@ -110,19 +108,15 @@ void Compiler::optimize(Function &f) {
       Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
 
   auto outliningPipeline = Make<PipelinePass>(
-      /*Make<OutliningPass>(*this),*/ Make<
-          AggressiveExpressionPropagationPass>(),
+      Make<OutliningPass>(*this), Make<AggressiveExpressionPropagationPass>(),
       Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
 
-  auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>());
+  auto ssaDestructionPipeline = Make<PipelinePass>(Make<SSADestructionPass>());
 
   // Convert to SSA
-  // ssaConstruction->runOnFunction(f);
   runPass(*ssaConstruction, f);
 
   // Run the core optimizations
-  // coreOptimizations->runOnFunction(f);
   runPass(*coreOptimizations, f);
 
   // Extract the predicates
@@ -134,16 +128,12 @@ void Compiler::optimize(Function &f) {
   }
 
   // Now perform outlining
-  // beforeOutliningPipeline->runOnFunction(f);
   runPass(*beforeOutliningPipeline, f);
-  // rightBeforeOutliningPipeline->runOnFunction(f);
   runPass(*rightBeforeOutliningPipeline, f);
-  // outliningPipeline->runOnFunction(f);
   runPass(*aggifyPipeline, f);
   runPass(*outliningPipeline, f);
 
   // Finally get out of SSA
-  // ssaDestructionPipeline->runOnFunction(f);
   runPass(*ssaDestructionPipeline, f);
 
   std::cout << f << std::endl;

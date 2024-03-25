@@ -1,5 +1,4 @@
 #include "outlining.hpp"
-#include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
 #include "compiler.hpp"
 #include "file.hpp"
@@ -32,8 +31,7 @@ getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
 }
 
 void OutliningPass::outlineFunction(Function &f) {
-  auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>());
+  auto ssaDestructionPipeline = Make<PipelinePass>(Make<SSADestructionPass>());
   ssaDestructionPipeline->runOnFunction(f);
 
   std::cout << fmt::format("Transpiling UDF {}...", f.getFunctionName())

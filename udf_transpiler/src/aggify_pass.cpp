@@ -1,5 +1,4 @@
 #include "aggify_pass.hpp"
-#include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
 #include "compiler.hpp"
 #include "file.hpp"
@@ -74,16 +73,11 @@ static bool supportedCursorLoop(const Vec<BasicBlock *> &basicBlocks) {
 }
 
 static void outlineFunction(Function &f, Vec<BasicBlock *> loopBodyBlocks) {
-  auto ssaDestructionPipeline =
-      Make<PipelinePass>(Make<BreakPhiInterferencePass>());
 
-  drawGraph(f.getCFGString(), "break_phi_interference");
-
-  auto ssaDestructionPipeline2 = Make<PipelinePass>(
+  auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
 
   ssaDestructionPipeline->runOnFunction(f);
-  ssaDestructionPipeline2->runOnFunction(f);
 
   drawGraph(f.getCFGString(), "after_aggify");
 }

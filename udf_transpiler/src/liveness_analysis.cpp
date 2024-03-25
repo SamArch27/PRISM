@@ -233,16 +233,18 @@ void LivenessAnalysis::computeInterferenceGraph() {
   interferenceGraph = Make<InterferenceGraph>();
 
   for (auto &block : f) {
-    auto &out = results.at(&block).out;
-
-    // all pairs
-    for (std::size_t i = 0; i < out.size(); ++i) {
-      for (std::size_t j = i + 1; j < out.size(); ++j) {
-        if (out[i] && out[j]) {
-          auto *left = variables[i];
-          auto *right = variables[j];
-          interferenceGraph->addInterferenceEdge(left, right);
+    for (std::size_t i = 0; i < variables.size(); ++i) {
+      for (std::size_t j = i + 1; j < variables.size(); ++j) {
+        auto liveOut = liveness->getBlockLiveOut(&block);
+        auto *left = variables[i];
+        auto *right = variables[j];
+        if (liveOut.find(left) == liveOut.end()) {
+          continue;
         }
+        if (liveOut.find(right) == liveOut.end()) {
+          continue;
+        }
+        interferenceGraph->addInterferenceEdge(left, right);
       }
     }
   }
