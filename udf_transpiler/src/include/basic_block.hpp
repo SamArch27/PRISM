@@ -211,6 +211,7 @@ public:
   void setRegion(Region *region) { parentRegion = region; }
   Region *getRegion() const { return parentRegion; }
 
+  void setLabel(const String &newLabel);
   String getLabel() const;
   bool isConditional() const;
 

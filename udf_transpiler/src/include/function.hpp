@@ -260,7 +260,14 @@ public:
     return phis;
   }
 
-  BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
+  BasicBlock *getEntryBlock() {
+    for (auto &block : basicBlocks) {
+      if (block->getLabel() == "entry") {
+        return block.get();
+      }
+    }
+    return nullptr;
+  }
 
   BasicBlock *getBlockFromLabel(const String &label) {
     return labelToBasicBlock.at(label);

@@ -98,6 +98,8 @@ Instruction *BasicBlock::getTerminator() {
   return last.get();
 }
 
+void BasicBlock::setLabel(const String &newLabel) { label = newLabel; }
+
 String BasicBlock::getLabel() const { return label; }
 
 bool BasicBlock::isConditional() const { return successors.size() == 2; }

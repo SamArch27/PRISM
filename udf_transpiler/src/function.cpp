@@ -124,7 +124,8 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
       destroyDuckDBContext();
       EXCEPTION(fmt::format("Cannot bind expression {} of type {} to type {}, "
                             "please add explicit cast.",
-                            expr, duckDBType.ToString(), retType.getDuckDBType()));
+                            expr, duckDBType.ToString(),
+                            retType.getDuckDBType()));
     } else if (castCost > 0) {
       cleanedExpr =
           fmt::format("({})::{}", cleanedExpr, retType.getDuckDBType());
@@ -260,7 +261,13 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
   auto *parent = topRegion->getParentRegion();
 
   topRegion->releaseNestedRegions();
-  parent->replaceNestedRegion(topRegion, bottomRegion);
+  if (parent) {
+    parent->replaceNestedRegion(topRegion, bottomRegion);
+  } else {
+    bottomRegion->setParentRegion(nullptr);
+    functionRegion.reset(bottomRegion);
+    bottom->setLabel("entry");
+  }
 
   // copy instructions from top into bottom (in reverse order)
   Vec<Instruction *> topInstructions;
@@ -281,10 +288,6 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
       // replace the branch instruction to target the bottom block
       if (terminator->isUnconditional()) {
         terminator->replaceWith(Make<BranchInst>(bottom));
-
-        // update succ relationship
-        pred->getSuccessorsRef().clear();
-        pred->addSuccessor(bottom);
       } else {
         auto *newTrue = terminator->getIfTrue();
         newTrue = (newTrue == top) ? bottom : newTrue;
@@ -294,14 +297,7 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
 
         terminator->replaceWith(Make<BranchInst>(
             newTrue, newFalse, terminator->getCond()->clone()));
-
-        // update succ relationship
-        pred->getSuccessorsRef().clear();
-        pred->addSuccessor(newTrue);
-        pred->addSuccessor(newFalse);
       }
-      // update pred relationship
-      bottom->replacePredecessor(top, pred);
     }
   }
 
@@ -317,14 +313,6 @@ void Function::removeBasicBlock(BasicBlock *toRemove) {
   auto it = basicBlocks.begin();
   while (it != basicBlocks.end()) {
     if (it->get() == toRemove) {
-      // make all predecessors not reference this
-      for (auto &pred : toRemove->getPredecessors()) {
-        pred->removeSuccessor(toRemove);
-      }
-      // make all successors not reference this
-      for (auto &succ : toRemove->getSuccessors()) {
-        succ->removePredecessor(toRemove);
-      }
       // finally erase the block
       it = basicBlocks.erase(it);
     } else {

@@ -4,23 +4,14 @@
 
 bool MergeRegionsPass::runOnFunction(Function &f) {
   bool changed = false;
-  // visit the CFG in a BFS fashion, merging blocks as we go
   Set<BasicBlock *> worklist;
   for (auto &block : f) {
-    // skip entry block
-    if (f.getEntryBlock() == &block) {
-      continue;
-    }
     worklist.insert(&block);
   }
 
   while (!worklist.empty()) {
     auto *top = *worklist.begin();
     worklist.erase(top);
-
-    if (top == f.getEntryBlock()) {
-      continue;
-    }
 
     // don't merge with join points
     if (top->getPredecessors().size() > 1) {
@@ -47,6 +38,10 @@ bool MergeRegionsPass::runOnFunction(Function &f) {
       }
 
       if (!aggressive) {
+        // don't merge with the entry block
+        if (top == f.getEntryBlock()) {
+          continue;
+        }
 
         // don't merge conditionals
         if (dynamic_cast<ConditionalRegion *>(bottom->getRegion())) {
@@ -96,6 +91,7 @@ bool MergeRegionsPass::runOnFunction(Function &f) {
       // mark change, merge the basic blocks, and update the worklist
       changed = true;
       f.mergeBasicBlocks(top, bottom);
+      worklist.erase(top);
       worklist.insert(bottom);
     }
   }
