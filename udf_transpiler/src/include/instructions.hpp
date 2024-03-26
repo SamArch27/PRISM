@@ -27,6 +27,8 @@ public:
       : name(name), type(type), null(null) {}
 
   String getName() const { return name; }
+  // udf_todo: tmp hack
+  void setName(const String &newName) { name = newName; }
   Type getType() const { return type; }
   bool isNull() const { return null; }
 

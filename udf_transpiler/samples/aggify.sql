@@ -1,5 +1,5 @@
 create table orders (o_orderkey bigint, o_custkey integer);
-
+–
 CREATE FUNCTION OrdersByCustomer(ckey integer, tmp int)
     RETURNS integer
     STABLE AS

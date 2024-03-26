@@ -103,10 +103,9 @@ int Function::typeMatches(const String &rhs, const Type &type,
   return castCost;
 }
 
-Own<SelectExpression> Function::bindExpression(const String &expr,
-                                               const Type &retType,
-                                               bool needContext,
-                                               bool enforeCast) {
+Own<SelectExpression>
+Function::bindExpression(const String &expr, const Type &retType,
+                         bool needContext, bool enforeCast, bool noBracket) {
   if (needContext) {
     destroyDuckDBContext();
     makeDuckDBContext();
@@ -136,9 +135,18 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
 
   String selectExpressionCommand;
   if (needContext) {
-    selectExpressionCommand = fmt::format("SELECT ({}) FROM tmp", cleanedExpr);
+    if (noBracket) {
+      selectExpressionCommand = fmt::format("SELECT {} FROM tmp", cleanedExpr);
+    } else {
+      selectExpressionCommand =
+          fmt::format("SELECT ({}) FROM tmp", cleanedExpr);
+    }
   } else {
-    selectExpressionCommand = fmt::format("SELECT ({})", cleanedExpr);
+    if (noBracket) {
+      selectExpressionCommand = fmt::format("SELECT {}", cleanedExpr);
+    } else {
+      selectExpressionCommand = fmt::format("SELECT ({})", cleanedExpr);
+    }
   }
 
   auto clientContext = conn->context.get();
@@ -178,6 +186,8 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
     }
 
     destroyDuckDBContext();
+    std::cout << "While binding expression: " << selectExpressionCommand
+              << std::endl;
     EXCEPTION(e.what());
   }
 

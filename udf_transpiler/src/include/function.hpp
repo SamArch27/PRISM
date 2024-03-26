@@ -197,7 +197,7 @@ public:
     declarations.emplace_back(std::move(assignment));
   }
 
-  String getOriginalName(const String &ssaName) const {
+  static String getOriginalName(const String &ssaName) {
     return ssaName.substr(0, ssaName.find_first_of("_"));
   };
 
@@ -305,7 +305,8 @@ public:
 
   Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
                                        bool needContext = true,
-                                       bool enforeCast = true);
+                                       bool enforeCast = true,
+                                       bool noBracket = false);
 
   Map<Instruction *, Instruction *> replaceUsesWithExpr(
       const Map<const Variable *, const SelectExpression *> &oldToNew,
