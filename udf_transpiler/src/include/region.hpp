@@ -96,6 +96,20 @@ public:
     return result;
   }
 
+  /**
+   * Unlike getNestedRegions, this function returns a list of regions that are
+   * predecessors of this region, i.e. the headers of these regions is a
+   * successor of the header of this region.
+   */
+  Vec<const Region *> getSuccessorRegions() const {
+    Vec<const Region *> result;
+    for (auto succ : getHeader()->getSuccessors()) {
+      ASSERT(succ->getRegion(), "Successor must have a region");
+      result.push_back(succ->getRegion());
+    }
+    return result;
+  }
+
   void releaseNestedRegions() {
     for (auto &region : nestedRegions) {
       region.release();

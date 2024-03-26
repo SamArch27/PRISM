@@ -238,7 +238,7 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
   };
 
   // travers the regions top down
-  if (containsSelect.find(region) != containsSelect.end()) {
+  if (containsSelect.at(region) == true) {
     if (auto *sequentialRegion =
             dynamic_cast<const SequentialRegion *>(region)) {
       // sequential region is an exception because other part of the region
@@ -250,7 +250,7 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
         outlineQueuedBlocks();
       }
       for (auto *nestedRegion : sequentialRegion->getNestedRegions()) {
-        if (containsSelect.find(nestedRegion) != containsSelect.end()) {
+        if (containsSelect.at(nestedRegion) == true) {
           runOnRegion(containsSelect, nestedRegion, f, queuedBlocks);
         } else {
           queueBlocksFromRegion(nestedRegion);
@@ -273,21 +273,56 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
   return true;
 }
 
-SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
-  SelectRegions selectRegions;
+/**
+ * return if any region has successorChanged
+ */
+bool computeSelectRegionsHelper(const Region *region,
+                                SelectRegions &selectRegions,
+                                Set<const Region *> &visitedRegions) {
+  bool regionHasSelect = false;
+  bool successorChanged = false;
+  visitedRegions.insert(region);
+
+  if (selectRegions.find(region) == selectRegions.end()) {
+    selectRegions[region] = false;
+  }
+
+  bool regionPrevHasSelect = selectRegions.at(region);
 
   auto *header = region->getHeader();
+
   if (header->hasSelect()) {
-    selectRegions[region] = true;
+    regionHasSelect = true;
   }
 
   if (auto *rec = dynamic_cast<const RecursiveRegion *>(region)) {
-    for (auto *nested : rec->getNestedRegions()) {
-      for (auto &[selectRegion, _] : computeSelectRegions(nested)) {
-        selectRegions[selectRegion] = true;
-        selectRegions[region] = true;
+    for (auto *nested : rec->getSuccessorRegions()) {
+      if (visitedRegions.count(nested) == 0) {
+        successorChanged =
+            successorChanged ||
+            computeSelectRegionsHelper(nested, selectRegions, visitedRegions);
+      }
+      if (selectRegions.at(nested) == true) {
+        regionHasSelect = true;
       }
     }
+  }
+
+  selectRegions[region] = regionHasSelect;
+  return (regionPrevHasSelect != regionHasSelect) || successorChanged;
+}
+
+SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
+  SelectRegions selectRegions;
+  Set<const Region *> visitedRegions;
+  while (computeSelectRegionsHelper(region, selectRegions, visitedRegions)) {
+    visitedRegions.clear();
+  }
+  // print the result
+  for (auto &[region, containsSelect] : selectRegions) {
+    std::cout << fmt::format("Region: {}: {}", region->getRegionLabel(),
+                             containsSelect)
+              << std::endl;
   }
   return selectRegions;
 }
