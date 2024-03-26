@@ -94,24 +94,22 @@ void Compiler::optimize(Function &f) {
       Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
 
   auto coreOptimizations = Make<FixpointPass>(Make<PipelinePass>(
-      Make<MergeRegionsPass>(), Make<ExpressionPropagationPass>(),
-      Make<DeadCodeEliminationPass>()));
+      Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
 
-  auto beforeOutliningPipeline = Make<FixpointPass>(
-      Make<PipelinePass>(Make<QueryMotionPass>(), Make<MergeRegionsPass>(),
-                         Make<ExpressionPropagationPass>()));
+  auto beforeOutliningPipeline = Make<FixpointPass>(Make<PipelinePass>(
+      Make<QueryMotionPass>(), Make<ExpressionPropagationPass>()));
   auto rightBeforeOutliningPipeline =
       Make<FixpointPass>(Make<DeadCodeEliminationPass>());
 
-  auto aggifyPipeline = Make<PipelinePass>(
-      Make<AggifyPass>(*this), Make<AggressiveExpressionPropagationPass>(),
-      Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
+  auto aggifyPipeline = Make<PipelinePass>(Make<AggifyPass>(*this),
+                                           Make<DeadCodeEliminationPass>());
 
   auto outliningPipeline = Make<PipelinePass>(
       Make<OutliningPass>(*this), Make<AggressiveExpressionPropagationPass>(),
-      Make<DeadCodeEliminationPass>(), Make<AggressiveMergeRegionsPass>());
+      Make<DeadCodeEliminationPass>());
 
-  auto ssaDestructionPipeline = Make<PipelinePass>(Make<SSADestructionPass>());
+  auto ssaDestructionPipeline = Make<PipelinePass>(
+      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
 
   // Convert to SSA
   runPass(*ssaConstruction, f);
