@@ -131,8 +131,10 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
   CodeGenInfo function_info;
   for (auto &bbUniq : f) {
     if (bbUniq.getLabel() == "accumulateReturnBlock") {
-      function_info.lines.push_back(varInit);
-      function_info.lines.push_back("return");
+      String blockCode =
+          fmt::format("accumulateReturnBlock:\n{{{}\nreturn;}}", varInit);
+      container.basicBlockCodes.push_back(blockCode);
+      continue;
     }
     basicBlockCodeGenerator(&bbUniq, f, function_info);
   }
@@ -154,7 +156,8 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
       fmt::arg("stateDefition", stateDefition),
       fmt::arg("operationArgs", operationArgs),
       fmt::arg("operationNullArgs", operationNullArgs),
-      fmt::arg("varInit", varInit), fmt::arg("body", body));
+      fmt::arg("varInit", varInit), fmt::arg("body", body),
+      fmt::arg("returnVariable", retVariable->getName()));
 
   String registration =
       fmt::format(fmt::runtime(config.aggify["registration"].Scalar()),
