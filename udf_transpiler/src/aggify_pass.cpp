@@ -50,15 +50,16 @@ static bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
 
 // only one block has outgoing branch
 static bool supportedCursorLoop(const Vec<BasicBlock *> &basicBlocks) {
-  // header block has exactly two predecessors
-  if (basicBlocks[0]->getPredecessors().size() != 2) {
-    return false;
-  }
-
   Set<BasicBlock *> blockSet;
   for (auto *block : basicBlocks) {
     blockSet.insert(block);
   }
+
+  // // header block has exactly two predecessors
+  // if (basicBlocks[0]->getPredecessors().size() != 2) {
+  //   return false;
+  // }
+
   bool outgoing = false;
   for (auto *block : basicBlocks) {
     for (auto *succ : block->getSuccessors()) {
@@ -93,9 +94,17 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
                                      Vec<const Variable *> customAggArgs,
                                      const Variable *returnVariable,
                                      const json &cursorLoopInfo) {
+  COUT << "predecessors before ssa destruction" << ENDL;
+  for (const auto &block : newFunction) {
+    COUT << block.getLabel() << ": ";
+    for (const auto &pred : block.getPredecessors()) {
+      COUT << pred->getLabel() << " ";
+    }
+    COUT << ENDL;
+  }
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
+      Make<SSADestructionPass>() /*, Make<AggressiveMergeRegionsPass>()*/);
 
   ssaDestructionPipeline->runOnFunction(newFunction);
 
@@ -159,28 +168,29 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   }
   COUT << ENDL;
 
-  String fetchQuery = "";
   Vec<const Variable *> cursorVars;
+  Map<const Variable *, String> cursorVarToFetchQueryVarName;
+  String fetchQuery =
+      cursorLoopInfo["query"]["PLpgSQL_expr"]["query"].get<String>();
+  size_t varId = 0;
   for (const auto &blocks : newFunction) {
     for (const auto &inst : blocks) {
       if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
         if (assign->getRHS()->isSQLExpression() &&
             // udf_todo: may not be the robust way to find the fetch query
-            assign->getRHS()->getRawSQL().find("cursorloopiter") ==
+            assign->getRHS()->getRawSQL().find("cursorloopEmptyTmp") ==
                 std::string::npos) {
           // ASSERT(assign->getRHS()->getRawSQL() == fetchQuery,
           //        "Do not support cursor loops with SELECT: " +
           //            assign->getRHS()->getRawSQL());
           cursorVars.push_back(
               cursorLoopBodyFunction->getBinding(assign->getLHS()->getName()));
-          if (fetchQuery == "") {
-            fetchQuery = assign->getRHS()->getRawSQL();
-          } else {
-            ASSERT(
-                fetchQuery == assign->getRHS()->getRawSQL(),
-                "Do not support cursor loops with different fetch queries: " +
-                    assign->getRHS()->getRawSQL());
-          }
+          ASSERT(assign->getRHS()->getRawSQL().find(fetchQuery) !=
+                     std::string::npos,
+                 "Do not support cursor loops with SELECT: " +
+                     assign->getRHS()->getRawSQL());
+          cursorVarToFetchQueryVarName[cursorVars.back()] =
+              "fetchQueryVar" + std::to_string(varId);
         }
       }
     }
@@ -200,9 +210,9 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
       compiler.getUdfCount());
 
   COUT << res.name << ENDL;
-  COUT << res.code << ENDL;
+  // COUT << res.code << ENDL;
   COUT << res.caller << ENDL;
-  COUT << res.registration << ENDL;
+  // COUT << res.registration << ENDL;
 
   insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
   // compile the template
@@ -341,11 +351,12 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
         for (auto *block : currentRegion->getBasicBlocks()) {
           loopBodyBlocks.push_back(oldToNew.at(block));
         }
-      } else if (currentRegion->getMetadata()["udf_info"].get<String>() ==
-                 "cursorLoopVarRegion") {
-        COUT << "Basic block contains cursor var definitions: "
-             << currentRegion->getHeader()->getLabel() << ENDL;
       }
+      // else if (currentRegion->getMetadata()["udf_info"].get<String>() ==
+      //            "cursorLoopVarRegion") {
+      //   COUT << "Basic block contains cursor var definitions: "
+      //        << currentRegion->getHeader()->getLabel() << ENDL;
+      // }
     }
     if (auto *recursiveRegion =
             dynamic_cast<const RecursiveRegion *>(currentRegion)) {

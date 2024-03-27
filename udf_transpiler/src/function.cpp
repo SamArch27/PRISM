@@ -458,7 +458,7 @@ Own<Function> Function::partialCloneAndRename(
       auto newInst = cloneHelper.cloneAndRename(inst);
       // cannot use addInstruction because it will update the successor and
       // predecessor relationship which may be wrong at this point
-      newBasicBlock->insertBeforeTerminator(std::move(newInst));
+      newBasicBlock->addInstruction(std::move(newInst));
     }
   }
 

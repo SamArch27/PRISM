@@ -505,46 +505,60 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
       Make<Assignment>(f.getBinding("cursorloopiter"),
                        f.bindExpression("cursorloopiter + 1", Type::INT)));
 
-  condBlock->addInstruction(Make<BranchInst>(
-      incrementBlock, afterLoopRegion->getHeader(), std::move(condExpr)));
   auto loopVarBlockPreHeader = f.makeBasicBlock();
+  condBlock->addInstruction(Make<BranchInst>(loopVarBlockPreHeader,
+                                             afterLoopRegion->getHeader(),
+                                             std::move(condExpr)));
   auto loopVarBlock = f.makeBasicBlock();
-  incrementBlock->addInstruction(Make<BranchInst>(loopVarBlockPreHeader));
   loopVarBlockPreHeader->addInstruction(Make<BranchInst>(loopVarBlock));
 
+  size_t varId = 0;
   Vec<String> cursorLoopVarNames;
+  Vec<String> fetchQueryVarNames;
   ASSERT(cursorLoopJson.contains("var") &&
              cursorLoopJson["var"].contains("PLpgSQL_row") &&
              cursorLoopJson["var"]["PLpgSQL_row"].contains("fields"),
          "Cursor loop must have a var with fields.");
   for (auto &var : cursorLoopJson["var"]["PLpgSQL_row"]["fields"]) {
     cursorLoopVarNames.push_back(var["name"]);
+    fetchQueryVarNames.push_back("fetchQueryVar" + std::to_string(varId));
+    varId++;
   }
+  String fetchQuery =
+      cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>();
+  fetchQuery = fmt::format(
+      "SELECT {{}} FROM ({}) fetchQueryTmpTable({}) WHERE cursorloopiter::BOOL",
+      fetchQuery, joinVector(fetchQueryVarNames, ", "));
+  varId = 0;
   for (auto &var : cursorLoopVarNames) {
     // may have a mismatch on the number of variables on the lhs and rhs
     // but ok for optimizations
     loopVarBlock->addInstruction(Make<Assignment>(
         f.getBinding(var),
-        f.bindExpression(
-            cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>(),
-            f.getBinding(var)->getType(), true, false)));
+        f.bindExpression(fmt::format(fmt::runtime(fetchQuery + " OFFSET {}"),
+                                     fetchQueryVarNames[varId], varId),
+                         f.getBinding(var)->getType(), true, false)));
+    varId++;
   }
-  loopVarBlock->addInstruction(Make<BranchInst>(loopBodyRegion->getHeader()));
+  loopVarBlock->addInstruction(Make<BranchInst>(incrementBlock));
+
+  incrementBlock->addInstruction(Make<BranchInst>(loopBodyRegion->getHeader()));
 
   // the block jumps immediately to the cond block
   newBlock->addInstruction(Make<BranchInst>(headerBlock));
 
   // construct the regions and add useful annotations
   loopBodyRegion->setMetadata(json({{"udf_info", "cursorLoopBodyRegion"}}));
+  auto incrementRegion =
+      Make<SequentialRegion>(incrementBlock, std::move(loopBodyRegion));
+  auto loopVarRegion =
+      Make<SequentialRegion>(loopVarBlock, std::move(incrementRegion));
+  loopVarRegion->setMetadata(json({{"udf_info", "cursorLoopVarRegion"}}));
   auto cursorLoopRegion = Make<LoopRegion>(
       headerBlock,
       Make<ConditionalRegion>(
-          condBlock, Make<SequentialRegion>(
-                         incrementBlock,
-                         Make<SequentialRegion>(
-                             loopVarBlockPreHeader,
-                             Make<SequentialRegion>(
-                                 loopVarBlock, std::move(loopBodyRegion))))));
+          condBlock, Make<SequentialRegion>(loopVarBlockPreHeader,
+                                            std::move(loopVarRegion))));
   auto cursorLoopRegionMeta = cursorLoopJson;
   cursorLoopRegionMeta["udf_info"] = "cursorLoopRegion";
   cursorLoopRegion->setMetadata(cursorLoopRegionMeta);
