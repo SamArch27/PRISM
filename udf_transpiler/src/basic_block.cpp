@@ -76,15 +76,22 @@ InstIterator BasicBlock::findInst(Instruction *inst) {
 }
 
 InstIterator BasicBlock::replaceInst(InstIterator targetInst,
-                                     Own<Instruction> newInst) {
-  // careful with terminators
-  if (newInst->isTerminator()) {
-    removeInst(targetInst);
-    addInstruction(std::move(newInst));
-    return InstIterator(std::prev(instructions.end()));
+                                     Own<Instruction> newInst,
+                                     bool updateSuccPred) {
+  if (updateSuccPred) {
+    // careful with terminators
+    if (newInst->isTerminator()) {
+      removeInst(targetInst);
+      addInstruction(std::move(newInst));
+      return InstIterator(std::prev(instructions.end()));
+    } else {
+      auto it = insertBefore(targetInst, std::move(newInst));
+      removeInst(targetInst);
+      return it;
+    }
   } else {
     auto it = insertBefore(targetInst, std::move(newInst));
-    removeInst(targetInst);
+    instructions.erase(targetInst.iter);
     return it;
   }
 }
@@ -124,4 +131,55 @@ void BasicBlock::removePredecessor(BasicBlock *pred) {
   predecessors.erase(
       std::remove(predecessors.begin(), predecessors.end(), pred),
       predecessors.end());
+}
+
+void BasicBlock::renameBasicBlock(const BasicBlock *oldBlock,
+                                  BasicBlock *newBlock,
+                                  const BasicBlock *newsPrevPred) {
+  for (auto it = begin(); it != end(); ++it) {
+    auto &inst = *it;
+    if (auto *branchInst = dynamic_cast<BranchInst *>(&inst)) {
+      auto *trueBlock = branchInst->getIfTrue();
+      auto *falseBlock = branchInst->getIfFalse();
+
+      if (trueBlock == oldBlock) {
+        trueBlock = newBlock;
+
+        // update the predecessor of the new block
+        if (newsPrevPred == nullptr) {
+          trueBlock->getPredecessorsRef().clear();
+          trueBlock->addPredecessor(this);
+        } else {
+          trueBlock->replacePredecessor(newsPrevPred, this);
+        }
+      }
+      if (falseBlock != nullptr && falseBlock == oldBlock) {
+        falseBlock = newBlock;
+
+        // update the predecessor of the new block
+        if (newsPrevPred == nullptr) {
+          falseBlock->getPredecessorsRef().clear();
+          falseBlock->addPredecessor(this);
+        } else {
+          falseBlock->replacePredecessor(newsPrevPred, this);
+        }
+      }
+
+      // update the successor of the current block
+      successors.clear();
+      addSuccessor(trueBlock);
+      if (falseBlock != nullptr) {
+        addSuccessor(falseBlock);
+      }
+
+      if (branchInst->isUnconditional()) {
+        it = replaceInst(it, Make<BranchInst>(trueBlock), false);
+      } else {
+        it = replaceInst(it,
+                         Make<BranchInst>(trueBlock, falseBlock,
+                                          branchInst->getCond()->clone()),
+                         false);
+      }
+    }
+  }
 }

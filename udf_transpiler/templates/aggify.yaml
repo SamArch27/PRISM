@@ -155,6 +155,7 @@ customAggregateTemplate: |
     {{
       // todo
       // target = state.count;
+      target = state.{returnVariable};
     }}
 
     static bool IgnoreNull()

@@ -1,4 +1,5 @@
 #include "aggify_pass.hpp"
+#include "aggify_code_generator.hpp"
 #include "cfg_code_generator.hpp"
 #include "compiler.hpp"
 #include "file.hpp"
@@ -49,15 +50,16 @@ static bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
 
 // only one block has outgoing branch
 static bool supportedCursorLoop(const Vec<BasicBlock *> &basicBlocks) {
-  // header block has exactly two predecessors
-  if (basicBlocks[0]->getPredecessors().size() != 2) {
-    return false;
-  }
-
   Set<BasicBlock *> blockSet;
   for (auto *block : basicBlocks) {
     blockSet.insert(block);
   }
+
+  // // header block has exactly two predecessors
+  // if (basicBlocks[0]->getPredecessors().size() != 2) {
+  //   return false;
+  // }
+
   bool outgoing = false;
   for (auto *block : basicBlocks) {
     for (auto *succ : block->getSuccessors()) {
@@ -72,14 +74,156 @@ static bool supportedCursorLoop(const Vec<BasicBlock *> &basicBlocks) {
   return outgoing;
 }
 
-static void outlineFunction(Function &f, Vec<BasicBlock *> loopBodyBlocks) {
+static String outlineLoopBody(Function &loopBodyFunction) { return ""; }
+
+/**
+ * returns the call to custom aggregate in the context of the original function
+ * @param newFunction the new function that was outlined
+ * @param loopBodyBlocks the blocks that were outlined in the new function
+ * @param oldFunction the original function
+ * @param callerArgs the arguments used in the original function
+ * @param customAggArgs the arguments used in the custom aggregate in the
+ * orignal function context
+ * @param returnVariable the return variable of the custom aggregate in the
+ * original function context
+ */
+String AggifyPass::outlineCursorLoop(Function &newFunction,
+                                     Vec<BasicBlock *> loopBodyBlocks,
+                                     const Function &oldFunction,
+                                     Vec<const Variable *> callerArgs,
+                                     Vec<const Variable *> customAggArgs,
+                                     const Variable *returnVariable,
+                                     const json &cursorLoopInfo) {
+  COUT << "predecessors before ssa destruction" << ENDL;
+  for (const auto &block : newFunction) {
+    COUT << block.getLabel() << ": ";
+    for (const auto &pred : block.getPredecessors()) {
+      COUT << pred->getLabel() << " ";
+    }
+    COUT << ENDL;
+  }
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
+      Make<SSADestructionPass>() /*, Make<AggressiveMergeRegionsPass>()*/);
 
-  ssaDestructionPipeline->runOnFunction(f);
+  ssaDestructionPipeline->runOnFunction(newFunction);
 
-  drawGraph(f.getCFGString(), "after_aggify");
+  drawGraph(newFunction.getCFGString(), "after_aggify");
+
+  // create a new function that will be used to generate the custom aggregate
+  Vec<const Variable *> loopBodyFunctionArgs;
+
+  // create a map that maps the new variable (not in SSA) to the old variables
+  // (in SSA)
+  // variables in the map should be live variables into the cursor loop
+  Map<const Variable *, const Variable *> newToOld;
+  for (size_t i = 0; i < callerArgs.size(); i++) {
+    newToOld[newFunction.getArguments()[i].get()] = callerArgs[i];
+    COUT << newFunction.getArguments()[i]->getName() << "->"
+         << callerArgs[i]->getName() << ENDL;
+  }
+
+  Map<BasicBlock *, BasicBlock *> tmp;
+  // create a new function that will be used to generate the custom aggregate
+  // the data structure in this function is probably broken, so should only be
+  // used for aggify code generation
+  auto cursorLoopBodyFunction = newFunction.partialCloneAndRename(
+      newFunction.getFunctionName() + "_custom_agg", loopBodyFunctionArgs,
+      newFunction.getReturnType(), loopBodyBlocks, tmp);
+
+  // remove the definition of cursorloopiter
+  for (auto &block : *cursorLoopBodyFunction) {
+    for (auto &inst : block) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+        if (assign->getLHS()->getName() == "cursorloopiter") {
+          inst.eraseFromParent();
+          break;
+        }
+      }
+    }
+  }
+
+  // make this a dummy block
+  auto returnBlock =
+      cursorLoopBodyFunction->makeBasicBlock("accumulateReturnBlock");
+  auto loopHeader = getNextBasicBlock(loopBodyBlocks);
+  ASSERT(loopHeader.size() == 1, "Expected exactly one loop header");
+  cursorLoopBodyFunction->renameBasicBlocks(*loopHeader.begin(), returnBlock);
+
+  COUT << *cursorLoopBodyFunction << ENDL;
+
+  // From Aggify: all variables referenced in the loop body Δ
+  Vec<const Variable *> loopBodyUsedVars;
+  for (auto *var : customAggArgs) {
+    if (cursorLoopBodyFunction->hasBinding(
+            oldFunction.getOriginalName(var->getName())) &&
+        oldFunction.getOriginalName(var->getName()) != "cursorloopiter") {
+      loopBodyUsedVars.push_back(cursorLoopBodyFunction->getBinding(
+          oldFunction.getOriginalName(var->getName())));
+    }
+  }
+  COUT << "Loop body used variables: " << ENDL;
+  for (auto var : loopBodyUsedVars) {
+    COUT << var->getName() << " ";
+  }
+  COUT << ENDL;
+
+  Vec<const Variable *> cursorVars;
+  Map<const Variable *, String> cursorVarToFetchQueryVarName;
+  String fetchQuery =
+      cursorLoopInfo["query"]["PLpgSQL_expr"]["query"].get<String>();
+  size_t varId = 0;
+  for (const auto &blocks : newFunction) {
+    for (const auto &inst : blocks) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+        if (assign->getRHS()->isSQLExpression() &&
+            // udf_todo: may not be the robust way to find the fetch query
+            assign->getRHS()->getRawSQL().find("cursorloopEmptyTmp") ==
+                std::string::npos) {
+          // ASSERT(assign->getRHS()->getRawSQL() == fetchQuery,
+          //        "Do not support cursor loops with SELECT: " +
+          //            assign->getRHS()->getRawSQL());
+          cursorVars.push_back(
+              cursorLoopBodyFunction->getBinding(assign->getLHS()->getName()));
+          ASSERT(assign->getRHS()->getRawSQL().find(fetchQuery) !=
+                     std::string::npos,
+                 "Do not support cursor loops with SELECT: " +
+                     assign->getRHS()->getRawSQL());
+          cursorVarToFetchQueryVarName[cursorVars.back()] =
+              "fetchQueryVar" + std::to_string(varId);
+        }
+      }
+    }
+  }
+  COUT << "Cursor vars: " << ENDL;
+  for (auto var : cursorVars) {
+    COUT << var->getName() << " ";
+  }
+  COUT << ENDL;
+
+  // generate the code for the custom aggregate
+  AggifyCodeGenerator codeGenerator(compiler.getConfig());
+  auto res = codeGenerator.run(
+      *cursorLoopBodyFunction, cursorLoopInfo, cursorVars, loopBodyUsedVars,
+      cursorLoopBodyFunction->getBinding(
+          oldFunction.getOriginalName(returnVariable->getName())),
+      compiler.getUdfCount());
+
+  COUT << res.name << ENDL;
+  // COUT << res.code << ENDL;
+  COUT << res.caller << ENDL;
+  // COUT << res.registration << ENDL;
+
+  insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
+  // compile the template
+  std::cout << "Compiling the UDAF..." << std::endl;
+  compileUDF();
+  // load the compiled library
+  std::cout << "Installing and loading the UDAF..." << std::endl;
+  loadUDF(*compiler.getConnection());
+  compiler.getUdfCount()++;
+
+  return "";
 }
 
 bool AggifyPass::outlineRegion(const Region *region, Function &f) {
@@ -190,6 +334,7 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
 
   // find the blocks that belong to the loop body
   Vec<BasicBlock *> loopBodyBlocks;
+  const Region *loopBodyRegion = nullptr;
   Queue<const Region *> workList;
   workList.push(region);
   while (!workList.empty()) {
@@ -202,11 +347,16 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
         std::cout << fmt::format("Region {} is a cursor loop body region\n",
                                  currentRegion->getRegionLabel())
                   << std::endl;
+        loopBodyRegion = currentRegion;
         for (auto *block : currentRegion->getBasicBlocks()) {
           loopBodyBlocks.push_back(oldToNew.at(block));
         }
-        break;
       }
+      // else if (currentRegion->getMetadata()["udf_info"].get<String>() ==
+      //            "cursorLoopVarRegion") {
+      //   COUT << "Basic block contains cursor var definitions: "
+      //        << currentRegion->getHeader()->getLabel() << ENDL;
+      // }
     }
     if (auto *recursiveRegion =
             dynamic_cast<const RecursiveRegion *>(currentRegion)) {
@@ -215,8 +365,16 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
       }
     }
   }
+  ASSERT(loopBodyRegion != nullptr, "Could not find loop body region!");
 
-  outlineFunction(*newFunction, loopBodyBlocks);
+  Vec<const Variable *> customAggArgs;
+  auto loopBodyLiveIn = liveness->getBlockLiveIn(loopBodyRegion->getHeader());
+  for (auto *var : loopBodyLiveIn) {
+    customAggArgs.push_back(var);
+  }
+
+  outlineCursorLoop(*newFunction, loopBodyBlocks, f, newFunctionArgs,
+                    customAggArgs, returnVariable, region->getMetadata());
 
   // String args = "";
   // for (auto &arg : newFunctionArgs) {

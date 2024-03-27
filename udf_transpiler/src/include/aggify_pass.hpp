@@ -16,7 +16,13 @@ public:
   String getPassName() const override { return "AggifyPass"; }
 
 private:
-  // void outlineFunction(Function &f);
+  String outlineCursorLoop(Function &newFunction,
+                           Vec<BasicBlock *> loopBodyBlocks,
+                           const Function &oldFunction,
+                           Vec<const Variable *> callerArgs,
+                           Vec<const Variable *> customAggArgs,
+                           const Variable *returnVariable,
+                           const json &cursorLoopInfo);
   bool outlineRegion(const Region *region, Function &f);
   bool runOnRegion(const Region *rootRegion, Function &f);
 

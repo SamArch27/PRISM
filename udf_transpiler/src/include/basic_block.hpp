@@ -122,62 +122,13 @@ public:
     return std::distance(predecessors.begin(), it);
   };
 
-  BasicBlock *getPred(std::size_t offset) const { return predecessors[offset]; }
-
   /**
    * when newsPrevPred == nullptr,
    * Assume the new block is a fresh block that has no predecessors or
    * successors
    */
   void renameBasicBlock(const BasicBlock *oldBlock, BasicBlock *newBlock,
-                        const BasicBlock *newsPrevPred = nullptr) {
-
-    for (auto it = begin(); it != end(); ++it) {
-      auto &inst = *it;
-      if (auto *branchInst = dynamic_cast<BranchInst *>(&inst)) {
-        auto *trueBlock = branchInst->getIfTrue();
-        auto *falseBlock = branchInst->getIfFalse();
-
-        if (trueBlock == oldBlock) {
-          trueBlock = newBlock;
-
-          // update the predecessor of the new block
-          if (newsPrevPred == nullptr) {
-            trueBlock->getPredecessorsRef().clear();
-            trueBlock->addPredecessor(this);
-          } else {
-            trueBlock->replacePredecessor(newsPrevPred, this);
-          }
-        }
-        if (falseBlock != nullptr && falseBlock == oldBlock) {
-          falseBlock = newBlock;
-
-          // update the predecessor of the new block
-          if (newsPrevPred == nullptr) {
-            falseBlock->getPredecessorsRef().clear();
-            falseBlock->addPredecessor(this);
-          } else {
-            falseBlock->replacePredecessor(newsPrevPred, this);
-          }
-        }
-
-        // update the successor of the current block
-        successors.clear();
-        addSuccessor(trueBlock);
-        if (falseBlock != nullptr) {
-          addSuccessor(falseBlock);
-        }
-
-        if (branchInst->isUnconditional()) {
-          it = replaceInst(it, Make<BranchInst>(trueBlock));
-        } else {
-          it =
-              replaceInst(it, Make<BranchInst>(trueBlock, falseBlock,
-                                               branchInst->getCond()->clone()));
-        }
-      }
-    }
-  }
+                        const BasicBlock *newsPrevPred = nullptr);
 
   const Vec<BasicBlock *> &getSuccessors() const;
   const Vec<BasicBlock *> &getPredecessors() const;
@@ -203,7 +154,8 @@ public:
 
   InstIterator findInst(Instruction *inst);
   InstIterator removeInst(InstIterator targetInst);
-  InstIterator replaceInst(InstIterator targetInst, Own<Instruction> newInst);
+  InstIterator replaceInst(InstIterator targetInst, Own<Instruction> newInst,
+                           bool updateSuccPred = true);
 
   Instruction *getInitiator();
   Instruction *getTerminator();
