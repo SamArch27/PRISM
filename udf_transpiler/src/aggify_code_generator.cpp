@@ -55,12 +55,6 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
     if (std::find(cursorVars.begin(), cursorVars.end(), usedVar) ==
         cursorVars.end()) {
       // not cursor variable, is state variable
-
-      // // rename the variable to state.variable
-      // String stateVarName = "state." + f.getOriginalName(usedVar->getName());
-      // f.addVariable(stateVarName, usedVar->getType(), false);
-      // usedVar = f.getBinding(stateVarName);
-
       stateDefition +=
           fmt::format(fmt::runtime(config.aggify["stateDefition"].Scalar()),
                       fmt::arg("type", usedVar->getType().getCppType()),
@@ -162,12 +156,5 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
                   fmt::arg("outputLogicalType",
                            f.getReturnType().getDuckDBLogicalTypeStr()));
 
-  // String customAggCaller = fmt::format(
-  //     fmt::runtime(config.aggify["caller"].Scalar()), fmt::arg("id", id),
-  //     fmt::arg("funcArgs", funcArgs),
-  //     fmt::arg("returnVarName", retVariable->getName()),
-  //     fmt::arg("cursorQuery",
-  //              ast["query"]["PLpgSQL_expr"]["query"].get<String>()));
-  // COUT << code << ENDL;
-  return {{code, registration}, "custom_agg" + std::to_string(id), ""};
+  return {{code, registration}, "custom_agg" + std::to_string(id)};
 }

@@ -75,16 +75,6 @@ static bool supportedCursorLoop(const Vec<BasicBlock *> &basicBlocks) {
   return outgoing;
 }
 
-static String wrapVarsWithAnyValue(const String &sql,
-                                   const Map<String, Variable *> &vars) {
-  String newSql = sql;
-  for (const auto &[varName, var] : vars) {
-    std::regex pattern("\\b" + varName + "\\b");
-    newSql = std::regex_replace(newSql, pattern, "ANY_VALUE(" + varName + ")");
-  }
-  return newSql;
-}
-
 /**
  * returns the call to custom aggregate in the context of the original function
  * @param newFunction the new function that was outlined
@@ -142,12 +132,9 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   // create a map that maps the new variable (not in SSA) to the old variables
   // (in SSA)
   // variables in the map should be live variables into the cursor loop
-  COUT << newFunction << ENDL;
   Map<const Variable *, const Variable *> newToOld;
   for (size_t i = 0; i < callerArgs.size(); i++) {
     newToOld[newFunction.getArguments()[i].get()] = callerArgs[i];
-    COUT << newFunction.getArguments()[i]->getName() << "->"
-         << callerArgs[i]->getName() << ENDL;
   }
 
   Map<BasicBlock *, BasicBlock *> tmp;
@@ -235,7 +222,6 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
 
   // because of possible optimization of the database, we need to make sure that
   // at least one cursor variable is used in the loop body
-  COUT << oldFunction << ENDL;
   if (cursorVars.size() == 0) {
     ASSERT(cursorLoopInfo.contains("firstCursorVar") &&
                cursorLoopInfo["firstCursorVar"].contains("name") &&
@@ -325,11 +311,6 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
                   fmt::arg("funcArgs", joinVector(customAggCallerArgs, ", ")),
                   fmt::arg("returnVarName", returnVariableInitValue),
                   fmt::arg("cursorQuery", cursorQuery));
-
-  // customAggCaller =
-  //     wrapVarsWithAnyValue(customAggCaller, oldFunction.getAllBindings());
-  COUT << "Custom Agg Caller: " << ENDL;
-  COUT << customAggCaller << ENDL;
 
   compiler.getUdfCount()++;
 

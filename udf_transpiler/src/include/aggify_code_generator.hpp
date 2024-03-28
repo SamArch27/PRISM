@@ -18,8 +18,6 @@ using json = nlohmann::json;
 struct AggifyCodeGeneratorResult : CFGCodeGeneratorResult {
   // name of the custom aggregate
   String name;
-  // the caller to the custom aggregate
-  String caller;
 };
 
 /**

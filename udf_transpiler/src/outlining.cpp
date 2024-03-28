@@ -35,7 +35,6 @@ void OutliningPass::outlineFunction(Function &f) {
   ssaDestructionPipeline->runOnFunction(f);
 
   INFO(fmt::format("Transpiling UDF {}...", f.getFunctionName()));
-  compiler.getUdfCount()++;
   CFGCodeGenerator codeGenerator(compiler.getConfig());
   auto res = codeGenerator.run(f);
 
@@ -46,6 +45,7 @@ void OutliningPass::outlineFunction(Function &f) {
   // load the compiled library
   INFO("Installing and loading the UDF...");
   loadUDF(*compiler.getConnection());
+  compiler.getUdfCount()++;
 }
 
 static bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
