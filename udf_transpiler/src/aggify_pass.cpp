@@ -215,6 +215,8 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   // COUT << ENDL;
 
   // generate the code for the custom aggregate
+  INFO(fmt::format("Transpiling UDAF {} ...",
+                   cursorLoopBodyFunction->getFunctionName()));
   AggifyCodeGenerator codeGenerator(compiler.getConfig());
   auto res = codeGenerator.run(
       *cursorLoopBodyFunction, cursorLoopInfo, cursorVars, loopBodyUsedVars,

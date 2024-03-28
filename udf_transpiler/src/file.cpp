@@ -162,18 +162,13 @@ void loadUDF(duckdb::Connection &connection) {
   String filename = exec(cmd.c_str());
   filename = filename.substr(0, filename.find("\n"));
   String install = "install '" + current_dir +
-                   "/../build/udfs/extension/udf1/"
-                   // + "udf" + std::to_string(udfCount) + ".duckdb_extension'";
-                   + filename + "'";
+                   "/../build/udfs/extension/udf1/" + filename + "'";
   String load = "load '" + current_dir + "/../build/udfs/extension/udf1/" +
-                //  "udf" + std::to_string(udfCount) + ".duckdb_extension'";
                 filename + "'";
-  COUT << "Running: " << install << ENDL;
   auto res = connection.Query(install);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
-  std::cout << "Running: " << load << std::endl;
   res = connection.Query(load);
   if (res->HasError()) {
     EXCEPTION(res->GetError());

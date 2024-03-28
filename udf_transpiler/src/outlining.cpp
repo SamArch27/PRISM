@@ -34,18 +34,17 @@ void OutliningPass::outlineFunction(Function &f) {
   auto ssaDestructionPipeline = Make<PipelinePass>(Make<SSADestructionPass>());
   ssaDestructionPipeline->runOnFunction(f);
 
-  std::cout << fmt::format("Transpiling UDF {}...", f.getFunctionName())
-            << std::endl;
+  INFO(fmt::format("Transpiling UDF {}...", f.getFunctionName()));
   compiler.getUdfCount()++;
   CFGCodeGenerator codeGenerator(compiler.getConfig());
   auto res = codeGenerator.run(f);
 
   insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
   // compile the template
-  std::cout << "Compiling the UDF..." << std::endl;
+  INFO("Compiling the UDF...");
   compileUDF();
   // load the compiled library
-  std::cout << "Installing and loading the UDF..." << std::endl;
+  INFO("Installing and loading the UDF...");
   loadUDF(*compiler.getConnection());
 }
 
@@ -77,11 +76,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 
   if (allBlocksNaive(blocksToOutline)) {
     return false;
-  }
-
-  COUT << "OUTLINING: " << blocksToOutline.size() << ENDL;
-  for (auto *block : blocksToOutline) {
-    COUT << block->getLabel() << ENDL;
   }
 
   auto nextBasicBlocks = getNextBasicBlock(blocksToOutline);
@@ -162,9 +156,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 
     newFunction->renameBasicBlocks(nextBasicBlock, returnBlock);
   }
-
-  std::cout << "OUTLINING: " << *newFunction << std::endl;
-  outlineFunction(*newFunction);
 
   String args = "";
   for (auto &arg : newFunctionArgs) {
@@ -339,12 +330,7 @@ SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
   while (computeSelectRegionsHelper(region, selectRegions, visitedRegions)) {
     visitedRegions.clear();
   }
-  // print the result
-  for (auto &[region, containsSelect] : selectRegions) {
-    std::cout << fmt::format("Region: {}: {}", region->getRegionLabel(),
-                             containsSelect)
-              << std::endl;
-  }
+
   return selectRegions;
 }
 
