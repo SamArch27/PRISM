@@ -38,32 +38,16 @@ Vec<String> AggifyCodeGenerator::getOrginalCursorLoopCol(const json &ast) {
 AggifyCodeGeneratorResult AggifyCodeGenerator::run(
     Function &f, const json &ast, Vec<const Variable *> cursorVars,
     Vec<const Variable *> usedVars, const Variable *retVariable, size_t id) {
-  // std::set<String> cursorVars;
-  // for (const json &vars : ast["var"]["PLpgSQL_row"]["fields"]) {
-  //   cursorVars.insert(vars["name"]);
-  // }
-
-  // except for cursor variables, assume now that all others variables are used
-  // in cursor loop
 
   String code;
   String varyingFuncTemplate = config.aggify["varyingFuncTemplate"].Scalar();
   Vec<String> inputDependentComps(20);
 
-  String stateDefition, operationArgs, operationNullArgs, varInit;
+  String stateDefition, argInit, argStore, operationArgs, operationNullArgs,
+      varInit;
   String inputTypes, inputLogicalTypes;
-  // String funcArgs;
   size_t count = 0;
   size_t stateVarCount = 0;
-  // const auto &allBindings = f.getAllBindings();
-
-  // auto originalCursorLoopCols = getOrginalCursorLoopCol(ast);
-  // ASSERT(originalCursorLoopCols.size() == cursorVars.size(),
-  //        "Cursor loop columns size does not match cursor variables size");
-  // if (originalCursorLoopCols.size() != cursorVars.size()) {
-  //   COUT << "Some cursor variables got eliminated because they are dead."
-  //        << ENDL;
-  // }
 
   for (auto usedVar : usedVars) {
     // all the c(s) in the template file
@@ -85,12 +69,23 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
       varInit += fmt::format(fmt::runtime(config.aggify["varInit"].Scalar()),
                              fmt::arg("name", usedVar->getName()));
 
-      // funcArgs += usedVar->getName() + ", ";
+      argInit += fmt::format(fmt::runtime(config.aggify["argInit"].Scalar()),
+                             fmt::arg("name", usedVar->getName()));
+
+      argStore += fmt::format(fmt::runtime(config.aggify["argStore"].Scalar()),
+                              fmt::arg("name", usedVar->getName()));
+
+      operationArgs += fmt::format(
+          fmt::runtime(config.aggify["operationArg"].Scalar()),
+          fmt::arg("i", count), fmt::arg("name", usedVar->getName() + "_arg"));
 
       stateVarCount++;
     } else {
       // is custom aggregate argument
       // funcArgs += originalCursorLoopCols[count - stateVarCount] + ", ";
+      operationArgs += fmt::format(
+          fmt::runtime(config.aggify["operationArg"].Scalar()),
+          fmt::arg("i", count), fmt::arg("name", usedVar->getName()));
     }
 
     for (std::size_t i = 0; i < inputDependentComps.size(); i++) {
@@ -98,10 +93,6 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
           fmt::runtime(config.aggify["c" + std::to_string(i + 1)].Scalar()),
           fmt::arg("i", count));
     }
-
-    operationArgs +=
-        fmt::format(fmt::runtime(config.aggify["operationArg"].Scalar()),
-                    fmt::arg("i", count), fmt::arg("name", usedVar->getName()));
 
     operationNullArgs +=
         fmt::format(fmt::runtime(config.aggify["operationNullArg"].Scalar()),
@@ -136,7 +127,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
   for (auto &bbUniq : f) {
     if (bbUniq.getLabel() == "accumulateReturnBlock") {
       String blockCode =
-          fmt::format("accumulateReturnBlock:\n{{{}\nreturn;}}", varInit);
+          fmt::format("accumulateReturnBlock:\n{{{}\nreturn;}}", argStore);
       container.basicBlockCodes.push_back(blockCode);
       continue;
     }
@@ -157,7 +148,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
   code += fmt::format(
       fmt::runtime(config.aggify["customAggregateTemplate"].Scalar()),
       fmt::arg("id", id), fmt::arg("c1", inputDependentComps[0]),
-      fmt::arg("stateDefition", stateDefition),
+      fmt::arg("stateDefition", stateDefition), fmt::arg("argInit", argInit),
       fmt::arg("operationArgs", operationArgs),
       fmt::arg("operationNullArgs", operationNullArgs),
       fmt::arg("varInit", varInit), fmt::arg("body", body),
@@ -178,6 +169,5 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
   //     fmt::arg("cursorQuery",
   //              ast["query"]["PLpgSQL_expr"]["query"].get<String>()));
   // COUT << code << ENDL;
-  return {
-      {code, registration}, "custom_agg" + std::to_string(id), ""};
+  return {{code, registration}, "custom_agg" + std::to_string(id), ""};
 }

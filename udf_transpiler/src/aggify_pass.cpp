@@ -75,8 +75,8 @@ static bool supportedCursorLoop(const Vec<BasicBlock *> &basicBlocks) {
   return outgoing;
 }
 
-String wrapVarsWithAnyValue(const String &sql,
-                            const Map<String, Variable *> &vars) {
+static String wrapVarsWithAnyValue(const String &sql,
+                                   const Map<String, Variable *> &vars) {
   String newSql = sql;
   for (const auto &[varName, var] : vars) {
     std::regex pattern("\\b" + varName + "\\b");
@@ -103,6 +103,31 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
                                      Vec<const Variable *> customAggArgs,
                                      const Variable *returnVariable,
                                      const json &cursorLoopInfo) {
+  // in SSA form
+  // find the query in between /*fetchQueryStart*/ and
+  // /*fetchQueryEnd*/
+  String fetchQuery;
+  for (const auto &blocks : newFunction) {
+    for (const auto &inst : blocks) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+        if (assign->getRHS()->isSQLExpression() &&
+            assign->getRHS()->getRawSQL().find("cursorloopEmptyTmp") !=
+                std::string::npos) {
+          fetchQuery = assign->getRHS()->getRawSQL();
+        }
+      } else if (auto *branch = dynamic_cast<const BranchInst *>(&inst)) {
+        if (branch->isConditional() && branch->getCond()->isSQLExpression() &&
+            branch->getCond()->getRawSQL().find("cursorloopEmptyTmp") !=
+                std::string::npos) {
+          fetchQuery = branch->getCond()->getRawSQL();
+        }
+      }
+    }
+  }
+  ASSERT(fetchQuery != "", "Cannot find fetch query in the outlined code");
+  auto start = fetchQuery.find("/*fetchQueryStart*/");
+  auto end = fetchQuery.find("/*fetchQueryEnd*/");
+  fetchQuery = fetchQuery.substr(start + 19, end - start - 19);
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<SSADestructionPass>() /*, Make<AggressiveMergeRegionsPass>()*/);
@@ -117,11 +142,12 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   // create a map that maps the new variable (not in SSA) to the old variables
   // (in SSA)
   // variables in the map should be live variables into the cursor loop
+  COUT << newFunction << ENDL;
   Map<const Variable *, const Variable *> newToOld;
   for (size_t i = 0; i < callerArgs.size(); i++) {
     newToOld[newFunction.getArguments()[i].get()] = callerArgs[i];
-    // COUT << newFunction.getArguments()[i]->getName() << "->"
-    //      << callerArgs[i]->getName() << ENDL;
+    COUT << newFunction.getArguments()[i]->getName() << "->"
+         << callerArgs[i]->getName() << ENDL;
   }
 
   Map<BasicBlock *, BasicBlock *> tmp;
@@ -169,40 +195,31 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
 
   Vec<const Variable *> cursorVars;
   Map<const Variable *, String> cursorVarToFetchQueryVarName;
-  String fetchQuery;
 
   for (const auto &blocks : newFunction) {
     for (const auto &inst : blocks) {
       if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
-        if (assign->getRHS()->isSQLExpression()) {
-          // udf_todo: may not be the robust way to find the fetch query
-          if (assign->getRHS()->getRawSQL().find("cursorloopEmptyTmp") !=
-              std::string::npos) {
-            // find the query in between /*fetchQueryStart*/ and
-            // /*fetchQueryEnd*/
-            fetchQuery = assign->getRHS()->getRawSQL();
-            auto start = fetchQuery.find("/*fetchQueryStart*/");
-            auto end = fetchQuery.find("/*fetchQueryEnd*/");
-            fetchQuery = fetchQuery.substr(start + 19, end - start - 19);
+        // udf_todo: may not be the robust way to find the fetch query
+        if (assign->getRHS()->isSQLExpression() &&
+            assign->getRHS()->getRawSQL().find("cursorloopEmptyTmp") ==
+                std::string::npos) {
+          ASSERT(assign->getRHS()->getRawSQL().find("fetchQueryTmpTable") !=
+                     std::string::npos,
+                 "Do not support cursor loops with SELECT: " +
+                     assign->getRHS()->getRawSQL());
+
+          cursorVars.push_back(
+              cursorLoopBodyFunction->getBinding(assign->getLHS()->getName()));
+
+          // use the actual (first) selected fetchQueryVar\\d
+          auto pattern = std::regex("fetchQueryVar\\d+");
+          std::smatch matches;
+          String input = assign->getRHS()->getRawSQL();
+          if (std::regex_search(input, matches, pattern)) {
+            cursorVarToFetchQueryVarName[cursorVars.back()] = matches[0];
           } else {
-            ASSERT(assign->getRHS()->getRawSQL().find("fetchQueryTmpTable") !=
-                       std::string::npos,
-                   "Do not support cursor loops with SELECT: " +
-                       assign->getRHS()->getRawSQL());
-
-            cursorVars.push_back(cursorLoopBodyFunction->getBinding(
-                assign->getLHS()->getName()));
-
-            // use the actual (first) selected fetchQueryVar\\d
-            auto pattern = std::regex("fetchQueryVar\\d+");
-            std::smatch matches;
-            String input = assign->getRHS()->getRawSQL();
-            if (std::regex_search(input, matches, pattern)) {
-              cursorVarToFetchQueryVarName[cursorVars.back()] = matches[0];
-            } else {
-              ERROR("Cannot find fetchQueryVar\\d in the fetch query: " +
-                    assign->getRHS()->getRawSQL());
-            }
+            ERROR("Cannot find fetchQueryVar\\d in the fetch query: " +
+                  assign->getRHS()->getRawSQL());
           }
         }
       }
@@ -280,10 +297,9 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
     fetchQueryVarNames.push_back("fetchQueryVar" + std::to_string(varId));
     varId++;
   }
-  String cursorQuery = fmt::format(
-      "SELECT * FROM ({}) fetchQueryTmpTable({})",
-      wrapVarsWithAnyValue(fetchQuery, oldFunction.getAllBindings()),
-      joinVector(fetchQueryVarNames, ", "));
+  String cursorQuery =
+      fmt::format("SELECT * FROM ({}) fetchQueryTmpTable({})", fetchQuery,
+                  joinVector(fetchQueryVarNames, ", "));
 
   String customAggCaller =
       fmt::format(fmt::runtime(compiler.getConfig().aggify["caller"].Scalar()),
@@ -291,8 +307,11 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
                   fmt::arg("funcArgs", joinVector(customAggCallerArgs, ", ")),
                   fmt::arg("returnVarName", returnVariableInitValue),
                   fmt::arg("cursorQuery", cursorQuery));
-  // COUT << "Custom Agg Caller: " << ENDL;
-  // COUT << customAggCaller << ENDL;
+
+  // customAggCaller =
+  //     wrapVarsWithAnyValue(customAggCaller, oldFunction.getAllBindings());
+  COUT << "Custom Agg Caller: " << ENDL;
+  COUT << customAggCaller << ENDL;
 
   compiler.getUdfCount()++;
 
