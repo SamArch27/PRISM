@@ -5,6 +5,8 @@
 #include <iostream>
 #include <set>
 
+using WidthScale = Pair<int, int>;
+
 enum class PostgresTypeTag {
   BIGINT,
   BINARY,
@@ -105,11 +107,32 @@ public:
   static Type INT;
 
   Type(bool decimal, Opt<int> width, Opt<int> scale,
-       PostgresTypeTag postgresTag)
+       PostgresTypeTag postgresTag, String typeString)
       : decimal(decimal), width(getWidth(isDecimal(), width)),
         scale(getScale(isDecimal(), scale)), postgresTag(postgresTag),
         duckdbTag(lookupDuckdbTag(postgresTag)),
-        cppTag(lookupCppTag(duckdbTag, width, scale)) {}
+        cppTag(lookupCppTag(duckdbTag, width, scale)), typeString(typeString) {}
+
+  String serialize() const { return typeString; }
+
+  static Opt<WidthScale> getDecimalWidthScale(const String &type);
+  static PostgresTypeTag getPostgresTag(const String &name);
+
+  static Type fromString(const String &str) {
+    auto tag = getPostgresTag(str);
+    if (tag == PostgresTypeTag::DECIMAL) {
+      // provide width, scale info if available
+      auto widthScale = getDecimalWidthScale(str);
+      if (widthScale) {
+        auto [width, scale] = *widthScale;
+        return Type(true, width, scale, tag, str);
+      } else {
+        return Type(true, std::nullopt, std::nullopt, tag, str);
+      }
+    } else {
+      return Type(false, std::nullopt, std::nullopt, tag, str);
+    }
+  }
 
   static Opt<int> getWidth(bool decimal, Opt<int> width) {
     if (decimal) {
@@ -208,4 +231,5 @@ protected:
   PostgresTypeTag postgresTag;
   DuckdbTypeTag duckdbTag;
   CppTypeTag cppTag;
+  String typeString;
 };

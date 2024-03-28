@@ -17,7 +17,6 @@ struct Continuations {
 };
 
 using StringPair = Pair<String, String>;
-using WidthScale = Pair<int, int>;
 
 class Region;
 
@@ -96,8 +95,6 @@ private:
   String getJsonExpr(const json &json);
   List<json> getJsonList(const json &body);
   static StringPair unpackAssignment(const String &assignment);
-  static Opt<WidthScale> getDecimalWidthScale(const String &type);
-  static PostgresTypeTag getPostgresTag(const String &name);
   Type getTypeFromPostgresName(const String &name) const;
   String resolveTypeName(const String &type) const;
 

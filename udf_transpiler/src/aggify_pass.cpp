@@ -232,6 +232,24 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   // COUT << ENDL;
 
   // generate the code for the custom aggregate
+
+  // because of possible optimization of the database, we need to make sure that
+  // at least one cursor variable is used in the loop body
+  COUT << oldFunction << ENDL;
+  if (cursorVars.size() == 0) {
+    ASSERT(cursorLoopInfo.contains("firstCursorVar") &&
+               cursorLoopInfo["firstCursorVar"].contains("name") &&
+               cursorLoopInfo["firstCursorVar"].contains("type"),
+           "Cannot find firstCursorVar in cursorLoopInfo");
+    auto var = cursorLoopInfo["firstCursorVar"];
+    String varName = var["name"].get<String>();
+    Type varType = Type::fromString(var["type"].get<String>());
+    cursorLoopBodyFunction->addVariable(varName, varType, false);
+    cursorVars.push_back(cursorLoopBodyFunction->getBinding(varName));
+    cursorVarToFetchQueryVarName[cursorVars.back()] = "fetchQueryVar0";
+    loopBodyUsedVars.push_back(cursorLoopBodyFunction->getBinding(varName));
+  }
+
   INFO(fmt::format("Transpiling UDAF {} ...",
                    cursorLoopBodyFunction->getFunctionName()));
   AggifyCodeGenerator codeGenerator(compiler.getConfig());
