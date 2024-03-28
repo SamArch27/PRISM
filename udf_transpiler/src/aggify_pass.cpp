@@ -120,8 +120,8 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   Map<const Variable *, const Variable *> newToOld;
   for (size_t i = 0; i < callerArgs.size(); i++) {
     newToOld[newFunction.getArguments()[i].get()] = callerArgs[i];
-    COUT << newFunction.getArguments()[i]->getName() << "->"
-         << callerArgs[i]->getName() << ENDL;
+    // COUT << newFunction.getArguments()[i]->getName() << "->"
+    //      << callerArgs[i]->getName() << ENDL;
   }
 
   Map<BasicBlock *, BasicBlock *> tmp;
@@ -151,8 +151,6 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   ASSERT(loopHeader.size() == 1, "Expected exactly one loop header");
   cursorLoopBodyFunction->renameBasicBlocks(*loopHeader.begin(), returnBlock);
 
-  COUT << *cursorLoopBodyFunction << ENDL;
-
   // From Aggify: all variables referenced in the loop body Δ
   Vec<const Variable *> loopBodyUsedVars;
   for (auto *var : customAggArgs) {
@@ -163,11 +161,11 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
           oldFunction.getOriginalName(var->getName())));
     }
   }
-  COUT << "Loop body used variables: " << ENDL;
-  for (auto var : loopBodyUsedVars) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
+  // COUT << "Loop body used variables: " << ENDL;
+  // for (auto var : loopBodyUsedVars) {
+  //   COUT << var->getName() << " ";
+  // }
+  // COUT << ENDL;
 
   Vec<const Variable *> cursorVars;
   Map<const Variable *, String> cursorVarToFetchQueryVarName;
@@ -210,11 +208,11 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
       }
     }
   }
-  COUT << "Cursor vars: " << ENDL;
-  for (auto var : cursorVars) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
+  // COUT << "Cursor vars: " << ENDL;
+  // for (auto var : cursorVars) {
+  //   COUT << var->getName() << " ";
+  // }
+  // COUT << ENDL;
 
   // generate the code for the custom aggregate
   AggifyCodeGenerator codeGenerator(compiler.getConfig());
@@ -224,17 +222,12 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
           oldFunction.getOriginalName(returnVariable->getName())),
       compiler.getUdfCount());
 
-  COUT << res.name << ENDL;
-  // COUT << res.code << ENDL;
-  COUT << res.caller << ENDL;
-  // COUT << res.registration << ENDL;
-
   insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
   // compile the template
-  std::cout << "Compiling the UDAF..." << std::endl;
+  INFO("Compiling the UDAF...");
   compileUDF();
   // load the compiled library
-  std::cout << "Installing and loading the UDAF..." << std::endl;
+  INFO("Installing and loading the UDAF...");
   loadUDF(*compiler.getConnection());
 
   // create a call to the custom aggregate in the original function
@@ -296,8 +289,8 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
                   fmt::arg("funcArgs", joinVector(customAggCallerArgs, ", ")),
                   fmt::arg("returnVarName", returnVariableInitValue),
                   fmt::arg("cursorQuery", cursorQuery));
-  COUT << "Custom Agg Caller: " << ENDL;
-  COUT << customAggCaller << ENDL;
+  // COUT << "Custom Agg Caller: " << ENDL;
+  // COUT << customAggCaller << ENDL;
 
   compiler.getUdfCount()++;
 
@@ -312,15 +305,13 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
   }
 
   if (!supportedCursorLoop(blocksToOutline)) {
-    std::cout << "Aggify only supports cursor loops without break or return."
-              << std::endl;
+    INFO("Aggify only supports cursor loops without break or return.");
     return false;
   }
 
   auto nextBasicBlocks = getNextBasicBlock(blocksToOutline);
   if (nextBasicBlocks.size() != 1) {
-    std::cout << "Aggify only supports cursor loops with one outgoing branch."
-              << std::endl;
+    INFO("Aggify only supports cursor loops with one outgoing branch.");
     return false;
   }
 
@@ -330,8 +321,6 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
-  std::cout << f << std::endl;
-  std::cout << *liveness << std::endl;
 
   auto *loopHeader = region->getHeader();
 
@@ -365,25 +354,25 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
     }
   }
 
-  COUT << "Outlining basic blocks for Aggify: " << ENDL;
-  for (auto *block : blocksToOutline) {
-    COUT << block->getLabel() << " ";
-  }
-  COUT << ENDL;
-  COUT << "Loop header: " << loopHeader->getLabel() << ENDL;
-  COUT << "Fallthrough region: "
-       << nextBasicBlock->getRegion()->getRegionLabel() << ENDL;
-  COUT << "Return variables: " << ENDL;
-  for (auto *var : returnVars) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
-  COUT << "Input variables: " << ENDL;
-  for (auto *var : regionArgs) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
-  COUT << ENDL;
+  // COUT << "Outlining basic blocks for Aggify: " << ENDL;
+  // for (auto *block : blocksToOutline) {
+  //   COUT << block->getLabel() << " ";
+  // }
+  // COUT << ENDL;
+  // COUT << "Loop header: " << loopHeader->getLabel() << ENDL;
+  // COUT << "Fallthrough region: "
+  //      << nextBasicBlock->getRegion()->getRegionLabel() << ENDL;
+  // COUT << "Return variables: " << ENDL;
+  // for (auto *var : returnVars) {
+  //   COUT << var->getName() << " ";
+  // }
+  // COUT << ENDL;
+  // COUT << "Input variables: " << ENDL;
+  // for (auto *var : regionArgs) {
+  //   COUT << var->getName() << " ";
+  // }
+  // COUT << ENDL;
+  // COUT << ENDL;
 
   ASSERT(returnVars.size() == 1,
          fmt::format("Do not support one cursor loop to return {} variables",
@@ -422,19 +411,11 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
         currentRegion->getMetadata().end()) {
       if (currentRegion->getMetadata()["udf_info"].get<String>() ==
           "cursorLoopBodyRegion") {
-        std::cout << fmt::format("Region {} is a cursor loop body region\n",
-                                 currentRegion->getRegionLabel())
-                  << std::endl;
         loopBodyRegion = currentRegion;
         for (auto *block : currentRegion->getBasicBlocks()) {
           loopBodyBlocks.push_back(oldToNew.at(block));
         }
       }
-      // else if (currentRegion->getMetadata()["udf_info"].get<String>() ==
-      //            "cursorLoopVarRegion") {
-      //   COUT << "Basic block contains cursor var definitions: "
-      //        << currentRegion->getHeader()->getLabel() << ENDL;
-      // }
     }
     if (auto *recursiveRegion =
             dynamic_cast<const RecursiveRegion *>(currentRegion)) {
@@ -508,9 +489,6 @@ bool AggifyPass::runOnRegion(const Region *rootRegion, Function &f) {
                "cursorLoopRegion",
            "Unexpected region type: " +
                rootRegion->getMetadata()["udf_info"].get<String>());
-    std::cout << fmt::format("Region {} is a cursor loop region\n",
-                             rootRegion->getRegionLabel())
-              << std::endl;
     outlineRegion(rootRegion, f);
     return true;
   }

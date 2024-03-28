@@ -495,15 +495,8 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
       fmt::format("select ANY_VALUE(cursorloopiter) < count(*) from tmp, {} "
                   "cursorloopEmptyTmp",
                   commentedFetchQuery);
-  // COUT << cursorLoopWhileQuery << std::endl;
   auto condExpr = f.bindExpression(cursorLoopWhileQuery, Type::BOOLEAN, true);
-  for (auto &used : condExpr->getUsedVariables()) {
-    COUT << used->getName() << std::endl;
-  }
 
-  // condBlock->addInstruction(
-  //     Make<Assignment>(f.getBinding("cursorloopiter"),
-  //     f.bindExpression("cursorloopiter + 1")));
   auto incrementBlock = f.makeBasicBlock();
   incrementBlock->addInstruction(
       Make<Assignment>(f.getBinding("cursorloopiter"),
