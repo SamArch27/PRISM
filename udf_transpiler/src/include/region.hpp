@@ -117,6 +117,22 @@ public:
   }
 
   void replaceNestedRegion(Region *toReplace, Region *newRegion) {
+    // check whether newRegion is already a child of this region
+    for (auto &region : nestedRegions) {
+      if (region.get() == newRegion) {
+        auto it = std::find_if(
+            nestedRegions.begin(), nestedRegions.end(),
+            [toReplace](const Own<Region> &r) { return r.get() == toReplace; });
+        ASSERT(it != nestedRegions.end(),
+               "Region to replace must be a child of this region");
+        it->release();
+        nestedRegions.erase(it);
+        // pad to make sure the size is at least 2
+        nestedRegions.push_back(nullptr);
+        return;
+      }
+    }
+
     for (auto &region : nestedRegions) {
       if (region.get() == toReplace) {
         newRegion->setParentRegion(this);

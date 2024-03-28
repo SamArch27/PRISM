@@ -486,11 +486,15 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
   auto loopBodyRegion =
       constructCFG(f, bodyStatements, newContinuations, attachFallthrough);
 
+  String fetchQuery =
+      cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>();
+  String commentedFetchQuery =
+      "/*fetchQueryStart*/" + fetchQuery + "/*fetchQueryEnd*/";
   // create a block for the condition
-  String cursorLoopWhileQuery = fmt::format(
-      "select ANY_VALUE(cursorloopiter) < count(*) from tmp, {} "
-      "cursorloopEmptyTmp",
-      cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>());
+  String cursorLoopWhileQuery =
+      fmt::format("select ANY_VALUE(cursorloopiter) < count(*) from tmp, {} "
+                  "cursorloopEmptyTmp",
+                  commentedFetchQuery);
   // COUT << cursorLoopWhileQuery << std::endl;
   auto condExpr = f.bindExpression(cursorLoopWhileQuery, Type::BOOLEAN, true);
   for (auto &used : condExpr->getUsedVariables()) {
@@ -524,20 +528,17 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
     fetchQueryVarNames.push_back("fetchQueryVar" + std::to_string(varId));
     varId++;
   }
-  String fetchQuery =
-      cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>();
-  fetchQuery = fmt::format(
+
+  String fetchVarQuery = fmt::format(
       "SELECT {{}} FROM ({}) fetchQueryTmpTable({}) WHERE cursorloopiter::BOOL",
       fetchQuery, joinVector(fetchQueryVarNames, ", "));
   varId = 0;
   for (auto &var : cursorLoopVarNames) {
-    // may have a mismatch on the number of variables on the lhs and rhs
-    // but ok for optimizations
     loopVarBlock->addInstruction(Make<Assignment>(
         f.getBinding(var),
-        f.bindExpression(fmt::format(fmt::runtime(fetchQuery + " OFFSET {}"),
-                                     fetchQueryVarNames[varId], varId),
-                         f.getBinding(var)->getType(), true, false)));
+        f.bindExpression(
+            fmt::format(fmt::runtime(fetchVarQuery), fetchQueryVarNames[varId]),
+            f.getBinding(var)->getType(), true, false)));
     varId++;
   }
   loopVarBlock->addInstruction(Make<BranchInst>(incrementBlock));

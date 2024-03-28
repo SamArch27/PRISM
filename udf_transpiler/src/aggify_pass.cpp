@@ -10,6 +10,7 @@
 #include "ssa_destruction.hpp"
 #include "udf_transpiler_extension.hpp"
 #include "utils.hpp"
+#include <regex>
 
 /**
  * Robust way to find the outgoing branch out of this list of blocks
@@ -74,7 +75,15 @@ static bool supportedCursorLoop(const Vec<BasicBlock *> &basicBlocks) {
   return outgoing;
 }
 
-static String outlineLoopBody(Function &loopBodyFunction) { return ""; }
+String wrapVarsWithAnyValue(const String &sql,
+                            const Map<String, Variable *> &vars) {
+  String newSql = sql;
+  for (const auto &[varName, var] : vars) {
+    std::regex pattern("\\b" + varName + "\\b");
+    newSql = std::regex_replace(newSql, pattern, "ANY_VALUE(" + varName + ")");
+  }
+  return newSql;
+}
 
 /**
  * returns the call to custom aggregate in the context of the original function
@@ -89,19 +98,11 @@ static String outlineLoopBody(Function &loopBodyFunction) { return ""; }
  */
 String AggifyPass::outlineCursorLoop(Function &newFunction,
                                      Vec<BasicBlock *> loopBodyBlocks,
-                                     const Function &oldFunction,
+                                     Function &oldFunction,
                                      Vec<const Variable *> callerArgs,
                                      Vec<const Variable *> customAggArgs,
                                      const Variable *returnVariable,
                                      const json &cursorLoopInfo) {
-  COUT << "predecessors before ssa destruction" << ENDL;
-  for (const auto &block : newFunction) {
-    COUT << block.getLabel() << ": ";
-    for (const auto &pred : block.getPredecessors()) {
-      COUT << pred->getLabel() << " ";
-    }
-    COUT << ENDL;
-  }
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<SSADestructionPass>() /*, Make<AggressiveMergeRegionsPass>()*/);
@@ -170,27 +171,41 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
 
   Vec<const Variable *> cursorVars;
   Map<const Variable *, String> cursorVarToFetchQueryVarName;
-  String fetchQuery =
-      cursorLoopInfo["query"]["PLpgSQL_expr"]["query"].get<String>();
-  size_t varId = 0;
+  String fetchQuery;
+
   for (const auto &blocks : newFunction) {
     for (const auto &inst : blocks) {
       if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
-        if (assign->getRHS()->isSQLExpression() &&
-            // udf_todo: may not be the robust way to find the fetch query
-            assign->getRHS()->getRawSQL().find("cursorloopEmptyTmp") ==
-                std::string::npos) {
-          // ASSERT(assign->getRHS()->getRawSQL() == fetchQuery,
-          //        "Do not support cursor loops with SELECT: " +
-          //            assign->getRHS()->getRawSQL());
-          cursorVars.push_back(
-              cursorLoopBodyFunction->getBinding(assign->getLHS()->getName()));
-          ASSERT(assign->getRHS()->getRawSQL().find(fetchQuery) !=
-                     std::string::npos,
-                 "Do not support cursor loops with SELECT: " +
-                     assign->getRHS()->getRawSQL());
-          cursorVarToFetchQueryVarName[cursorVars.back()] =
-              "fetchQueryVar" + std::to_string(varId);
+        if (assign->getRHS()->isSQLExpression()) {
+          // udf_todo: may not be the robust way to find the fetch query
+          if (assign->getRHS()->getRawSQL().find("cursorloopEmptyTmp") !=
+              std::string::npos) {
+            // find the query in between /*fetchQueryStart*/ and
+            // /*fetchQueryEnd*/
+            fetchQuery = assign->getRHS()->getRawSQL();
+            auto start = fetchQuery.find("/*fetchQueryStart*/");
+            auto end = fetchQuery.find("/*fetchQueryEnd*/");
+            fetchQuery = fetchQuery.substr(start + 19, end - start - 19);
+          } else {
+            ASSERT(assign->getRHS()->getRawSQL().find("fetchQueryTmpTable") !=
+                       std::string::npos,
+                   "Do not support cursor loops with SELECT: " +
+                       assign->getRHS()->getRawSQL());
+
+            cursorVars.push_back(cursorLoopBodyFunction->getBinding(
+                assign->getLHS()->getName()));
+
+            // use the actual (first) selected fetchQueryVar\\d
+            auto pattern = std::regex("fetchQueryVar\\d+");
+            std::smatch matches;
+            String input = assign->getRHS()->getRawSQL();
+            if (std::regex_search(input, matches, pattern)) {
+              cursorVarToFetchQueryVarName[cursorVars.back()] = matches[0];
+            } else {
+              ERROR("Cannot find fetchQueryVar\\d in the fetch query: " +
+                    assign->getRHS()->getRawSQL());
+            }
+          }
         }
       }
     }
@@ -221,9 +236,72 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   // load the compiled library
   std::cout << "Installing and loading the UDAF..." << std::endl;
   loadUDF(*compiler.getConnection());
+
+  // create a call to the custom aggregate in the original function
+
+  // find in preheader, the initialization of used vars (except cursor vars)
+  auto preheader = newFunction.getBlockFromLabel("preheader");
+  ASSERT(preheader != nullptr, "Cannot find preheader block");
+  Map<const Variable *, const SelectExpression *> varToInitExpr;
+  for (auto &inst : *preheader) {
+    if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+      varToInitExpr[assign->getLHS()] = assign->getRHS();
+    }
+  }
+
+  // the initial values of the arguments to the custom aggregate
+  Vec<String> customAggCallerArgs;
+  String returnVariableInitValue;
+  for (auto *var : loopBodyUsedVars) {
+    if (cursorVarToFetchQueryVarName.find(var) !=
+        cursorVarToFetchQueryVarName.end()) {
+      // is a cursor loop variable
+      // keep the original fetchQueryVar\\d
+      customAggCallerArgs.push_back(cursorVarToFetchQueryVarName[var]);
+    } else {
+      var = newFunction.getBinding(var->getName());
+
+      ASSERT(varToInitExpr.find(var) != varToInitExpr.end(),
+             "Cannot find initialization for variable: " + var->getName());
+      auto initialization =
+          oldFunction.renameVarInExpression(varToInitExpr[var], newToOld);
+      customAggCallerArgs.push_back(initialization->getRawSQL());
+
+      // a return variable will always be used so there must be an
+      // initialization
+      if (Function::getOriginalName(returnVariable->getName()) ==
+          var->getName()) {
+        returnVariableInitValue = initialization->getRawSQL();
+      }
+    }
+  }
+
+  ASSERT(returnVariableInitValue != "",
+         "Return variable initialization not found");
+
+  Vec<String> fetchQueryVarNames;
+  size_t varId = 0;
+  for (auto &var : cursorLoopInfo["var"]["PLpgSQL_row"]["fields"]) {
+    fetchQueryVarNames.push_back("fetchQueryVar" + std::to_string(varId));
+    varId++;
+  }
+  String cursorQuery = fmt::format(
+      "SELECT * FROM ({}) fetchQueryTmpTable({})",
+      wrapVarsWithAnyValue(fetchQuery, oldFunction.getAllBindings()),
+      joinVector(fetchQueryVarNames, ", "));
+
+  String customAggCaller =
+      fmt::format(fmt::runtime(compiler.getConfig().aggify["caller"].Scalar()),
+                  fmt::arg("customAggName", res.name),
+                  fmt::arg("funcArgs", joinVector(customAggCallerArgs, ", ")),
+                  fmt::arg("returnVarName", returnVariableInitValue),
+                  fmt::arg("cursorQuery", cursorQuery));
+  COUT << "Custom Agg Caller: " << ENDL;
+  COUT << customAggCaller << ENDL;
+
   compiler.getUdfCount()++;
 
-  return "";
+  return customAggCaller;
 }
 
 bool AggifyPass::outlineRegion(const Region *region, Function &f) {
@@ -373,39 +451,51 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
     customAggArgs.push_back(var);
   }
 
-  outlineCursorLoop(*newFunction, loopBodyBlocks, f, newFunctionArgs,
-                    customAggArgs, returnVariable, region->getMetadata());
+  String customAggCaller =
+      outlineCursorLoop(*newFunction, loopBodyBlocks, f, newFunctionArgs,
+                        customAggArgs, returnVariable, region->getMetadata());
 
-  // String args = "";
-  // for (auto &arg : newFunctionArgs) {
-  //   if (args != "") {
-  //     args += ", ";
-  //   }
-  //   args += arg->getName();
-  // }
-  // auto result = f.bindExpression(newFunctionName + "(" + args + ")",
-  //                                newFunction->getReturnType());
+  auto assign = Make<Assignment>(returnVariable,
+                                 f.bindExpression(customAggCaller, returnType));
+  ASSERT(nextBasicBlock != nullptr, "NextBasicBlock cannot be nullptr!!");
+  nextBasicBlock->insertBefore(nextBasicBlock->begin(), std::move(assign));
 
-  // auto assign = Make<Assignment>(returnVariable, std::move(result));
-  // ASSERT(nextBasicBlock != nullptr, "NextBasicBlock cannot be nullptr!!");
-  // nextBasicBlock->insertBefore(nextBasicBlock->begin(), std::move(assign));
+  auto &loopHeaderPreds = loopHeader->getPredecessors();
+  ASSERT(loopHeaderPreds.size() >= 2,
+         "Must have at least two predecessor for region!");
+  BasicBlock *pred = nullptr;
+  for (auto *p : loopHeaderPreds) {
+    if (blocksToOutlineSet.find(p) == blocksToOutlineSet.end()) {
+      ASSERT(pred == nullptr,
+             "Found more than one pred that is not in the region");
+      pred = p;
+    }
+  }
 
-  // auto &preds = loopHeader->getPredecessors();
-  // ASSERT(preds.size() == 1, "Must have exactly one predecessor for region!");
-  // auto *pred = preds.front();
+  // predercessor of next basic block in the loop
+  BasicBlock *nextPred = nullptr;
+  for (auto *p : nextBasicBlock->getPredecessors()) {
+    if (blocksToOutlineSet.find(p) != blocksToOutlineSet.end()) {
+      ASSERT(nextPred == nullptr,
+             "Found more than one pred that is not in the region");
+      nextPred = p;
+    }
+  }
 
-  // Map<BasicBlock *, BasicBlock *> oldToNew = {{regionHeader,
-  // nextBasicBlock}}; pred->renameBasicBlock(oldToNew);
+  pred->renameBasicBlock(loopHeader, nextBasicBlock, nextPred);
 
-  // auto *replacement = nextBasicBlock->getRegion();
-  // auto *currentRegion = regionHeader->getRegion();
-  // auto *parentRegion = currentRegion->getParentRegion();
+  auto *replacement = nextBasicBlock->getRegion();
+  auto *currentRegion = loopHeader->getRegion();
+  auto *parentRegion = currentRegion->getParentRegion();
 
-  // parentRegion->replaceNestedRegion(currentRegion, replacement);
+  parentRegion->replaceNestedRegion(currentRegion, replacement);
 
-  // for (auto *block : blocksToOutline) {
-  //   f.removeBasicBlock(block);
-  // }
+  for (auto *block : blocksToOutline) {
+    f.removeBasicBlock(block);
+  }
+
+  drawGraph(f.getRegionString(), "after_aggify_region");
+  drawGraph(f.getCFGString(), "after_aggify_cfg");
 
   outlinedCount++;
   return true;
@@ -435,5 +525,6 @@ bool AggifyPass::runOnRegion(const Region *rootRegion, Function &f) {
 
 bool AggifyPass::runOnFunction(Function &f) {
   drawGraph(f.getCFGString(), "before_aggify");
+  drawGraph(f.getRegionString(), "before_aggify_region");
   return runOnRegion(f.getRegion(), f);
 }

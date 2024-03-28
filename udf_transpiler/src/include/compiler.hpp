@@ -29,12 +29,6 @@ public:
   CompilationResult run();
 
   bool passOn(const String &passName) const {
-    std::cout << "Pass: " << passName
-              << ((optimizerPassOnMap.count(passName) > 0 &&
-                   optimizerPassOnMap.at(passName))
-                      ? " true"
-                      : " false")
-              << std::endl;
     return optimizerPassOnMap.count(passName) > 0 &&
            optimizerPassOnMap.at(passName);
   }
