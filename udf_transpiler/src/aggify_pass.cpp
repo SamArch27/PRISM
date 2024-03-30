@@ -259,6 +259,11 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   auto preheader = newFunction.getBlockFromLabel("preheader");
   ASSERT(preheader != nullptr, "Cannot find preheader block");
   Map<const Variable *, const SelectExpression *> varToInitExpr;
+  for (auto &inst : *newFunction.getEntryBlock()) {
+    if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+      varToInitExpr[assign->getLHS()] = assign->getRHS();
+    }
+  }
   for (auto &inst : *preheader) {
     if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
       varToInitExpr[assign->getLHS()] = assign->getRHS();
