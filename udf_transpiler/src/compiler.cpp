@@ -87,7 +87,7 @@ json Compiler::parseJson() const {
 
 void Compiler::optimize(Function &f) {
   drawGraph(f.getCFGString(), "cfg_before_optimization");
-  drawGraph(f.getRegionString(), "region_before_optimization");
+  drawGraph(getRegionString(f.getRegion()), "region_before_optimization");
 
   auto ssaConstruction =
       Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());

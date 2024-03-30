@@ -45,8 +45,7 @@ bool DeadCodeEliminationPass::runOnFunction(Function &f) {
     }
     inst->eraseFromParent();
   }
-  std::cout << "BEFORE" << std::endl;
-  std::cout << f << std::endl;
+
   // Remove any unused variables
   Set<const Variable *> toRemove;
   auto usedVars = useDefs->getUsedVariables();
@@ -63,13 +62,9 @@ bool DeadCodeEliminationPass::runOnFunction(Function &f) {
       toRemove.insert(var.get());
     }
   }
-  // for (auto *var : toRemove) {
-  //   std::cout << "Removing variable: " << var->getName()
-  //             << " from function: " << f.getFunctionName() << std::endl;
-  //   f.removeVariable(var);
-  // }
-  std::cout << "AFTER" << std::endl;
-  std::cout << f << std::endl;
+  for (auto *var : toRemove) {
+    f.removeVariable(var);
+  }
 
   return changed;
 }
