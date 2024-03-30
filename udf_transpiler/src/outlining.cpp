@@ -1,6 +1,7 @@
 #include "outlining.hpp"
 #include "cfg_code_generator.hpp"
 #include "compiler.hpp"
+#include "dead_code_elimination.hpp"
 #include "file.hpp"
 #include "instructions.hpp"
 #include "liveness_analysis.hpp"
@@ -31,7 +32,8 @@ getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
 }
 
 void OutliningPass::outlineFunction(Function &f) {
-  auto ssaDestructionPipeline = Make<PipelinePass>(Make<SSADestructionPass>());
+  auto ssaDestructionPipeline = Make<PipelinePass>(
+      Make<DeadCodeEliminationPass>(), Make<SSADestructionPass>());
   ssaDestructionPipeline->runOnFunction(f);
 
   INFO(fmt::format("Transpiling UDF {}...", f.getFunctionName()));
