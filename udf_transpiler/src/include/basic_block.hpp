@@ -155,7 +155,7 @@ public:
   InstIterator findInst(Instruction *inst);
   InstIterator removeInst(InstIterator targetInst);
   InstIterator replaceInst(InstIterator targetInst, Own<Instruction> newInst,
-                           bool updateSuccPred = true);
+                           bool updateSuccPred = false);
 
   Instruction *getInitiator();
   Instruction *getTerminator();

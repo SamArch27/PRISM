@@ -173,12 +173,10 @@ void BasicBlock::renameBasicBlock(const BasicBlock *oldBlock,
       }
 
       if (branchInst->isUnconditional()) {
-        it = replaceInst(it, Make<BranchInst>(trueBlock), false);
+        it = replaceInst(it, Make<BranchInst>(trueBlock));
       } else {
-        it = replaceInst(it,
-                         Make<BranchInst>(trueBlock, falseBlock,
-                                          branchInst->getCond()->clone()),
-                         false);
+        it = replaceInst(it, Make<BranchInst>(trueBlock, falseBlock,
+                                              branchInst->getCond()->clone()));
       }
     }
   }

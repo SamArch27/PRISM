@@ -297,7 +297,7 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
     if (auto *terminator = dynamic_cast<BranchInst *>(pred->getTerminator())) {
       // replace the branch instruction to target the bottom block
       if (terminator->isUnconditional()) {
-        terminator->replaceWith(Make<BranchInst>(bottom));
+        terminator->replaceWith(Make<BranchInst>(bottom), true);
       } else {
         auto *newTrue = terminator->getIfTrue();
         newTrue = (newTrue == top) ? bottom : newTrue;
@@ -305,8 +305,9 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
         auto *newFalse = terminator->getIfFalse();
         newFalse = (newFalse == top) ? bottom : newFalse;
 
-        terminator->replaceWith(Make<BranchInst>(
-            newTrue, newFalse, terminator->getCond()->clone()));
+        terminator->replaceWith(
+            Make<BranchInst>(newTrue, newFalse, terminator->getCond()->clone()),
+            true);
       }
     }
   }

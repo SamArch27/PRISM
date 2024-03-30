@@ -28,6 +28,7 @@ public:
           std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
       std::cout << pass->getPassName() << ": " << duration.count() << "ms"
                 << std::endl;
+      std::cout << f << std::endl;
     }
     return changed;
   }

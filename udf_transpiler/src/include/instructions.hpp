@@ -117,7 +117,8 @@ public:
   virtual const Variable *getResultOperand() const = 0;
   virtual Set<const Variable *> getOperands() const = 0;
   virtual Vec<BasicBlock *> getSuccessors() const = 0;
-  Instruction *replaceWith(Own<Instruction> replacement);
+  Instruction *replaceWith(Own<Instruction> replacement,
+                           bool updateSuccPred = false);
   void eraseFromParent();
   void setParent(BasicBlock *parentBlock) { parent = parentBlock; }
   BasicBlock *getParent() const { return parent; }
