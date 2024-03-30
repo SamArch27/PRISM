@@ -97,17 +97,11 @@ public:
   }
 
   /**
-   * Unlike getNestedRegions, this function returns a list of regions that are
-   * predecessors of this region, i.e. the headers of these regions is a
-   * successor of the header of this region.
+   * Unlike getNestedRegions that for conditional regions returns only the
+   * true region, this function returns both the true and false regions.
    */
-  Vec<const Region *> getSuccessorRegions() const {
-    Vec<const Region *> result;
-    for (auto succ : getHeader()->getSuccessors()) {
-      ASSERT(succ->getRegion(), "Successor must have a region");
-      result.push_back(succ->getRegion());
-    }
-    return result;
+  virtual Vec<const Region *> getSuccessorRegions() const {
+    return getNestedRegions();
   }
 
   void releaseNestedRegions() {
@@ -229,8 +223,22 @@ public:
     return "CR" + getHeader()->getLabel().substr(1);
   }
 
-  Region *getTrueRegion() const { return nestedRegions[0].get(); }
+  Region *getTrueRegion() const {
+    ASSERT(nestedRegions[0].get() != nullptr,
+           "Conditional region must have a true region. Check "
+           "replaceNestedRegion because that may be the cause.");
+    return nestedRegions[0].get();
+  }
   Region *getFalseRegion() const { return nestedRegions[1].get(); }
+
+  Vec<const Region *> getSuccessorRegions() const override {
+    Vec<const Region *> result;
+    for (auto succ : getHeader()->getSuccessors()) {
+      ASSERT(succ->getRegion(), "Successor must have a region");
+      result.push_back(succ->getRegion());
+    }
+    return result;
+  }
 
 protected:
   void print(std::ostream &os) const override {
