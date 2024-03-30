@@ -439,7 +439,9 @@ Own<Function> Function::partialCloneAndRename(
   }
 
   for (const auto &[name, var] : bindings) {
-    newFunction->addVariable(name, var->getType(), var->isNull());
+    if (!newFunction->hasBinding(name)) {
+      newFunction->addVariable(name, var->getType(), var->isNull());
+    }
     variableMap[var] = newFunction->getBinding(name);
   }
 

@@ -34,6 +34,17 @@ public:
     return allDefs;
   }
 
+  Set<const Variable *> getUsedVariables() const {
+    Set<const Variable *> allVariables;
+    for (auto &[var, _] : uses) {
+      allVariables.insert(var);
+    }
+    for (auto &[var, _] : defs) {
+      allVariables.insert(var);
+    }
+    return allVariables;
+  }
+
 private:
   Map<const Variable *, Set<Instruction *>> uses;
   Map<const Variable *, Instruction *> defs;

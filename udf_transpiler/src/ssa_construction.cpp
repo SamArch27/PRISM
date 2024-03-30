@@ -180,10 +180,6 @@ void SSAConstructionPass::renameVariablesToSSA(
       for (auto it = succ->begin(); it != succ->end(); ++it) {
         auto &inst = *it;
         if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
-          std::cout << "From pred: " << block->getLabel() << std::endl;
-          std::cout << "PredNumber: " << j << std::endl;
-          std::cout << "Consdiering phi: " << *phi << std::endl;
-          std::cout << "PhiOp is: " << *phi->getRHS()[j] << std::endl;
 
           VecOwn<SelectExpression> newArguments;
           for (auto *arg : phi->getRHS()) {
@@ -197,7 +193,6 @@ void SSAConstructionPass::renameVariablesToSSA(
           }
           newArguments[j] = f.renameVarInExpression(op, oldToNew);
           auto newPhi = Make<PhiNode>(phi->getLHS(), std::move(newArguments));
-          std::cout << "New phi: " << *newPhi << std::endl << std::endl;
           it = succ->replaceInst(it, std::move(newPhi));
         }
       }
@@ -220,7 +215,9 @@ void SSAConstructionPass::renameVariablesToSSA(
   for (const auto &arg : f.getArguments()) {
     auto oldName = arg->getName();
     auto newName = renameVariable(arg.get(), true)->getName();
-    f.addVariable(newName, arg->getType(), false);
+    if (!f.hasBinding(newName)) {
+      f.addVariable(newName, arg->getType(), false);
+    }
     auto assign = Make<Assignment>(f.getBinding(newName),
                                    f.bindExpression(oldName, arg->getType()));
     auto *entryBlock = f.getEntryBlock();

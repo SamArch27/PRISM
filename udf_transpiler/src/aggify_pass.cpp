@@ -2,6 +2,7 @@
 #include "aggify_code_generator.hpp"
 #include "cfg_code_generator.hpp"
 #include "compiler.hpp"
+#include "dead_code_elimination.hpp"
 #include "file.hpp"
 #include "instructions.hpp"
 #include "liveness_analysis.hpp"
@@ -119,8 +120,7 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   auto end = fetchQuery.find("/*fetchQueryEnd*/");
   fetchQuery = fetchQuery.substr(start + 19, end - start - 19);
 
-  auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<SSADestructionPass>() /*, Make<AggressiveMergeRegionsPass>()*/);
+  auto ssaDestructionPipeline = Make<PipelinePass>(Make<SSADestructionPass>());
 
   ssaDestructionPipeline->runOnFunction(newFunction);
 
@@ -174,11 +174,6 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
           oldFunction.getOriginalName(var->getName())));
     }
   }
-  // COUT << "Loop body used variables: " << ENDL;
-  // for (auto var : loopBodyUsedVars) {
-  //   COUT << var->getName() << " ";
-  // }
-  // COUT << ENDL;
 
   Vec<const Variable *> cursorVars;
   Map<const Variable *, String> cursorVarToFetchQueryVarName;
@@ -212,11 +207,6 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
       }
     }
   }
-  // COUT << "Cursor vars: " << ENDL;
-  // for (auto var : cursorVars) {
-  //   COUT << var->getName() << " ";
-  // }
-  // COUT << ENDL;
 
   // generate the code for the custom aggregate
 
@@ -374,26 +364,6 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
     }
   }
 
-  // COUT << "Outlining basic blocks for Aggify: " << ENDL;
-  // for (auto *block : blocksToOutline) {
-  //   COUT << block->getLabel() << " ";
-  // }
-  // COUT << ENDL;
-  // COUT << "Loop header: " << loopHeader->getLabel() << ENDL;
-  // COUT << "Fallthrough region: "
-  //      << nextBasicBlock->getRegion()->getRegionLabel() << ENDL;
-  // COUT << "Return variables: " << ENDL;
-  // for (auto *var : returnVars) {
-  //   COUT << var->getName() << " ";
-  // }
-  // COUT << ENDL;
-  // COUT << "Input variables: " << ENDL;
-  // for (auto *var : regionArgs) {
-  //   COUT << var->getName() << " ";
-  // }
-  // COUT << ENDL;
-  // COUT << ENDL;
-
   ASSERT(returnVars.size() == 1,
          fmt::format("Do not support one cursor loop to return {} variables",
                      returnVars.size()));
@@ -522,6 +492,8 @@ bool AggifyPass::runOnRegion(const Region *rootRegion, Function &f) {
 }
 
 bool AggifyPass::runOnFunction(Function &f) {
+  std::cout << "BEFORE AGGIFY" << std::endl;
+  std::cout << f << std::endl;
   drawGraph(f.getCFGString(), "before_aggify");
   drawGraph(f.getRegionString(), "before_aggify_region");
   return runOnRegion(f.getRegion(), f);
