@@ -57,7 +57,6 @@ CompilationResult Compiler::run() {
     optimize(*f);
   }
   codeRes.success = true;
-  functions.clear();
   return codeRes;
 }
 

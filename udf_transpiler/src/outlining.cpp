@@ -205,8 +205,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 
   parentRegion->replaceNestedRegion(currentRegion, replacement);
 
-  drawGraph(f.getCFGString(), "cfg");
-
   for (auto *block : blocksToOutline) {
     f.removeBasicBlock(block);
   }
