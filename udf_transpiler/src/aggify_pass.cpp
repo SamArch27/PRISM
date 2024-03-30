@@ -352,9 +352,16 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
     blocksToOutlineSet.insert(block);
   }
   // region args are the live variables going into the region
-  auto liveIn = liveness->getBlockLiveOut(loopHeader);
-  for (auto *var : liveIn) {
-    regionArgs.insert(var);
+  // udf_todo: this is a naive way to find the input variable, it may be
+  // possible to that the predessor has multiple successors
+  auto preds = loopHeader->getPredecessors();
+  for (auto *pred : preds) {
+    if (blocksToOutlineSet.find(pred) == blocksToOutlineSet.end()) {
+      auto liveOut = liveness->getBlockLiveOut(pred);
+      for (auto *var : liveOut) {
+        regionArgs.insert(var);
+      }
+    }
   }
 
   // get live variable going out of the region
@@ -364,7 +371,7 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
   // variables that are live out of the region and defined in the region
   // udf_todo: this is a naive way to find the return variable, it may be
   // possible to that the nextBasicBlock has multiple predecessors
-  liveIn = liveness->getBlockLiveIn(nextBasicBlock);
+  auto liveIn = liveness->getBlockLiveIn(nextBasicBlock);
   for (auto *var : liveIn) {
     if (regionArgs.count(var) == 0) {
       returnVars.insert(var);
