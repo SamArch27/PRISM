@@ -157,6 +157,8 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     newFunction->renameBasicBlocks(nextBasicBlock, returnBlock);
   }
 
+  outlineFunction(*newFunction);
+
   String args = "";
   for (auto &arg : newFunctionArgs) {
     if (args != "") {

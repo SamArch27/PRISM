@@ -147,7 +147,7 @@ void BasicBlock::renameBasicBlock(const BasicBlock *oldBlock,
 
         // update the predecessor of the new block
         if (newsPrevPred == nullptr) {
-          trueBlock->getPredecessorsRef().clear();
+          trueBlock->clearPredecessors();
           trueBlock->addPredecessor(this);
         } else {
           trueBlock->replacePredecessor(newsPrevPred, this);
@@ -158,7 +158,7 @@ void BasicBlock::renameBasicBlock(const BasicBlock *oldBlock,
 
         // update the predecessor of the new block
         if (newsPrevPred == nullptr) {
-          falseBlock->getPredecessorsRef().clear();
+          falseBlock->clearPredecessors();
           falseBlock->addPredecessor(this);
         } else {
           falseBlock->replacePredecessor(newsPrevPred, this);

@@ -488,7 +488,7 @@ Own<Function> Function::partialCloneAndRename(
   // update the successor/predecessor relationship even though some previous
   // code may have done this
   for (auto &[oldBasicBlock, newBasicBlock] : basicBlockMap) {
-    newBasicBlock->getSuccessorsRef().clear();
+    newBasicBlock->clearSuccessors();
     for (auto *succ : oldBasicBlock->getSuccessors()) {
       if (basicBlockMap.find(succ) != basicBlockMap.end()) {
         newBasicBlock->addSuccessor(basicBlockMap.at(succ));
@@ -497,7 +497,7 @@ Own<Function> Function::partialCloneAndRename(
         newBasicBlock->addSuccessor(succ);
       }
     }
-    newBasicBlock->getPredecessorsRef().clear();
+    newBasicBlock->clearPredecessors();
     for (auto *pred : oldBasicBlock->getPredecessors()) {
       if (basicBlockMap.find(pred) != basicBlockMap.end()) {
         newBasicBlock->addPredecessor(basicBlockMap.at(pred));

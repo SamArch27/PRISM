@@ -178,8 +178,8 @@ public:
     return false;
   }
 
-  inline Vec<BasicBlock *> &getSuccessorsRef() { return successors; }
-  inline Vec<BasicBlock *> &getPredecessorsRef() { return predecessors; }
+  void clearPredecessors() { predecessors.clear(); }
+  void clearSuccessors() { successors.clear(); }
 
 protected:
   void print(std::ostream &os) const;
