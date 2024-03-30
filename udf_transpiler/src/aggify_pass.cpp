@@ -492,8 +492,6 @@ bool AggifyPass::runOnRegion(const Region *rootRegion, Function &f) {
 }
 
 bool AggifyPass::runOnFunction(Function &f) {
-  std::cout << "BEFORE AGGIFY" << std::endl;
-  std::cout << f << std::endl;
   drawGraph(f.getCFGString(), "before_aggify");
   drawGraph(f.getRegionString(), "before_aggify_region");
   return runOnRegion(f.getRegion(), f);
