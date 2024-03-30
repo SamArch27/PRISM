@@ -34,19 +34,18 @@ void OutliningPass::outlineFunction(Function &f) {
   auto ssaDestructionPipeline = Make<PipelinePass>(Make<SSADestructionPass>());
   ssaDestructionPipeline->runOnFunction(f);
 
-  std::cout << fmt::format("Transpiling UDF {}...", f.getFunctionName())
-            << std::endl;
-  compiler.getUdfCount()++;
+  INFO(fmt::format("Transpiling UDF {}...", f.getFunctionName()));
   CFGCodeGenerator codeGenerator(compiler.getConfig());
   auto res = codeGenerator.run(f);
 
   insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
   // compile the template
-  std::cout << "Compiling the UDF..." << std::endl;
+  INFO("Compiling the UDF...");
   compileUDF();
   // load the compiled library
-  std::cout << "Installing and loading the UDF..." << std::endl;
+  INFO("Installing and loading the UDF...");
   loadUDF(*compiler.getConnection());
+  compiler.getUdfCount()++;
 }
 
 static bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
@@ -98,6 +97,8 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   }
 
   if (nextBasicBlock != nullptr && hasReturn) {
+    INFO("Control logic goes to end but has return, this pattern cannot be "
+         "outlined for now.");
     return false;
   } else if (nextBasicBlock == nullptr && !hasReturn) {
     EXCEPTION(fmt::format("Control logic goes to end but no return."));
@@ -155,9 +156,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 
     newFunction->renameBasicBlocks(nextBasicBlock, returnBlock);
   }
-
-  std::cout << "OUTLINING: " << *newFunction << std::endl;
-  outlineFunction(*newFunction);
 
   String args = "";
   for (auto &arg : newFunctionArgs) {
@@ -218,15 +216,27 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 
 bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
                                 const Region *region, Function &f,
-                                Vec<BasicBlock *> &queuedBlocks) {
+                                Vec<BasicBlock *> &queuedBlocks,
+                                Set<const BasicBlock *> &blockOutlined) {
 
   auto queueBlock = [&](BasicBlock *block) {
-    if (block != f.getEntryBlock()) {
+    if (block != f.getEntryBlock() && blockOutlined.count(block) == 0) {
       queuedBlocks.push_back(block);
+      blockOutlined.insert(block);
     }
   };
 
   auto queueBlocksFromRegion = [&](const Region *region) {
+    if (const auto *conditionalRegion =
+            dynamic_cast<const ConditionalRegion *>(region)) {
+      queueBlock(conditionalRegion->getHeader());
+      for (const Region *region : conditionalRegion->getSuccessorRegions()) {
+        for (auto *block : region->getBasicBlocks()) {
+          queueBlock(block);
+        }
+      }
+      return;
+    }
     for (auto *block : region->getBasicBlocks()) {
       queueBlock(block);
     }
@@ -237,7 +247,7 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
     queuedBlocks.clear();
   };
 
-  // travers the regions top down
+  // traverse the regions top down
   if (containsSelect.at(region) == true) {
     if (auto *sequentialRegion =
             dynamic_cast<const SequentialRegion *>(region)) {
@@ -251,7 +261,8 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
       }
       for (auto *nestedRegion : sequentialRegion->getNestedRegions()) {
         if (containsSelect.at(nestedRegion) == true) {
-          runOnRegion(containsSelect, nestedRegion, f, queuedBlocks);
+          runOnRegion(containsSelect, nestedRegion, f, queuedBlocks,
+                      blockOutlined);
         } else {
           queueBlocksFromRegion(nestedRegion);
         }
@@ -261,7 +272,8 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
       if (auto *recursiveRegion =
               dynamic_cast<const RecursiveRegion *>(region)) {
         for (auto *nestedRegion : recursiveRegion->getNestedRegions()) {
-          runOnRegion(containsSelect, nestedRegion, f, queuedBlocks);
+          runOnRegion(containsSelect, nestedRegion, f, queuedBlocks,
+                      blockOutlined);
         }
       }
     }
@@ -318,12 +330,7 @@ SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
   while (computeSelectRegionsHelper(region, selectRegions, visitedRegions)) {
     visitedRegions.clear();
   }
-  // print the result
-  for (auto &[region, containsSelect] : selectRegions) {
-    std::cout << fmt::format("Region: {}: {}", region->getRegionLabel(),
-                             containsSelect)
-              << std::endl;
-  }
+
   return selectRegions;
 }
 
@@ -331,6 +338,7 @@ bool OutliningPass::runOnFunction(Function &f) {
   drawGraph(f.getCFGString(), "cfg");
   Vec<BasicBlock *> queuedBlocks;
   auto containsSelect = computeSelectRegions(f.getRegion());
-  runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks);
+  Set<const BasicBlock *> blockOutlined;
+  runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks, blockOutlined);
   return false;
 }

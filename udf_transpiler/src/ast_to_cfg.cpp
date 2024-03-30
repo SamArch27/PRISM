@@ -486,20 +486,17 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
   auto loopBodyRegion =
       constructCFG(f, bodyStatements, newContinuations, attachFallthrough);
 
+  String fetchQuery =
+      cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>();
+  String commentedFetchQuery =
+      "/*fetchQueryStart*/" + fetchQuery + "/*fetchQueryEnd*/";
   // create a block for the condition
-  String cursorLoopWhileQuery = fmt::format(
-      "select ANY_VALUE(cursorloopiter) < count(*) from tmp, {} "
-      "cursorloopEmptyTmp",
-      cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>());
-  // COUT << cursorLoopWhileQuery << std::endl;
+  String cursorLoopWhileQuery =
+      fmt::format("select ANY_VALUE(cursorloopiter) < count(*) from tmp, {} "
+                  "cursorloopEmptyTmp",
+                  commentedFetchQuery);
   auto condExpr = f.bindExpression(cursorLoopWhileQuery, Type::BOOLEAN, true);
-  for (auto &used : condExpr->getUsedVariables()) {
-    COUT << used->getName() << std::endl;
-  }
 
-  // condBlock->addInstruction(
-  //     Make<Assignment>(f.getBinding("cursorloopiter"),
-  //     f.bindExpression("cursorloopiter + 1")));
   auto incrementBlock = f.makeBasicBlock();
   incrementBlock->addInstruction(
       Make<Assignment>(f.getBinding("cursorloopiter"),
@@ -524,20 +521,17 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
     fetchQueryVarNames.push_back("fetchQueryVar" + std::to_string(varId));
     varId++;
   }
-  String fetchQuery =
-      cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>();
-  fetchQuery = fmt::format(
+
+  String fetchVarQuery = fmt::format(
       "SELECT {{}} FROM ({}) fetchQueryTmpTable({}) WHERE cursorloopiter::BOOL",
       fetchQuery, joinVector(fetchQueryVarNames, ", "));
   varId = 0;
   for (auto &var : cursorLoopVarNames) {
-    // may have a mismatch on the number of variables on the lhs and rhs
-    // but ok for optimizations
     loopVarBlock->addInstruction(Make<Assignment>(
         f.getBinding(var),
-        f.bindExpression(fmt::format(fmt::runtime(fetchQuery + " OFFSET {}"),
-                                     fetchQueryVarNames[varId], varId),
-                         f.getBinding(var)->getType(), true, false)));
+        f.bindExpression(
+            fmt::format(fmt::runtime(fetchVarQuery), fetchQueryVarNames[varId]),
+            f.getBinding(var)->getType(), true, false)));
     varId++;
   }
   loopVarBlock->addInstruction(Make<BranchInst>(incrementBlock));
@@ -559,8 +553,10 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
       Make<ConditionalRegion>(
           condBlock, Make<SequentialRegion>(loopVarBlockPreHeader,
                                             std::move(loopVarRegion))));
+
   auto cursorLoopRegionMeta = cursorLoopJson;
   cursorLoopRegionMeta["udf_info"] = "cursorLoopRegion";
+  cursorLoopRegionMeta["firstCursorVar"] = {{"name", cursorLoopVarNames[0]}, {"type", f.getBinding(cursorLoopVarNames[0])->getType().serialize()}};
   cursorLoopRegion->setMetadata(cursorLoopRegionMeta);
   auto sequentialRegion = Make<SequentialRegion>(
       newBlock, std::move(cursorLoopRegion),
@@ -587,101 +583,9 @@ List<json> AstToCFG::getJsonList(const json &body) {
   return res;
 }
 
-PostgresTypeTag AstToCFG::getPostgresTag(const String &type) {
-  // remove spaces and capitalize the name
-  String upper = toUpper(removeSpaces(type));
-
-  Map<String, PostgresTypeTag> nameToTag = {
-      {"BIGINT", PostgresTypeTag::BIGINT},
-      {"BINARY", PostgresTypeTag::BINARY},
-      {"BIT", PostgresTypeTag::BIT},
-      {"BITSTRING", PostgresTypeTag::BITSTRING},
-      {"BLOB", PostgresTypeTag::BLOB},
-      {"BOOL", PostgresTypeTag::BOOL},
-      {"BOOLEAN", PostgresTypeTag::BOOLEAN},
-      {"BPCHAR", PostgresTypeTag::BPCHAR},
-      {"BYTEA", PostgresTypeTag::BYTEA},
-      {"CHAR", PostgresTypeTag::CHAR},
-      {"DATE", PostgresTypeTag::DATE},
-      {"DATETIME", PostgresTypeTag::DATETIME},
-      {"DECIMAL", PostgresTypeTag::DECIMAL},
-      {"DOUBLE", PostgresTypeTag::DOUBLE},
-      {"FLOAT", PostgresTypeTag::FLOAT},
-      {"FLOAT4", PostgresTypeTag::FLOAT4},
-      {"FLOAT8", PostgresTypeTag::FLOAT8},
-      {"HUGEINT", PostgresTypeTag::HUGEINT},
-      {"INT", PostgresTypeTag::INT},
-      {"INT1", PostgresTypeTag::INT1},
-      {"INT2", PostgresTypeTag::INT2},
-      {"INT4", PostgresTypeTag::INT4},
-      {"INT8", PostgresTypeTag::INT8},
-      {"INTEGER", PostgresTypeTag::INTEGER},
-      {"INTERVAL", PostgresTypeTag::INTERVAL},
-      {"LOGICAL", PostgresTypeTag::LOGICAL},
-      {"LONG", PostgresTypeTag::LONG},
-      {"NUMERIC", PostgresTypeTag::NUMERIC},
-      {"REAL", PostgresTypeTag::REAL},
-      {"SHORT", PostgresTypeTag::SHORT},
-      {"SIGNED", PostgresTypeTag::SIGNED},
-      {"SMALLINT", PostgresTypeTag::SMALLINT},
-      {"STRING", PostgresTypeTag::STRING},
-      {"TEXT", PostgresTypeTag::TEXT},
-      {"TIME", PostgresTypeTag::TIME},
-      {"TIMESTAMP", PostgresTypeTag::TIMESTAMP},
-      {"TINYINT", PostgresTypeTag::TINYINT},
-      {"UBIGINT", PostgresTypeTag::UBIGINT},
-      {"UINTEGER", PostgresTypeTag::UINTEGER},
-      {"UNKNOWN", PostgresTypeTag::UNKNOWN},
-      {"USMALLINT", PostgresTypeTag::USMALLINT},
-      {"UTINYINT", PostgresTypeTag::UTINYINT},
-      {"UUID", PostgresTypeTag::UUID},
-      {"VARBINARY", PostgresTypeTag::VARBINARY},
-      {"VARCHAR", PostgresTypeTag::VARCHAR}};
-
-  // Edge case for DECIMAL(width,scale)
-  if (upper.starts_with("DECIMAL")) {
-    return nameToTag.at("DECIMAL");
-  }
-
-  else if (upper.starts_with("VARCHAR")) {
-    return nameToTag.at("VARCHAR");
-  }
-
-  if (nameToTag.find(upper) == nameToTag.end()) {
-    EXCEPTION(type + " is not a valid Postgres Type.");
-  }
-  return nameToTag.at(upper);
-}
-
-Opt<WidthScale> AstToCFG::getDecimalWidthScale(const String &type) {
-  std::regex decimalPattern("DECIMAL\\((\\d+),(\\d+)\\)",
-                            std::regex_constants::icase);
-  std::smatch decimalMatch;
-  auto strippedString = removeSpaces(type);
-  std::regex_search(strippedString, decimalMatch, decimalPattern);
-  if (decimalMatch.size() == 3) {
-    auto width = std::stoi(decimalMatch[1]);
-    auto scale = std::stoi(decimalMatch[2]);
-    return {std::make_pair(width, scale)};
-  }
-  return {};
-}
-
 Type AstToCFG::getTypeFromPostgresName(const String &name) const {
   auto resolvedName = resolveTypeName(name);
-  auto tag = getPostgresTag(resolvedName);
-  if (tag == PostgresTypeTag::DECIMAL) {
-    // provide width, scale info if available
-    auto widthScale = getDecimalWidthScale(resolvedName);
-    if (widthScale) {
-      auto [width, scale] = *widthScale;
-      return Type(true, width, scale, tag);
-    } else {
-      return Type(true, std::nullopt, std::nullopt, tag);
-    }
-  } else {
-    return Type(false, std::nullopt, std::nullopt, tag);
-  }
+  return Type::fromString(resolvedName);
 }
 
 String AstToCFG::resolveTypeName(const String &type) const {

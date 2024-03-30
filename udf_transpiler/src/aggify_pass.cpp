@@ -10,6 +10,7 @@
 #include "ssa_destruction.hpp"
 #include "udf_transpiler_extension.hpp"
 #include "utils.hpp"
+#include <regex>
 
 /**
  * Robust way to find the outgoing branch out of this list of blocks
@@ -74,8 +75,6 @@ static bool supportedCursorLoop(const Vec<BasicBlock *> &basicBlocks) {
   return outgoing;
 }
 
-static String outlineLoopBody(Function &loopBodyFunction) { return ""; }
-
 /**
  * returns the call to custom aggregate in the context of the original function
  * @param newFunction the new function that was outlined
@@ -89,19 +88,36 @@ static String outlineLoopBody(Function &loopBodyFunction) { return ""; }
  */
 String AggifyPass::outlineCursorLoop(Function &newFunction,
                                      Vec<BasicBlock *> loopBodyBlocks,
-                                     const Function &oldFunction,
+                                     Function &oldFunction,
                                      Vec<const Variable *> callerArgs,
                                      Vec<const Variable *> customAggArgs,
                                      const Variable *returnVariable,
                                      const json &cursorLoopInfo) {
-  COUT << "predecessors before ssa destruction" << ENDL;
-  for (const auto &block : newFunction) {
-    COUT << block.getLabel() << ": ";
-    for (const auto &pred : block.getPredecessors()) {
-      COUT << pred->getLabel() << " ";
+  // in SSA form
+  // find the query in between /*fetchQueryStart*/ and
+  // /*fetchQueryEnd*/
+  String fetchQuery;
+  for (const auto &blocks : newFunction) {
+    for (const auto &inst : blocks) {
+      if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+        if (assign->getRHS()->isSQLExpression() &&
+            assign->getRHS()->getRawSQL().find("cursorloopEmptyTmp") !=
+                std::string::npos) {
+          fetchQuery = assign->getRHS()->getRawSQL();
+        }
+      } else if (auto *branch = dynamic_cast<const BranchInst *>(&inst)) {
+        if (branch->isConditional() && branch->getCond()->isSQLExpression() &&
+            branch->getCond()->getRawSQL().find("cursorloopEmptyTmp") !=
+                std::string::npos) {
+          fetchQuery = branch->getCond()->getRawSQL();
+        }
+      }
     }
-    COUT << ENDL;
   }
+  ASSERT(fetchQuery != "", "Cannot find fetch query in the outlined code");
+  auto start = fetchQuery.find("/*fetchQueryStart*/");
+  auto end = fetchQuery.find("/*fetchQueryEnd*/");
+  fetchQuery = fetchQuery.substr(start + 19, end - start - 19);
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<SSADestructionPass>() /*, Make<AggressiveMergeRegionsPass>()*/);
@@ -119,8 +135,6 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   Map<const Variable *, const Variable *> newToOld;
   for (size_t i = 0; i < callerArgs.size(); i++) {
     newToOld[newFunction.getArguments()[i].get()] = callerArgs[i];
-    COUT << newFunction.getArguments()[i]->getName() << "->"
-         << callerArgs[i]->getName() << ENDL;
   }
 
   Map<BasicBlock *, BasicBlock *> tmp;
@@ -150,8 +164,6 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   ASSERT(loopHeader.size() == 1, "Expected exactly one loop header");
   cursorLoopBodyFunction->renameBasicBlocks(*loopHeader.begin(), returnBlock);
 
-  COUT << *cursorLoopBodyFunction << ENDL;
-
   // From Aggify: all variables referenced in the loop body Δ
   Vec<const Variable *> loopBodyUsedVars;
   for (auto *var : customAggArgs) {
@@ -162,46 +174,70 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
           oldFunction.getOriginalName(var->getName())));
     }
   }
-  COUT << "Loop body used variables: " << ENDL;
-  for (auto var : loopBodyUsedVars) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
+  // COUT << "Loop body used variables: " << ENDL;
+  // for (auto var : loopBodyUsedVars) {
+  //   COUT << var->getName() << " ";
+  // }
+  // COUT << ENDL;
 
   Vec<const Variable *> cursorVars;
   Map<const Variable *, String> cursorVarToFetchQueryVarName;
-  String fetchQuery =
-      cursorLoopInfo["query"]["PLpgSQL_expr"]["query"].get<String>();
-  size_t varId = 0;
+
   for (const auto &blocks : newFunction) {
     for (const auto &inst : blocks) {
       if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+        // udf_todo: may not be the robust way to find the fetch query
         if (assign->getRHS()->isSQLExpression() &&
-            // udf_todo: may not be the robust way to find the fetch query
             assign->getRHS()->getRawSQL().find("cursorloopEmptyTmp") ==
                 std::string::npos) {
-          // ASSERT(assign->getRHS()->getRawSQL() == fetchQuery,
-          //        "Do not support cursor loops with SELECT: " +
-          //            assign->getRHS()->getRawSQL());
-          cursorVars.push_back(
-              cursorLoopBodyFunction->getBinding(assign->getLHS()->getName()));
-          ASSERT(assign->getRHS()->getRawSQL().find(fetchQuery) !=
+          ASSERT(assign->getRHS()->getRawSQL().find("fetchQueryTmpTable") !=
                      std::string::npos,
                  "Do not support cursor loops with SELECT: " +
                      assign->getRHS()->getRawSQL());
-          cursorVarToFetchQueryVarName[cursorVars.back()] =
-              "fetchQueryVar" + std::to_string(varId);
+
+          cursorVars.push_back(
+              cursorLoopBodyFunction->getBinding(assign->getLHS()->getName()));
+
+          // use the actual (first) selected fetchQueryVar\\d
+          auto pattern = std::regex("fetchQueryVar\\d+");
+          std::smatch matches;
+          String input = assign->getRHS()->getRawSQL();
+          if (std::regex_search(input, matches, pattern)) {
+            cursorVarToFetchQueryVarName[cursorVars.back()] = matches[0];
+          } else {
+            ERROR("Cannot find fetchQueryVar\\d in the fetch query: " +
+                  assign->getRHS()->getRawSQL());
+          }
         }
       }
     }
   }
-  COUT << "Cursor vars: " << ENDL;
-  for (auto var : cursorVars) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
+  // COUT << "Cursor vars: " << ENDL;
+  // for (auto var : cursorVars) {
+  //   COUT << var->getName() << " ";
+  // }
+  // COUT << ENDL;
 
   // generate the code for the custom aggregate
+
+  // because of possible optimization of the database, we need to make sure that
+  // at least one cursor variable is used in the loop body
+  if (cursorVars.size() == 0) {
+    ASSERT(cursorLoopInfo.contains("firstCursorVar") &&
+               cursorLoopInfo["firstCursorVar"].contains("name") &&
+               cursorLoopInfo["firstCursorVar"].contains("type"),
+           "Cannot find firstCursorVar in cursorLoopInfo");
+    auto var = cursorLoopInfo["firstCursorVar"];
+    String varName = var["name"].get<String>();
+    Type varType = Type::fromString(var["type"].get<String>());
+    cursorLoopBodyFunction->addVariable(varName, varType, false);
+    cursorVars.push_back(cursorLoopBodyFunction->getBinding(varName));
+    cursorVarToFetchQueryVarName[cursorVars.back()] = "fetchQueryVar0";
+    loopBodyUsedVars.push_back(cursorLoopBodyFunction->getBinding(varName));
+  }
+
+  INFO(fmt::format("Transpiling UDAF {} ...",
+                   cursorLoopBodyFunction->getFunctionName()));
   AggifyCodeGenerator codeGenerator(compiler.getConfig());
   auto res = codeGenerator.run(
       *cursorLoopBodyFunction, cursorLoopInfo, cursorVars, loopBodyUsedVars,
@@ -209,21 +245,76 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
           oldFunction.getOriginalName(returnVariable->getName())),
       compiler.getUdfCount());
 
-  COUT << res.name << ENDL;
-  // COUT << res.code << ENDL;
-  COUT << res.caller << ENDL;
-  // COUT << res.registration << ENDL;
-
   insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
   // compile the template
-  std::cout << "Compiling the UDAF..." << std::endl;
+  INFO("Compiling the UDAF...");
   compileUDF();
   // load the compiled library
-  std::cout << "Installing and loading the UDAF..." << std::endl;
+  INFO("Installing and loading the UDAF...");
   loadUDF(*compiler.getConnection());
+
+  // create a call to the custom aggregate in the original function
+
+  // find in preheader, the initialization of used vars (except cursor vars)
+  auto preheader = newFunction.getBlockFromLabel("preheader");
+  ASSERT(preheader != nullptr, "Cannot find preheader block");
+  Map<const Variable *, const SelectExpression *> varToInitExpr;
+  for (auto &inst : *preheader) {
+    if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+      varToInitExpr[assign->getLHS()] = assign->getRHS();
+    }
+  }
+
+  // the initial values of the arguments to the custom aggregate
+  Vec<String> customAggCallerArgs;
+  String returnVariableInitValue;
+  for (auto *var : loopBodyUsedVars) {
+    if (cursorVarToFetchQueryVarName.find(var) !=
+        cursorVarToFetchQueryVarName.end()) {
+      // is a cursor loop variable
+      // keep the original fetchQueryVar\\d
+      customAggCallerArgs.push_back(cursorVarToFetchQueryVarName[var]);
+    } else {
+      var = newFunction.getBinding(var->getName());
+
+      ASSERT(varToInitExpr.find(var) != varToInitExpr.end(),
+             "Cannot find initialization for variable: " + var->getName());
+      auto initialization =
+          oldFunction.renameVarInExpression(varToInitExpr[var], newToOld);
+      customAggCallerArgs.push_back(initialization->getRawSQL());
+
+      // a return variable will always be used so there must be an
+      // initialization
+      if (Function::getOriginalName(returnVariable->getName()) ==
+          var->getName()) {
+        returnVariableInitValue = initialization->getRawSQL();
+      }
+    }
+  }
+
+  ASSERT(returnVariableInitValue != "",
+         "Return variable initialization not found");
+
+  Vec<String> fetchQueryVarNames;
+  size_t varId = 0;
+  for (auto &var : cursorLoopInfo["var"]["PLpgSQL_row"]["fields"]) {
+    fetchQueryVarNames.push_back("fetchQueryVar" + std::to_string(varId));
+    varId++;
+  }
+  String cursorQuery =
+      fmt::format("SELECT * FROM ({}) fetchQueryTmpTable({})", fetchQuery,
+                  joinVector(fetchQueryVarNames, ", "));
+
+  String customAggCaller =
+      fmt::format(fmt::runtime(compiler.getConfig().aggify["caller"].Scalar()),
+                  fmt::arg("customAggName", res.name),
+                  fmt::arg("funcArgs", joinVector(customAggCallerArgs, ", ")),
+                  fmt::arg("returnVarName", returnVariableInitValue),
+                  fmt::arg("cursorQuery", cursorQuery));
+
   compiler.getUdfCount()++;
 
-  return "";
+  return customAggCaller;
 }
 
 bool AggifyPass::outlineRegion(const Region *region, Function &f) {
@@ -234,15 +325,13 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
   }
 
   if (!supportedCursorLoop(blocksToOutline)) {
-    std::cout << "Aggify only supports cursor loops without break or return."
-              << std::endl;
+    INFO("Aggify only supports cursor loops without break or return.");
     return false;
   }
 
   auto nextBasicBlocks = getNextBasicBlock(blocksToOutline);
   if (nextBasicBlocks.size() != 1) {
-    std::cout << "Aggify only supports cursor loops with one outgoing branch."
-              << std::endl;
+    INFO("Aggify only supports cursor loops with one outgoing branch.");
     return false;
   }
 
@@ -252,8 +341,6 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
-  std::cout << f << std::endl;
-  std::cout << *liveness << std::endl;
 
   auto *loopHeader = region->getHeader();
 
@@ -287,25 +374,25 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
     }
   }
 
-  COUT << "Outlining basic blocks for Aggify: " << ENDL;
-  for (auto *block : blocksToOutline) {
-    COUT << block->getLabel() << " ";
-  }
-  COUT << ENDL;
-  COUT << "Loop header: " << loopHeader->getLabel() << ENDL;
-  COUT << "Fallthrough region: "
-       << nextBasicBlock->getRegion()->getRegionLabel() << ENDL;
-  COUT << "Return variables: " << ENDL;
-  for (auto *var : returnVars) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
-  COUT << "Input variables: " << ENDL;
-  for (auto *var : regionArgs) {
-    COUT << var->getName() << " ";
-  }
-  COUT << ENDL;
-  COUT << ENDL;
+  // COUT << "Outlining basic blocks for Aggify: " << ENDL;
+  // for (auto *block : blocksToOutline) {
+  //   COUT << block->getLabel() << " ";
+  // }
+  // COUT << ENDL;
+  // COUT << "Loop header: " << loopHeader->getLabel() << ENDL;
+  // COUT << "Fallthrough region: "
+  //      << nextBasicBlock->getRegion()->getRegionLabel() << ENDL;
+  // COUT << "Return variables: " << ENDL;
+  // for (auto *var : returnVars) {
+  //   COUT << var->getName() << " ";
+  // }
+  // COUT << ENDL;
+  // COUT << "Input variables: " << ENDL;
+  // for (auto *var : regionArgs) {
+  //   COUT << var->getName() << " ";
+  // }
+  // COUT << ENDL;
+  // COUT << ENDL;
 
   ASSERT(returnVars.size() == 1,
          fmt::format("Do not support one cursor loop to return {} variables",
@@ -344,19 +431,11 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
         currentRegion->getMetadata().end()) {
       if (currentRegion->getMetadata()["udf_info"].get<String>() ==
           "cursorLoopBodyRegion") {
-        std::cout << fmt::format("Region {} is a cursor loop body region\n",
-                                 currentRegion->getRegionLabel())
-                  << std::endl;
         loopBodyRegion = currentRegion;
         for (auto *block : currentRegion->getBasicBlocks()) {
           loopBodyBlocks.push_back(oldToNew.at(block));
         }
       }
-      // else if (currentRegion->getMetadata()["udf_info"].get<String>() ==
-      //            "cursorLoopVarRegion") {
-      //   COUT << "Basic block contains cursor var definitions: "
-      //        << currentRegion->getHeader()->getLabel() << ENDL;
-      // }
     }
     if (auto *recursiveRegion =
             dynamic_cast<const RecursiveRegion *>(currentRegion)) {
@@ -373,39 +452,51 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
     customAggArgs.push_back(var);
   }
 
-  outlineCursorLoop(*newFunction, loopBodyBlocks, f, newFunctionArgs,
-                    customAggArgs, returnVariable, region->getMetadata());
+  String customAggCaller =
+      outlineCursorLoop(*newFunction, loopBodyBlocks, f, newFunctionArgs,
+                        customAggArgs, returnVariable, region->getMetadata());
 
-  // String args = "";
-  // for (auto &arg : newFunctionArgs) {
-  //   if (args != "") {
-  //     args += ", ";
-  //   }
-  //   args += arg->getName();
-  // }
-  // auto result = f.bindExpression(newFunctionName + "(" + args + ")",
-  //                                newFunction->getReturnType());
+  auto assign = Make<Assignment>(returnVariable,
+                                 f.bindExpression(customAggCaller, returnType));
+  ASSERT(nextBasicBlock != nullptr, "NextBasicBlock cannot be nullptr!!");
+  nextBasicBlock->insertBefore(nextBasicBlock->begin(), std::move(assign));
 
-  // auto assign = Make<Assignment>(returnVariable, std::move(result));
-  // ASSERT(nextBasicBlock != nullptr, "NextBasicBlock cannot be nullptr!!");
-  // nextBasicBlock->insertBefore(nextBasicBlock->begin(), std::move(assign));
+  auto &loopHeaderPreds = loopHeader->getPredecessors();
+  ASSERT(loopHeaderPreds.size() >= 2,
+         "Must have at least two predecessor for region!");
+  BasicBlock *pred = nullptr;
+  for (auto *p : loopHeaderPreds) {
+    if (blocksToOutlineSet.find(p) == blocksToOutlineSet.end()) {
+      ASSERT(pred == nullptr,
+             "Found more than one pred that is not in the region");
+      pred = p;
+    }
+  }
 
-  // auto &preds = loopHeader->getPredecessors();
-  // ASSERT(preds.size() == 1, "Must have exactly one predecessor for region!");
-  // auto *pred = preds.front();
+  // predercessor of next basic block in the loop
+  BasicBlock *nextPred = nullptr;
+  for (auto *p : nextBasicBlock->getPredecessors()) {
+    if (blocksToOutlineSet.find(p) != blocksToOutlineSet.end()) {
+      ASSERT(nextPred == nullptr,
+             "Found more than one pred that is not in the region");
+      nextPred = p;
+    }
+  }
 
-  // Map<BasicBlock *, BasicBlock *> oldToNew = {{regionHeader,
-  // nextBasicBlock}}; pred->renameBasicBlock(oldToNew);
+  pred->renameBasicBlock(loopHeader, nextBasicBlock, nextPred);
 
-  // auto *replacement = nextBasicBlock->getRegion();
-  // auto *currentRegion = regionHeader->getRegion();
-  // auto *parentRegion = currentRegion->getParentRegion();
+  auto *replacement = nextBasicBlock->getRegion();
+  auto *currentRegion = loopHeader->getRegion();
+  auto *parentRegion = currentRegion->getParentRegion();
 
-  // parentRegion->replaceNestedRegion(currentRegion, replacement);
+  parentRegion->replaceNestedRegion(currentRegion, replacement);
 
-  // for (auto *block : blocksToOutline) {
-  //   f.removeBasicBlock(block);
-  // }
+  for (auto *block : blocksToOutline) {
+    f.removeBasicBlock(block);
+  }
+
+  drawGraph(f.getRegionString(), "after_aggify_region");
+  drawGraph(f.getCFGString(), "after_aggify_cfg");
 
   outlinedCount++;
   return true;
@@ -418,9 +509,6 @@ bool AggifyPass::runOnRegion(const Region *rootRegion, Function &f) {
                "cursorLoopRegion",
            "Unexpected region type: " +
                rootRegion->getMetadata()["udf_info"].get<String>());
-    std::cout << fmt::format("Region {} is a cursor loop region\n",
-                             rootRegion->getRegionLabel())
-              << std::endl;
     outlineRegion(rootRegion, f);
     return true;
   }
@@ -435,5 +523,6 @@ bool AggifyPass::runOnRegion(const Region *rootRegion, Function &f) {
 
 bool AggifyPass::runOnFunction(Function &f) {
   drawGraph(f.getCFGString(), "before_aggify");
+  drawGraph(f.getRegionString(), "before_aggify_region");
   return runOnRegion(f.getRegion(), f);
 }

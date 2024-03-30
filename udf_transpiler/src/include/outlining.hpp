@@ -17,7 +17,8 @@ private:
   void outlineFunction(Function &f);
   bool outlineBasicBlocks(Vec<BasicBlock *> basicBlocks, Function &f);
   bool runOnRegion(SelectRegions &selectRegions, const Region *rootRegion,
-                   Function &f, Vec<BasicBlock *> &queuedBlocks);
+                   Function &f, Vec<BasicBlock *> &queuedBlocks,
+                   Set<const BasicBlock *> &blockOutlined);
 
   Compiler &compiler;
   int outlinedCount = 0;

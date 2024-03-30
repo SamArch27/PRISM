@@ -22,12 +22,12 @@ template <class A> using Own = std::unique_ptr<A>;
 template <class A> using Shared = std::shared_ptr<A>;
 
 template <typename A, typename B = A, typename... Args>
-Own<A> Make(Args &&... xs) {
+Own<A> Make(Args &&...xs) {
   return std::make_unique<B>(std::forward<Args>(xs)...);
 }
 
 template <typename A, typename B = A, typename... Args>
-Own<A> MakeShared(Args &&... xs) {
+Own<A> MakeShared(Args &&...xs) {
   return std::make_shared<B>(std::forward<Args>(xs)...);
 }
 
@@ -83,6 +83,12 @@ using String = std::string;
     std::cout << "Exception: " << message << " (" << __FILE__ << ":"           \
               << __LINE__ << ")" << std::endl;                                 \
     throw duckdb::ParserException("See the above message.");                   \
+  } while (false)
+
+#define INFO(message)                                                          \
+  do {                                                                         \
+    std::cout << "INFO: " << message << " (" << __FILE__ << ":" << __LINE__    \
+              << ")" << std::endl;                                             \
   } while (false)
 
 template <typename It> class Range {
@@ -167,7 +173,7 @@ static Map<String, String> alias_to_duckdb_type = {{"UNKNOWN", "UNKNOWN"},
                                                    {"STRING", "VARCHAR"}};
 static Map<String, String> duckdb_to_cpp_type = {
     {"BOOLEAN", "bool"},   {"TINYINT", "int8_t"},    {"SMALLINT", "int16_t"},
-    {"DATE", "date_t"},   {"TIME", "int32_t"},      {"INTEGER", "int32_t"},
+    {"DATE", "date_t"},    {"TIME", "int32_t"},      {"INTEGER", "int32_t"},
     {"BIGINT", "int64_t"}, {"TIMESTAMP", "int64_t"}, {"FLOAT", "float"},
     {"DOUBLE", "double"},  {"DECIMAL", "double"},    {"VARCHAR", "string_t"},
     {"CHAR", "string_t"},  {"BLOB", "string_t"}};

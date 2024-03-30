@@ -122,6 +122,12 @@ operationNullArg: |-
   bool {name}_isnull, 
 
 varInit: |
+  state.{name} = {name}_arg;
+
+argInit: |
+  auto {name} = state.{name};
+
+argStore: |
   state.{name} = {name};
 
 customAggregateTemplate: |
@@ -147,14 +153,13 @@ customAggregateTemplate: |
         state.isInitialized = true;
         {varInit}
       }}
+      {argInit}
       {body}
     }}
 
     template <class TARGET_TYPE, class STATE>
     static void Finalize(STATE &state, TARGET_TYPE &target, AggregateFinalizeData &finalize_data)
     {{
-      // todo
-      // target = state.count;
       target = state.{returnVariable};
     }}
 
@@ -177,5 +182,5 @@ registration: |
 
 caller: |-
   (SELECT CASE WHEN count(*) > 0 THEN
-        custom_agg{id}({funcArgs}) ELSE ANY_VALUE({returnVarName}) END
+        {customAggName}({funcArgs}) ELSE {returnVarName} END
         FROM ({cursorQuery}) aggify_tmp)
