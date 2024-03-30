@@ -272,10 +272,16 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
     } else {
       var = newFunction.getBinding(var->getName());
 
-      ASSERT(varToInitExpr.find(var) != varToInitExpr.end(),
-             "Cannot find initialization for variable: " + var->getName());
-      auto initialization =
-          oldFunction.renameVarInExpression(varToInitExpr[var], newToOld);
+      Own<SelectExpression> initialization;
+      if (varToInitExpr.find(var) != varToInitExpr.end()) {
+        initialization =
+            oldFunction.renameVarInExpression(varToInitExpr[var], newToOld);
+      } else {
+        auto tmpInitExpr =
+            newFunction.bindExpression(var->getName(), var->getType());
+        initialization =
+            oldFunction.renameVarInExpression(tmpInitExpr.get(), newToOld);
+      }
       customAggCallerArgs.push_back(initialization->getRawSQL());
 
       // a return variable will always be used so there must be an
@@ -346,24 +352,20 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
     blocksToOutlineSet.insert(block);
   }
   // region args are the live variables going into the region
-  auto preds = loopHeader->getPredecessors();
-  for (auto *pred : preds) {
-    if (blocksToOutlineSet.find(pred) == blocksToOutlineSet.end()) {
-      auto liveOut = liveness->getBlockLiveIn(pred);
-      for (auto *var : liveOut) {
-        regionArgs.insert(var);
-      }
-    }
+  auto liveIn = liveness->getBlockLiveOut(loopHeader);
+  for (auto *var : liveIn) {
+    regionArgs.insert(var);
   }
 
   // get live variable going out of the region
-  Set<const Variable *> liveOut;
   Set<const Variable *> returnVars;
 
   // get the return variables:
   // variables that are live out of the region and defined in the region
-  liveOut = liveness->getBlockLiveIn(nextBasicBlock);
-  for (auto *var : liveOut) {
+  // udf_todo: this is a naive way to find the return variable, it may be
+  // possible to that the nextBasicBlock has multiple predecessors
+  liveIn = liveness->getBlockLiveIn(nextBasicBlock);
+  for (auto *var : liveIn) {
     if (regionArgs.count(var) == 0) {
       returnVars.insert(var);
     }
