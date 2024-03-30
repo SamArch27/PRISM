@@ -158,6 +158,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 
     newFunction->renameBasicBlocks(nextBasicBlock, returnBlock);
   }
+
   outlineFunction(*newFunction);
 
   String args = "";
@@ -286,20 +287,52 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
   return true;
 }
 
-SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
-  SelectRegions selectRegions;
+/**
+ * return if any region has successorChanged
+ */
+bool computeSelectRegionsHelper(const Region *region,
+                                SelectRegions &selectRegions,
+                                Set<const Region *> &visitedRegions) {
+  bool regionHasSelect = false;
+  bool successorChanged = false;
+  visitedRegions.insert(region);
+
+  if (selectRegions.find(region) == selectRegions.end()) {
+    selectRegions[region] = false;
+  }
+
+  bool regionPrevHasSelect = selectRegions.at(region);
 
   auto *header = region->getHeader();
-  selectRegions[region] = header->hasSelect();
+
+  if (header->hasSelect()) {
+    regionHasSelect = true;
+  }
 
   if (auto *rec = dynamic_cast<const RecursiveRegion *>(region)) {
-    for (auto *nested : rec->getNestedRegions()) {
-      for (auto &[selectRegion, flag] : computeSelectRegions(nested)) {
-        selectRegions[selectRegion] = flag;
-        selectRegions[region] |= flag;
+    for (auto *nested : rec->getSuccessorRegions()) {
+      if (visitedRegions.count(nested) == 0) {
+        successorChanged =
+            successorChanged ||
+            computeSelectRegionsHelper(nested, selectRegions, visitedRegions);
+      }
+      if (selectRegions.at(nested) == true) {
+        regionHasSelect = true;
       }
     }
   }
+
+  selectRegions[region] = regionHasSelect;
+  return (regionPrevHasSelect != regionHasSelect) || successorChanged;
+}
+
+SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
+  SelectRegions selectRegions;
+  Set<const Region *> visitedRegions;
+  while (computeSelectRegionsHelper(region, selectRegions, visitedRegions)) {
+    visitedRegions.clear();
+  }
+
   return selectRegions;
 }
 
