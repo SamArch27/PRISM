@@ -463,12 +463,10 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
                          f.bindExpression("0", Type::INT, false));
 
   auto iInit = f.bindExpression("0", Type::INT, false);
-  // auto emptyInit = f.bindExpression("false", false);
-  // f.addVarInitialization(f.getBinding("cursorloopiter"), std::move(expr));
+
   newBlock->addInstruction(
       Make<Assignment>(f.getBinding("cursorloopiter"), std::move(iInit)));
-  // newBlock->addInstruction(Make<Assignment>(f.getBinding("cursorloopEmpty"),
-  //                                           std::move(emptyInit)));
+
   auto headerBlock = f.makeBasicBlock();
 
   auto afterLoopRegion =
@@ -481,7 +479,6 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
   auto newContinuations =
       Continuations(headerBlock, headerBlock,
                     afterLoopRegion ? afterLoopRegion->getHeader() : nullptr);
-  // auto &body = cursorLoopJson["body"];
   auto bodyStatements = getJsonList(cursorLoopJson["body"]);
   auto loopBodyRegion =
       constructCFG(f, bodyStatements, newContinuations, attachFallthrough);
@@ -510,27 +507,27 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
   loopVarBlockPreHeader->addInstruction(Make<BranchInst>(loopVarBlock));
 
   size_t varId = 0;
-  Vec<String> cursorLoopVarNames;
-  Vec<String> fetchQueryVarNames;
+  Vec<String> varsInCursorLoop;
+  Vec<String> varsInFetchQuery;
   ASSERT(cursorLoopJson.contains("var") &&
              cursorLoopJson["var"].contains("PLpgSQL_row") &&
              cursorLoopJson["var"]["PLpgSQL_row"].contains("fields"),
          "Cursor loop must have a var with fields.");
   for (auto &var : cursorLoopJson["var"]["PLpgSQL_row"]["fields"]) {
-    cursorLoopVarNames.push_back(var["name"]);
-    fetchQueryVarNames.push_back("fetchQueryVar" + std::to_string(varId));
+    varsInCursorLoop.push_back(var["name"]);
+    varsInFetchQuery.push_back("fetchQueryVar" + std::to_string(varId));
     varId++;
   }
 
   String fetchVarQuery = fmt::format(
       "SELECT {{}} FROM ({}) fetchQueryTmpTable({}) WHERE cursorloopiter::BOOL",
-      fetchQuery, joinVector(fetchQueryVarNames, ", "));
+      fetchQuery, joinVector(varsInFetchQuery, ", "));
   varId = 0;
-  for (auto &var : cursorLoopVarNames) {
+  for (auto &var : varsInCursorLoop) {
     loopVarBlock->addInstruction(Make<Assignment>(
         f.getBinding(var),
         f.bindExpression(
-            fmt::format(fmt::runtime(fetchVarQuery), fetchQueryVarNames[varId]),
+            fmt::format(fmt::runtime(fetchVarQuery), varsInFetchQuery[varId]),
             f.getBinding(var)->getType(), true, false)));
     varId++;
   }
@@ -556,7 +553,7 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
 
   auto cursorLoopRegionMeta = cursorLoopJson;
   cursorLoopRegionMeta["udf_info"] = "cursorLoopRegion";
-  cursorLoopRegionMeta["firstCursorVar"] = {{"name", cursorLoopVarNames[0]}, {"type", f.getBinding(cursorLoopVarNames[0])->getType().serialize()}};
+  cursorLoopRegionMeta["firstCursorVar"] = {{"name", varsInCursorLoop[0]}, {"type", f.getBinding(varsInCursorLoop[0])->getType().serialize()}};
   cursorLoopRegion->setMetadata(cursorLoopRegionMeta);
   auto sequentialRegion = Make<SequentialRegion>(
       newBlock, std::move(cursorLoopRegion),

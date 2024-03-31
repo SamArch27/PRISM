@@ -123,9 +123,11 @@ public:
   };
 
   /**
-   * when newsPrevPred == nullptr,
-   * Assume the new block is a fresh block that has no predecessors or
-   * successors
+   * This function maintains the order of predecessors of all existing blocks.
+   *
+   * When newsPrevPred == nullptr, assume newBlock is a fresh block that has no
+   * predecessors or successors. Otherwise, newBlock is an existing block that
+   * has a predecessor newsPrevPred.
    */
   void renameBasicBlock(const BasicBlock *oldBlock, BasicBlock *newBlock,
                         const BasicBlock *newsPrevPred = nullptr);

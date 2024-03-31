@@ -36,10 +36,7 @@ getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
 static bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
   // check if all the basic blocks are naive (just jmps)
   for (auto *block : basicBlocks) {
-    size_t instCount = 0;
-    for (auto &inst : *block) {
-      instCount++;
-    }
+    size_t instCount = block->size();
     if (instCount > 1) {
       return false;
     }
@@ -298,7 +295,8 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
 
   Vec<String> fetchQueryVarNames;
   size_t varId = 0;
-  for (auto &var : cursorLoopInfo["var"]["PLpgSQL_row"]["fields"]) {
+  for (size_t i = 0; i < cursorLoopInfo["var"]["PLpgSQL_row"]["fields"].size();
+       i++) {
     fetchQueryVarNames.push_back("fetchQueryVar" + std::to_string(varId));
     varId++;
   }

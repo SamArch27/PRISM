@@ -112,7 +112,7 @@ varyingFuncTemplate: |
       null_handling, nullptr);
   }}
 
-stateDefition: |
+stateDefinition: |
   {type} {name};
 
 operationArg: |-
@@ -135,7 +135,7 @@ customAggregateTemplate: |
   {{
     bool isInitialized;
     // int32_t count;
-    {stateDefition}
+    {stateDefinition}
   }};
 
   struct CustomAggOperation{id}

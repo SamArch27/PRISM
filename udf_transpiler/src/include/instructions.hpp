@@ -72,7 +72,7 @@ public:
   }
 
   bool isSQLExpression() const {
-    // find 'FROM' in the rawSQL
+    // find the 'FROM' clause in the rawSQL string
     return std::regex_search(
         rawSQL, std::regex("\\bFROM\\b", std::regex_constants::icase));
   }
