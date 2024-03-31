@@ -1,6 +1,7 @@
 #include "compiler.hpp"
 #include "aggify_code_generator.hpp"
 #include "aggify_pass.hpp"
+#include "assignment_elimination.hpp"
 #include "ast_to_cfg.hpp"
 #include "cfg_code_generator.hpp"
 #include "cfg_to_ast.hpp"
@@ -8,7 +9,6 @@
 #include "dominator_analysis.hpp"
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
-#include "expression_propagation.hpp"
 #include "file.hpp"
 #include "function.hpp"
 #include "liveness_analysis.hpp"
@@ -93,10 +93,10 @@ void Compiler::optimize(Function &f) {
       Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
 
   auto coreOptimizations = Make<FixpointPass>(Make<PipelinePass>(
-      Make<ExpressionPropagationPass>(), Make<DeadCodeEliminationPass>()));
+      Make<AssignmentEliminationPass>(), Make<DeadCodeEliminationPass>()));
 
   auto beforeOutliningPipeline = Make<FixpointPass>(Make<PipelinePass>(
-      Make<QueryMotionPass>(), Make<ExpressionPropagationPass>()));
+      Make<QueryMotionPass>(), Make<AssignmentEliminationPass>()));
   auto rightBeforeOutliningPipeline =
       Make<FixpointPass>(Make<DeadCodeEliminationPass>());
 
@@ -104,7 +104,7 @@ void Compiler::optimize(Function &f) {
                                            Make<DeadCodeEliminationPass>());
 
   auto outliningPipeline = Make<PipelinePass>(
-      Make<OutliningPass>(*this), Make<AggressiveExpressionPropagationPass>(),
+      Make<OutliningPass>(*this), Make<AggressiveAssignmentEliminationPass>(),
       Make<DeadCodeEliminationPass>());
 
   auto ssaDestructionPipeline = Make<PipelinePass>(

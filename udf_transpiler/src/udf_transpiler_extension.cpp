@@ -34,8 +34,8 @@ Map<String, bool> optimizerPassOnMap = {
     {"BreakPhiInterference", true},
     {"MergeRegions", true},
     {"AggressiveMergeRegions", true},
-    {"ExpressionPropagation", true},
-    {"AggressiveExpressionPropagation", true},
+    {"AssignmentElimination", true},
+    {"AggressiveAssignmentElimination", true},
     {"OutliningPass", true},
     {"AggifyPass", true}};
 

@@ -1,9 +1,9 @@
-#include "expression_propagation.hpp"
+#include "assignment_elimination.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
 #include <iostream>
 
-bool ExpressionPropagationPass::runOnFunction(Function &f) {
+bool AssignmentEliminationPass::runOnFunction(Function &f) {
   bool changed = false;
 
   UseDefAnalysis useDefAnalysis(f);
