@@ -286,3 +286,11 @@ protected:
     os << *getBodyRegion();
   }
 };
+
+inline String getRegionString(Region *region) {
+  std::stringstream ss;
+  ss << "digraph region {";
+  ss << *region << std::endl;
+  ss << "}" << std::endl;
+  return ss.str();
+}

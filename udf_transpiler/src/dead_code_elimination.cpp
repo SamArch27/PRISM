@@ -62,6 +62,9 @@ bool DeadCodeEliminationPass::runOnFunction(Function &f) {
       toRemove.insert(var.get());
     }
   }
+  for (auto *var : toRemove) {
+    f.removeVariable(var);
+  }
 
   return changed;
 }

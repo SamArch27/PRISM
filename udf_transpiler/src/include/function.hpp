@@ -326,14 +326,6 @@ public:
     return ss.str();
   }
 
-  String getRegionString() const {
-    std::stringstream ss;
-    ss << "digraph region {";
-    ss << *functionRegion << std::endl;
-    ss << "}" << std::endl;
-    return ss.str();
-  }
-
   Own<Function> partialCloneAndRename(
       const String &newName, const Vec<const Variable *> &newArgs,
       const Type &newReturnType, const Vec<BasicBlock *> basicBlocks,
@@ -361,7 +353,7 @@ protected:
 
     if (functionRegion) {
       os << "Regions: \n" << std::endl;
-      os << getRegionString() << std::endl;
+      os << getRegionString(functionRegion.get()) << std::endl;
     }
   }
 

@@ -479,7 +479,7 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
     f.removeBasicBlock(block);
   }
 
-  drawGraph(f.getRegionString(), "after_aggify_region");
+  drawGraph(getRegionString(f.getRegion()), "after_aggify_region");
   drawGraph(f.getCFGString(), "after_aggify_cfg");
 
   outlinedCount++;
@@ -507,6 +507,6 @@ bool AggifyPass::runOnRegion(const Region *rootRegion, Function &f) {
 
 bool AggifyPass::runOnFunction(Function &f) {
   drawGraph(f.getCFGString(), "before_aggify");
-  drawGraph(f.getRegionString(), "before_aggify_region");
+  drawGraph(getRegionString(f.getRegion()), "before_aggify_region");
   return runOnRegion(f.getRegion(), f);
 }
