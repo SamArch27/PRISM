@@ -59,6 +59,9 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     // scale up
     auto scale_difference = target_scale - source_scale;
     auto multiply_factor = pow10String(scale_difference);
+    if (target_physical == "hugeint_t") {
+      multiply_factor = "hugeint_t(" + multiply_factor + ")";
+    }
     auto res_width = target_width - scale_difference;
     if (source_width < res_width) {
       if (source_physical != target_physical) {
@@ -379,9 +382,9 @@ template <>
 String
 BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp,
                                         CodeGenInfo &insert) {
-  if(exp.GetName().find("(") != std::string::npos){
+  if (exp.GetName().find("(") != std::string::npos) {
     return fmt::format("[BoundReferenceExpression: {}]", exp.GetName());
-  }                              
+  }
   return toLower(exp.GetName());
 }
 
