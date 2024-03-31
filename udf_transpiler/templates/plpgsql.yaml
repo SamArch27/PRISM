@@ -1,5 +1,5 @@
 functionTemplate: |
-  CREATE FUNCTION {functionName}({functionArgs}) RETURNS {returnType} AS $$
+  CREATE OR REPLACE FUNCTION {functionName}({functionArgs}) RETURNS {returnType} AS $$
   DECLARE
   {varDeclarations}
   BEGIN

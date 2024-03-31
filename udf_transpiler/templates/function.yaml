@@ -36,7 +36,6 @@ fshell2: |-
       }}
     }}
 
-    result.Verify(count);
   }}
 
 vector_create: |-
