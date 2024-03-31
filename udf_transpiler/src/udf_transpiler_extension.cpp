@@ -27,17 +27,11 @@ namespace duckdb {
 duckdb::DuckDB *db_instance;
 size_t udfCount = 0;
 Map<String, bool> optimizerPassOnMap = {
-    {"SSAConstruction", true},
-    {"SSADestruction", true},
-    {"DeadCodeElimination", true},
-    {"QueryMotion", true},
-    {"BreakPhiInterference", true},
-    {"MergeRegions", true},
-    {"AggressiveMergeRegions", true},
-    {"AssignmentElimination", true},
-    {"AggressiveAssignmentElimination", true},
-    {"OutliningPass", true},
-    {"AggifyPass", true}};
+    {"SSAConstruction", true},       {"SSADestruction", true},
+    {"DeadCodeElimination", true},   {"QueryMotion", true},
+    {"MergeRegions", true},          {"AggressiveMergeRegions", true},
+    {"AssignmentElimination", true}, {"AggressiveAssignmentElimination", true},
+    {"OutliningPass", true},         {"AggifyPass", true}};
 
 // replace every single quote with two single quotes
 static String doubleQuote(const String &str) {

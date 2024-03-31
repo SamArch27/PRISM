@@ -93,13 +93,13 @@ void Compiler::optimize(Function &f) {
   auto coreOptimizations = Make<FixpointPass>(Make<PipelinePass>(
       Make<AssignmentEliminationPass>(), Make<DeadCodeEliminationPass>()));
 
+  auto aggifyPipeline = Make<PipelinePass>(Make<AggifyPass>(*this),
+                                           Make<DeadCodeEliminationPass>());
+
   auto beforeOutliningPipeline = Make<FixpointPass>(Make<PipelinePass>(
       Make<QueryMotionPass>(), Make<AssignmentEliminationPass>()));
   auto rightBeforeOutliningPipeline =
       Make<FixpointPass>(Make<DeadCodeEliminationPass>());
-
-  auto aggifyPipeline = Make<PipelinePass>(Make<AggifyPass>(*this),
-                                           Make<DeadCodeEliminationPass>());
 
   auto outliningPipeline = Make<PipelinePass>(
       Make<OutliningPass>(*this), Make<AggressiveAssignmentEliminationPass>(),
@@ -123,9 +123,9 @@ void Compiler::optimize(Function &f) {
   }
 
   // Now perform outlining
+  runPass(*aggifyPipeline, f);
   runPass(*beforeOutliningPipeline, f);
   runPass(*rightBeforeOutliningPipeline, f);
-  runPass(*aggifyPipeline, f);
   runPass(*outliningPipeline, f);
 
   // Finally get out of SSA
