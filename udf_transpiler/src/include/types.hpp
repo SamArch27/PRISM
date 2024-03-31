@@ -121,7 +121,6 @@ public:
   static Type fromString(const String &str) {
     auto tag = getPostgresTag(str);
     if (tag == PostgresTypeTag::DECIMAL) {
-      // provide width, scale info if available
       auto widthScale = getDecimalWidthScale(str);
       if (widthScale) {
         auto [width, scale] = *widthScale;

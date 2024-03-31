@@ -43,20 +43,21 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
   String varyingFuncTemplate = config.aggify["varyingFuncTemplate"].Scalar();
   Vec<String> inputDependentComps(20);
 
-  String stateDefition, argInit, argStore, operationArgs, operationNullArgs,
+  String stateDefinition, argInit, argStore, operationArgs, operationNullArgs,
       varInit;
   String inputTypes, inputLogicalTypes;
   size_t count = 0;
-  size_t stateVarCount = 0;
 
-  for (auto usedVar : usedVars) {
+  for (auto *usedVar : usedVars) {
     // all the c(s) in the template file
 
     if (std::find(cursorVars.begin(), cursorVars.end(), usedVar) ==
         cursorVars.end()) {
       // not cursor variable, is state variable
-      stateDefition +=
-          fmt::format(fmt::runtime(config.aggify["stateDefition"].Scalar()),
+      // cursor variable: variable that is assigned a value in every iteration
+      // state variable: variable that reused across iterations
+      stateDefinition +=
+          fmt::format(fmt::runtime(config.aggify["stateDefinition"].Scalar()),
                       fmt::arg("type", usedVar->getType().getCppType()),
                       fmt::arg("name", usedVar->getName()));
 
@@ -73,10 +74,8 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
           fmt::runtime(config.aggify["operationArg"].Scalar()),
           fmt::arg("i", count), fmt::arg("name", usedVar->getName() + "_arg"));
 
-      stateVarCount++;
     } else {
       // is custom aggregate argument
-      // funcArgs += originalCursorLoopCols[count - stateVarCount] + ", ";
       operationArgs += fmt::format(
           fmt::runtime(config.aggify["operationArg"].Scalar()),
           fmt::arg("i", count), fmt::arg("name", usedVar->getName()));
@@ -114,8 +113,6 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
   inputTypes = inputTypes.substr(0, inputTypes.size() - 2);
   inputLogicalTypes = inputLogicalTypes.substr(0, inputLogicalTypes.size() - 2);
 
-  // funcArgs = funcArgs.substr(0, funcArgs.size() - 2);
-
   // code gen the body
   CodeGenInfo function_info;
   for (auto &bbUniq : f) {
@@ -142,7 +139,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
   code += fmt::format(
       fmt::runtime(config.aggify["customAggregateTemplate"].Scalar()),
       fmt::arg("id", id), fmt::arg("c1", inputDependentComps[0]),
-      fmt::arg("stateDefition", stateDefition), fmt::arg("argInit", argInit),
+      fmt::arg("stateDefinition", stateDefinition), fmt::arg("argInit", argInit),
       fmt::arg("operationArgs", operationArgs),
       fmt::arg("operationNullArgs", operationNullArgs),
       fmt::arg("varInit", varInit), fmt::arg("body", body),

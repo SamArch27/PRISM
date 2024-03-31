@@ -135,7 +135,7 @@ void BasicBlock::removePredecessor(BasicBlock *pred) {
 
 void BasicBlock::renameBasicBlock(const BasicBlock *oldBlock,
                                   BasicBlock *newBlock,
-                                  const BasicBlock *newsPrevPred) {
+                                  const BasicBlock *newBlocksPrevPred) {
   for (auto it = begin(); it != end(); ++it) {
     auto &inst = *it;
     if (auto *branchInst = dynamic_cast<BranchInst *>(&inst)) {
@@ -144,39 +144,42 @@ void BasicBlock::renameBasicBlock(const BasicBlock *oldBlock,
 
       if (trueBlock == oldBlock) {
         trueBlock = newBlock;
-
         // update the predecessor of the new block
-        if (newsPrevPred == nullptr) {
+        if (newBlocksPrevPred == nullptr) {
           trueBlock->clearPredecessors();
           trueBlock->addPredecessor(this);
         } else {
-          trueBlock->replacePredecessor(newsPrevPred, this);
-        }
-      }
-      if (falseBlock != nullptr && falseBlock == oldBlock) {
-        falseBlock = newBlock;
-
-        // update the predecessor of the new block
-        if (newsPrevPred == nullptr) {
-          falseBlock->clearPredecessors();
-          falseBlock->addPredecessor(this);
-        } else {
-          falseBlock->replacePredecessor(newsPrevPred, this);
+          trueBlock->replacePredecessor(newBlocksPrevPred, this);
         }
       }
 
       // update the successor of the current block
       successors.clear();
       addSuccessor(trueBlock);
-      if (falseBlock != nullptr) {
-        addSuccessor(falseBlock);
-      }
 
-      if (branchInst->isUnconditional()) {
+      if (falseBlock == nullptr) {
         it = replaceInst(it, Make<BranchInst>(trueBlock));
+        return;
       } else {
+        // do the same for the false block if any
+        if (falseBlock == oldBlock) {
+          falseBlock = newBlock;
+          // update the predecessor of the new block
+          if (newBlocksPrevPred == nullptr) {
+            falseBlock->clearPredecessors();
+            falseBlock->addPredecessor(this);
+          } else {
+            falseBlock->replacePredecessor(newBlocksPrevPred, this);
+          }
+        }
+
+        if (falseBlock != nullptr) {
+          addSuccessor(falseBlock);
+        }
+
         it = replaceInst(it, Make<BranchInst>(trueBlock, falseBlock,
                                               branchInst->getCond()->clone()));
+        return;
       }
     }
   }

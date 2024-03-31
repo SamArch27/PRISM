@@ -55,9 +55,6 @@ public:
     }
   }
 
-  /**
-   * run on existing function rather than start from udf string
-   */
   CompilationResult runOnFunction(Function &f);
 
   CFGCodeGeneratorResult generateCode(const Function &function);

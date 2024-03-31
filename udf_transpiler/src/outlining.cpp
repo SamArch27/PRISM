@@ -288,7 +288,10 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
 }
 
 /**
- * return if any region has successorChanged
+ * Return true if any successor region including itself changed.
+ *
+ * Successor regions are nested regions except for conditional regions,
+ * which are the regions whose header if the successor of conditional block.
  */
 bool computeSelectRegionsHelper(const Region *region,
                                 SelectRegions &selectRegions,
