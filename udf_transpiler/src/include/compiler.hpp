@@ -47,7 +47,9 @@ public:
       }
       pass.runOnFunction(f);
     } else if (auto *fixpointPass = dynamic_cast<FixpointPass *>(&pass)) {
-      runPass(fixpointPass->getPass(), f);
+      if(passOn(fixpointPass->getPassName())) {
+        fixpointPass->runOnFunction(f);
+      }
     } else {
       if (passOn(pass.getPassName())) {
         pass.runOnFunction(f);
