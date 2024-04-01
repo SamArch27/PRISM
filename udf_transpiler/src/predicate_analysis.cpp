@@ -174,19 +174,27 @@ void PredicateAnalysis::runAnalysis() {
         auto pathsToReturn = getAllPathsToBlock(&block);
 
         for (auto &path : pathsToReturn) {
-
+          String condValue = "";
           auto cond = getCondFromPath(path);
-          auto boundCondition = f.bindExpression(cond, Type::BOOLEAN);
+          if (cond != "") {
+            auto boundCondition = f.bindExpression(cond, f.getReturnType());
+            condValue = getExprOnPath(path, boundCondition.get());
+          }
+
           auto returnValue = getExprOnPath(path, ret->getExpr());
-          auto condValue = getExprOnPath(path, boundCondition.get());
 
           for (std::size_t i = 0; i < predicates.size(); ++i) {
             auto &pred = predicates[i];
             if (pred != "") {
               pred += " OR ";
             }
-            pred += ("((" + condValue + " AND (NOT (" + returnValue + " " +
-                     ops[i] + " t)) IS DISTINCT FROM TRUE))");
+            pred += "((";
+            if (condValue != "") {
+              pred += condValue + " AND ";
+            }
+            pred += ("(NOT (" + returnValue + " " + ops[i] +
+                     " t)) IS DISTINCT FROM TRUE");
+            pred += "))";
           }
         }
       }

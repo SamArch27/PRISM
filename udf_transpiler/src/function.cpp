@@ -126,10 +126,16 @@ Function::bindExpression(const String &expr, const Type &retType,
     makeDuckDBContext();
   }
 
+  auto cleanedExpr = expr;
+  ASSERT(cleanedExpr != "",
+         "expr in bindExpression should not be the empty string!");
+
   // trim leading and trailing whitespace
   auto first = expr.find_first_not_of(' ');
   auto last = expr.find_last_not_of(' ');
-  auto cleanedExpr = expr.substr(first, (last - first + 1));
+  if (first != std::string::npos && last != std::string::npos) {
+    auto cleanedExpr = expr.substr(first, (last - first + 1));
+  }
 
   if (enforeCast) {
     duckdb::LogicalType duckDBType;

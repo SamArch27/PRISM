@@ -126,7 +126,7 @@ public:
         auto [width, scale] = *widthScale;
         return Type(true, width, scale, tag, str);
       } else {
-        return Type(true, std::nullopt, std::nullopt, tag, str);
+        return Type(true, {DEFAULT_WIDTH}, {DEFAULT_SCALE}, tag, str);
       }
     } else {
       return Type(false, std::nullopt, std::nullopt, tag, str);

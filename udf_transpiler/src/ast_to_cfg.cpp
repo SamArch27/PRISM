@@ -553,7 +553,9 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
 
   auto cursorLoopRegionMeta = cursorLoopJson;
   cursorLoopRegionMeta["udf_info"] = "cursorLoopRegion";
-  cursorLoopRegionMeta["firstCursorVar"] = {{"name", varsInCursorLoop[0]}, {"type", f.getBinding(varsInCursorLoop[0])->getType().serialize()}};
+  cursorLoopRegionMeta["firstCursorVar"] = {
+      {"name", varsInCursorLoop[0]},
+      {"type", f.getBinding(varsInCursorLoop[0])->getType().serialize()}};
   cursorLoopRegion->setMetadata(cursorLoopRegionMeta);
   auto sequentialRegion = Make<SequentialRegion>(
       newBlock, std::move(cursorLoopRegion),
