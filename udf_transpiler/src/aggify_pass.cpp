@@ -223,6 +223,11 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
     loopBodyUsedVars.push_back(cursorLoopBodyFunction->getBinding(varName));
   }
 
+  std::sort(loopBodyUsedVars.begin(), loopBodyUsedVars.end(),
+            [](const Variable *v1, const Variable *v2) {
+              return v1->getName() < v2->getName();
+            });
+
   INFO(fmt::format("Transpiling UDAF {} ...",
                    cursorLoopBodyFunction->getFunctionName()));
   AggifyCodeGenerator codeGenerator(compiler.getConfig());
