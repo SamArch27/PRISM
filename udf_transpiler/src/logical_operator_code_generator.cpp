@@ -364,10 +364,36 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
                                         CodeGenInfo &insert) {
   if (exp.value.type().IsNumeric() or
       exp.value.type() == LogicalType::BOOLEAN) {
-    return fmt::format(
-        "({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type),
-        exp.value.GetValue<uint64_t>()); // int64_t should be enough for
-                                         // most numeric types
+    switch (exp.value.type().InternalType()) {
+    case PhysicalType::INT8:
+      return fmt::format("int8_t({})", exp.value.GetValueUnsafe<int8_t>());
+    case PhysicalType::INT16:
+      return fmt::format("int16_t({})", exp.value.GetValueUnsafe<int16_t>());
+    case PhysicalType::INT32:
+      return fmt::format("int32_t({})", exp.value.GetValueUnsafe<int32_t>());
+    case PhysicalType::INT64:
+      return fmt::format("int64_t({})", exp.value.GetValueUnsafe<int64_t>());
+    case PhysicalType::INT128:
+      return fmt::format("hugeint_t({})",
+                         exp.value.GetValueUnsafe<hugeint_t>().ToString());
+    case PhysicalType::UINT8:
+      return fmt::format("uint8_t({})", exp.value.GetValueUnsafe<uint8_t>());
+    case PhysicalType::UINT16:
+      return fmt::format("uint16_t({})", exp.value.GetValueUnsafe<uint16_t>());
+    case PhysicalType::UINT32:
+      return fmt::format("uint32_t({})", exp.value.GetValueUnsafe<uint32_t>());
+    case PhysicalType::UINT64:
+      return fmt::format("uint64_t({})", exp.value.GetValueUnsafe<uint64_t>());
+    case PhysicalType::FLOAT:
+      return fmt::format("float({})", exp.value.GetValueUnsafe<float>());
+    case PhysicalType::DOUBLE:
+      return fmt::format("double({})", exp.value.GetValueUnsafe<double>());
+    case PhysicalType::BOOL:
+      return fmt::format("bool({})", exp.value.GetValueUnsafe<bool>());
+    default:
+      return fmt::format("[Not supported const: {}: {}]", exp.value.ToString(),
+                         exp.return_type.ToString());
+    }
   } else if (exp.value.type() == LogicalType::DATE) {
     return fmt::format("date_t({})", exp.value.GetValueUnsafe<int32_t>());
   } else if (exp.value.type() == LogicalType::VARCHAR) {
