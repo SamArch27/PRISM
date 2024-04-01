@@ -65,11 +65,19 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     auto res_width = target_width - scale_difference;
     if (source_width < res_width) {
       if (source_physical != target_physical) {
-        function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        if (multiply_factor == "1" or multiply_factor == "hugeint_t(1)") {
+          function_name = fmt::format("Cast::Operation");
+        } else {
+          function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        }
         template_args.push_back(source_physical);
         template_args.push_back(target_physical);
       } else {
-        function_name = fmt::format("{} * ", multiply_factor);
+        if (multiply_factor == "1" or multiply_factor == "hugeint_t(1)") {
+          function_name = fmt::format("");
+        } else {
+          function_name = fmt::format("{} * ", multiply_factor);
+        }
       }
     } else {
       // DecimalScaleUpCheckOperator
@@ -80,6 +88,10 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
       args.pop_front();
       args.push_front(newVar);
       String limit = pow10String(res_width);
+      if (res_width > 18) {
+        // hugeint
+        limit = "Hugeint::POWERS_OF_TEN[" + std::to_string(res_width) + "]";
+      }
       insert.lines.push_back(fmt::format("\
       if ({input} >= {limit} || {input} <= -{limit}){{\n\
         throw CastException(\"Numeric value out of range\");\n\
@@ -88,15 +100,24 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
                                          fmt::arg("input", newVar),
                                          fmt::arg("limit", limit)));
       if (source_physical != target_physical) {
-        function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        if (multiply_factor == "1" or multiply_factor == "hugeint_t(1)") {
+          function_name = fmt::format("Cast::Operation");
+        } else {
+          function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        }
         template_args.push_back(source_physical);
         template_args.push_back(target_physical);
       } else {
-        function_name = fmt::format("{} * ", multiply_factor);
+        if (multiply_factor == "1" or multiply_factor == "hugeint_t(1)") {
+          function_name = fmt::format("");
+        } else {
+          function_name = fmt::format("{} * ", multiply_factor);
+        }
       }
     }
   } else {
     // scale down
+    // udf_todo: consider hugeint
     auto scale_difference = source_scale - target_scale;
     auto multiply_factor = pow10String(scale_difference);
     auto res_width = target_width + scale_difference;
