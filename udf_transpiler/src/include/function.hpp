@@ -186,7 +186,7 @@ public:
   }
 
   const Variable *createTempVariable(Type type, bool isNULL) {
-    auto newName = "temp" + std::to_string(tempVariableCounter) + "_";
+    auto newName = "temp" + std::to_string(tempVariableCounter) + "__";
     addVariable(newName, type, isNULL);
     ++tempVariableCounter;
     return getBinding(newName);
@@ -198,7 +198,7 @@ public:
   }
 
   static String getOriginalName(const String &ssaName) {
-    return ssaName.substr(0, ssaName.find_first_of("_"));
+    return ssaName.substr(0, ssaName.find("__"));
   };
 
   duckdb::Connection *getConnection() const { return conn; }

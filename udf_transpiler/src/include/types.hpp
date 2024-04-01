@@ -154,7 +154,8 @@ public:
   const static inline Set<DuckdbTypeTag> NumericTypes = {
       DuckdbTypeTag::BOOLEAN,  DuckdbTypeTag::TINYINT, DuckdbTypeTag::SMALLINT,
       DuckdbTypeTag::INTEGER,  DuckdbTypeTag::BIGINT,  DuckdbTypeTag::UBIGINT,
-      DuckdbTypeTag::UINTEGER, DuckdbTypeTag::DECIMAL, DuckdbTypeTag::DOUBLE};
+      DuckdbTypeTag::UINTEGER, DuckdbTypeTag::DECIMAL, DuckdbTypeTag::DOUBLE,
+      DuckdbTypeTag::REAL};
 
   const static inline Set<DuckdbTypeTag> BlobTypes = {DuckdbTypeTag::BLOB,
                                                       DuckdbTypeTag::VARCHAR};
