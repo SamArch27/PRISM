@@ -1,5 +1,6 @@
 #include "function.hpp"
 #include "dominator_analysis.hpp"
+#include "duckdb/common/types.hpp"
 #include "duckdb/function/cast_rules.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
@@ -100,6 +101,20 @@ int Function::typeMatches(const String &rhs, const Type &type,
   auto castCost = duckdb::CastRules::ImplicitCast(boundExpression->types[0],
                                                   type.getDuckDBLogicalType());
   duckDBType = boundExpression->types[0];
+
+  // needs to handle the case for decimals because duckdb thinks converting
+  // between decimals has 0 cost, but that is not true if the width or scale is
+  // different
+  if (duckDBType.id() == duckdb::LogicalTypeId::DECIMAL && type.isDecimal()) {
+    auto width = duckdb::DecimalType::GetWidth(duckDBType);
+    auto scale = duckdb::DecimalType::GetScale(duckDBType);
+    if (width == (uint8_t)type.getWidth().value() &&
+        scale == (uint8_t)type.getScale().value()) {
+      castCost = 0;
+    } else {
+      castCost = 100;
+    }
+  }
   return castCost;
 }
 
