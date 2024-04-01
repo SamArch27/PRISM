@@ -144,6 +144,10 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   for (auto *var : liveIn) {
     newFunctionArgs.push_back(var);
   }
+  std::sort(newFunctionArgs.begin(), newFunctionArgs.end(),
+            [](const Variable *v1, const Variable *v2) {
+              return v1->getName() < v2->getName();
+            });
   Type returnType =
       outliningEndRegion ? f.getReturnType() : returnVariable->getType();
   Map<BasicBlock *, BasicBlock *> tmp;

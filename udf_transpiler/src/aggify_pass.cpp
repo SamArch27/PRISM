@@ -433,6 +433,10 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
   for (auto *var : loopBodyLiveIn) {
     customAggArgs.push_back(var);
   }
+  std::sort(customAggArgs.begin(), customAggArgs.end(),
+            [](const Variable *v1, const Variable *v2) {
+              return v1->getName() < v2->getName();
+            });
 
   String customAggCaller =
       outlineCursorLoop(*newFunction, loopBodyBlocks, f, newFunctionArgs,
