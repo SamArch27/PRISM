@@ -52,15 +52,10 @@ void OutliningPass::outlineFunction(Function &f) {
 
 static bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
   // check if all the basic blocks are naive (just jmps)
+  // check if there is at least a conditional or a loop within the blocks
   for (auto *block : basicBlocks) {
-    size_t instCount = 0;
-    for (auto &inst : *block) {
-      instCount++;
-    }
-    if (instCount > 1) {
-      return false;
-    }
-    if (block->getSuccessors().size() > 1) {
+    if (dynamic_cast<ConditionalRegion *>(block->getRegion()) ||
+        dynamic_cast<LoopRegion *>(block->getRegion())) {
       return false;
     }
   }
