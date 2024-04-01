@@ -177,7 +177,7 @@ void PredicateAnalysis::runAnalysis() {
           String condValue = "";
           auto cond = getCondFromPath(path);
           if (cond != "") {
-            auto boundCondition = f.bindExpression(cond, f.getReturnType());
+            auto boundCondition = f.bindExpression(cond, Type::BOOLEAN);
             condValue = getExprOnPath(path, boundCondition.get());
           }
 
