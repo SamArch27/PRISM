@@ -109,10 +109,10 @@ void Compiler::optimize(Function &f) {
       Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
 
   // Convert to SSA
-  runPass(*ssaConstruction, f);
+  ssaConstruction->runOnFunction(f);
 
   // Run the core optimizations
-  runPass(*coreOptimizations, f);
+  coreOptimizations->runOnFunction(f);
 
   // Extract the predicates
   auto predicateAnalysis = Make<PredicateAnalysis>(f);
@@ -123,13 +123,13 @@ void Compiler::optimize(Function &f) {
   }
 
   // Now perform outlining
-  runPass(*aggifyPipeline, f);
-  runPass(*beforeOutliningPipeline, f);
-  runPass(*rightBeforeOutliningPipeline, f);
-  runPass(*outliningPipeline, f);
+  aggifyPipeline->runOnFunction(f);
+  beforeOutliningPipeline->runOnFunction(f);
+  rightBeforeOutliningPipeline->runOnFunction(f);
+  outliningPipeline->runOnFunction(f);
 
   // Finally get out of SSA
-  runPass(*ssaDestructionPipeline, f);
+  ssaDestructionPipeline->runOnFunction(f);
 
   std::cout << f << std::endl;
 

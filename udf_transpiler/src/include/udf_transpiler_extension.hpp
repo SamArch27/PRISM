@@ -4,6 +4,8 @@
 
 namespace duckdb {
 
+extern std::unordered_map<std::string, bool> optimizerPassOnMap;
+
 class UdfTranspilerExtension : public Extension {
 private:
   duckdb::DuckDB *db = NULL;

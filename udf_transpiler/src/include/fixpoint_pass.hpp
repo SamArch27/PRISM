@@ -11,6 +11,9 @@ public:
   bool runOnFunction(Function &f) override {
     bool changed = false;
     do {
+      if (!passOn(pass->getPassName())) {
+        break;
+      }
       changed = false;
       changed |= pass->runOnFunction(f);
     } while (changed);

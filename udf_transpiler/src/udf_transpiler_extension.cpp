@@ -50,8 +50,7 @@ static String CompilerRun(String udfString) {
   Connection con(*db_instance);
 
   udfCount++;
-  auto compiler =
-      Compiler(optimizerPassOnMap, &con, udfString, config, udfCount);
+  auto compiler = Compiler(&con, udfString, config, udfCount);
   auto res = compiler.run();
   return "select '' as 'Transpilation Done.';";
 }
@@ -135,8 +134,7 @@ inline String UdfCodeGeneratorPragmaFun(ClientContext &context,
   Connection con(*db_instance);
   String code, registration;
   udfCount++;
-  auto compiler =
-      Compiler(optimizerPassOnMap, &con, buffer.str(), config, udfCount);
+  auto compiler = Compiler(&con, buffer.str(), config, udfCount);
   auto res = compiler.run();
   COUT << "Transpiling the UDF..." << ENDL;
   insertDefAndReg(res.code, res.registration, udfCount);

@@ -20,42 +20,12 @@ struct CompilationResult : CFGCodeGeneratorResult {
 
 class Compiler {
 public:
-  Compiler(Map<String, bool> optimizerPassOnMap, duckdb::Connection *conn,
-           const String &programText, const YAMLConfig &config,
-           size_t &udfCount)
-      : optimizerPassOnMap(optimizerPassOnMap), conn(conn),
-        programText(programText), config(config), udfCount(udfCount) {}
+  Compiler(duckdb::Connection *conn, const String &programText,
+           const YAMLConfig &config, size_t &udfCount)
+      : conn(conn), programText(programText), config(config),
+        udfCount(udfCount) {}
 
   CompilationResult run();
-
-  bool passOn(const String &passName) const {
-    return optimizerPassOnMap.count(passName) > 0 &&
-           optimizerPassOnMap.at(passName);
-  }
-
-  void runPass(FunctionPass &pass, Function &f) {
-    if (auto *pipelinePass = dynamic_cast<PipelinePass *>(&pass)) {
-      auto &pipeline = pipelinePass->getPipeline();
-      auto iter = pipeline.begin();
-      while (iter != pipeline.end()) {
-        auto &cur = *iter;
-        if (!passOn(cur->getPassName())) {
-          iter = pipeline.erase(iter);
-        } else {
-          ++iter;
-        }
-      }
-      pass.runOnFunction(f);
-    } else if (auto *fixpointPass = dynamic_cast<FixpointPass *>(&pass)) {
-      if(passOn(fixpointPass->getPassName())) {
-        fixpointPass->runOnFunction(f);
-      }
-    } else {
-      if (passOn(pass.getPassName())) {
-        pass.runOnFunction(f);
-      }
-    }
-  }
 
   CompilationResult runOnFunction(Function &f);
 
@@ -76,7 +46,6 @@ public:
       "CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+(\\w+)";
 
 private:
-  Map<String, bool> optimizerPassOnMap;
   json parseJson() const;
 
   duckdb::Connection *conn;
