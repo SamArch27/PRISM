@@ -44,7 +44,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
   Vec<String> inputDependentComps(20);
 
   String stateDefinition, argInit, argStore, operationArgs, operationNullArgs,
-      varInit;
+      varInit, createValue, destroyValue;
   String inputTypes, inputLogicalTypes;
   size_t count = 0;
 
@@ -62,13 +62,23 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
                       fmt::arg("name", usedVar->getName()));
 
       varInit += fmt::format(fmt::runtime(config.aggify["varInit"].Scalar()),
-                             fmt::arg("name", usedVar->getName()));
+                             fmt::arg("name", usedVar->getName()),
+                             fmt::arg("i", count));
 
       argInit += fmt::format(fmt::runtime(config.aggify["argInit"].Scalar()),
                              fmt::arg("name", usedVar->getName()));
 
       argStore += fmt::format(fmt::runtime(config.aggify["argStore"].Scalar()),
-                              fmt::arg("name", usedVar->getName()));
+                              fmt::arg("name", usedVar->getName()),
+                              fmt::arg("i", count));
+
+      createValue +=
+          fmt::format(fmt::runtime(config.aggify["createValue"].Scalar()),
+                      fmt::arg("name", usedVar->getName()));
+
+      destroyValue +=
+          fmt::format(fmt::runtime(config.aggify["destroyValue"].Scalar()),
+                      fmt::arg("name", usedVar->getName()));
 
       operationArgs += fmt::format(
           fmt::runtime(config.aggify["operationArg"].Scalar()),
@@ -139,7 +149,9 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
   code += fmt::format(
       fmt::runtime(config.aggify["customAggregateTemplate"].Scalar()),
       fmt::arg("id", id), fmt::arg("c1", inputDependentComps[0]),
-      fmt::arg("stateDefinition", stateDefinition), fmt::arg("argInit", argInit),
+      fmt::arg("stateDefinition", stateDefinition),
+      fmt::arg("createValue", createValue),
+      fmt::arg("destroyValue", destroyValue), fmt::arg("argInit", argInit),
       fmt::arg("operationArgs", operationArgs),
       fmt::arg("operationNullArgs", operationNullArgs),
       fmt::arg("varInit", varInit), fmt::arg("body", body),

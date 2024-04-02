@@ -109,7 +109,7 @@ varyingFuncTemplate: |
       {{{c20}}}, return_type, AggregateFunction::StateSize<STATE>,
       AggregateFunction::StateInitialize<STATE, OP>, Varying{id}ScatterUpdate<STATE, {c18}, OP>,
       nullptr, AggregateFunction::StateFinalize<STATE, RESULT_TYPE, OP>,
-      null_handling, nullptr);
+      null_handling, nullptr, AggregateFunction::StateDestroy<STATE, OP>);
   }}
 
 stateDefinition: |
@@ -122,20 +122,35 @@ operationNullArg: |-
   bool {name}_isnull, 
 
 varInit: |
-  state.{name} = {name}_arg;
+  STATE::template AssignValue<TYPE{i}>(state.{name}, {name}_arg, false);
 
 argInit: |
   auto {name} = state.{name};
 
 argStore: |
-  state.{name} = {name};
+  STATE::template AssignValue<TYPE{i}>(state.{name}, {name}, true);
+
+createValue: |
+  CreateValue({name});
+
+destroyValue: |
+  DestroyValue({name});
 
 customAggregateTemplate: |
-  struct AggState{id}
+  struct AggState{id} : public StateBase
   {{
     bool isInitialized;
-    // int32_t count;
     {stateDefinition}
+
+    AggState{id}() {{
+      {createValue}
+    }}
+
+    ~AggState{id}() {{
+      if (isInitialized) {{
+        {destroyValue}
+      }}
+    }}
   }};
 
   struct CustomAggOperation{id}
@@ -144,6 +159,12 @@ customAggregateTemplate: |
     static void Initialize(STATE &state)
     {{
       state.isInitialized = false;
+      new (&state) STATE;
+    }}
+
+    template <class STATE>
+    static void Destroy(STATE &state, AggregateInputData &aggr_input_data) {{
+      state.~STATE();
     }}
 
     template <{c1}, class STATE, class OP>
@@ -160,7 +181,11 @@ customAggregateTemplate: |
     template <class TARGET_TYPE, class STATE>
     static void Finalize(STATE &state, TARGET_TYPE &target, AggregateFinalizeData &finalize_data)
     {{
-      target = state.{returnVariable};
+      if (!state.isInitialized) {{
+        finalize_data.ReturnNull();
+      }} else {{
+        STATE::template ReadValue(finalize_data.result, state.{returnVariable}, target);
+      }}
     }}
 
     static bool IgnoreNull()
