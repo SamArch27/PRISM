@@ -109,7 +109,7 @@ varyingFuncTemplate: |
       {{{c20}}}, return_type, AggregateFunction::StateSize<STATE>,
       AggregateFunction::StateInitialize<STATE, OP>, Varying{id}ScatterUpdate<STATE, {c18}, OP>,
       nullptr, AggregateFunction::StateFinalize<STATE, RESULT_TYPE, OP>,
-      null_handling, nullptr, AggregateFunction::StateDestroy<STATE, OP>);
+      null_handling, nullptr, nullptr, AggregateFunction::StateDestroy<STATE, OP>);
   }}
 
 stateDefinition: |
