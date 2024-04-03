@@ -444,9 +444,8 @@ FunctionCloneAndRenameHelper::cloneAndRename(const Instruction &inst) {
   }
 }
 
-template <>
 Own<Region>
-FunctionCloneAndRenameHelper::cloneAndRename(const Region *rootRegion) {
+FunctionCloneAndRenameHelper::cloneAndRenameRegion(const Region *rootRegion) {
   if (rootRegion == nullptr) {
     return nullptr;
   }
@@ -467,7 +466,7 @@ FunctionCloneAndRenameHelper::cloneAndRename(const Region *rootRegion) {
     Vec<Own<Region>> newNestedRegions;
     int nonNullCount = 0;
     for (const auto *region : sequentialRegion->getNestedRegionsWithNull()) {
-      newNestedRegions.push_back(cloneAndRename(region));
+      newNestedRegions.push_back(cloneAndRenameRegion(region));
       if (newNestedRegions.back().get() != nullptr) {
         nonNullCount++;
       }
@@ -504,9 +503,9 @@ FunctionCloneAndRenameHelper::cloneAndRename(const Region *rootRegion) {
       return nullptr;
     }
     auto trueRegion =
-        cloneAndRename((const Region *)conditionalRegion->getTrueRegion());
+        cloneAndRenameRegion((const Region *)conditionalRegion->getTrueRegion());
     auto falseRegion =
-        cloneAndRename((const Region *)conditionalRegion->getFalseRegion());
+        cloneAndRenameRegion((const Region *)conditionalRegion->getFalseRegion());
     ASSERT(trueRegion, "True region must be non-null");
     return Make<ConditionalRegion>(
         basicBlockMap.at(conditionalRegion->getHeader()), std::move(trueRegion),
@@ -518,7 +517,7 @@ FunctionCloneAndRenameHelper::cloneAndRename(const Region *rootRegion) {
       return nullptr;
     }
     auto bodyRegion =
-        cloneAndRename((const Region *)loopRegion->getBodyRegion());
+        cloneAndRenameRegion((const Region *)loopRegion->getBodyRegion());
     ASSERT(bodyRegion, "Body region must be non-null");
     return Make<LoopRegion>(basicBlockMap.at(loopRegion->getHeader()),
                             std::move(bodyRegion));
@@ -530,7 +529,7 @@ FunctionCloneAndRenameHelper::cloneAndRename(const Region *rootRegion) {
 Own<Function> Function::partialCloneAndRename(
     const String &newName, const Vec<const Variable *> &newArgs,
     const Type &newReturnType, const Vec<BasicBlock *> basicBlocks,
-    Map<BasicBlock *, BasicBlock *> &oldToNew, const Region *rootRegion) const {
+    Map<BasicBlock *, BasicBlock *> &oldToNew) const {
   Map<const Variable *, const Variable *> variableMap;
   Map<BasicBlock *, BasicBlock *> basicBlockMap;
   auto newFunction = Make<Function>(conn, newName, newReturnType);

@@ -157,10 +157,24 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   Type returnType =
       outliningEndRegion ? f.getReturnType() : returnVariable->getType();
 
-  // find the common root region
-  const Region *rootRegion = nullptr;
+  Map<BasicBlock *, BasicBlock *> blockMap;
+  auto newFunction =
+      f.partialCloneAndRename(newFunctionName, newFunctionArgs, returnType,
+                              blocksToOutline, blockMap);
+
+  if (!outliningEndRegion) {
+    // add explicit return of the return variable to the end of the function
+    auto *returnBlock = newFunction->makeBasicBlock("returnBlock");
+    returnBlock->addInstruction(Make<ReturnInst>(newFunction->bindExpression(
+        returnVariable->getName(), returnVariable->getType())));
+
+    newFunction->renameBasicBlocks(nextBasicBlock, returnBlock);
+    blockMap[nextBasicBlock] = returnBlock;
+  }
+
   if (duckdb::optimizerPassOnMap.at("PrintOutlinedUDF") == true) {
-    rootRegion = regionHeader->getRegion();
+    // find the common root region
+    const Region *rootRegion = regionHeader->getRegion();
     // check if all the blocks are in the same region
     for (auto *block : blocksToOutline) {
       Region *parentRegion = block->getRegion();
@@ -175,28 +189,10 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
                   "pragma disable('PrintOutlinedUDF') to continue.");
       }
     }
-  }
-
-  Map<BasicBlock *, BasicBlock *> blockMap;
-  auto newFunction =
-      f.partialCloneAndRename(newFunctionName, newFunctionArgs, returnType,
-                              blocksToOutline, blockMap, rootRegion);
-
-  if (!outliningEndRegion) {
-    // add explicit return of the return variable to the end of the function
-    auto *returnBlock = newFunction->makeBasicBlock("returnBlock");
-    returnBlock->addInstruction(Make<ReturnInst>(newFunction->bindExpression(
-        returnVariable->getName(), returnVariable->getType())));
-
-    newFunction->renameBasicBlocks(nextBasicBlock, returnBlock);
-    blockMap[nextBasicBlock] = returnBlock;
-  }
-
-  if (duckdb::optimizerPassOnMap.at("PrintOutlinedUDF") == true) {
     std::cout << "Cloning region\n";
     FunctionCloneAndRenameHelper cloneHelper;
     cloneHelper.basicBlockMap = blockMap;
-    auto clonedRegion = cloneHelper.cloneAndRename(rootRegion);
+    auto clonedRegion = cloneHelper.cloneAndRenameRegion(rootRegion);
     auto newRegion = Make<SequentialRegion>(
         newFunction->getEntryBlock(),
         Make<SequentialRegion>(newFunction->getBlockFromLabel("preheader"),
