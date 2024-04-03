@@ -1,5 +1,6 @@
 #include "outlining.hpp"
 #include "cfg_code_generator.hpp"
+#include "cfg_to_ast.hpp"
 #include "compiler.hpp"
 #include "dead_code_elimination.hpp"
 #include "file.hpp"
@@ -35,6 +36,16 @@ void OutliningPass::outlineFunction(Function &f) {
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<DeadCodeEliminationPass>(), Make<SSADestructionPass>());
   ssaDestructionPipeline->runOnFunction(f);
+
+  if (duckdb::optimizerPassOnMap.at("PrintOutlinedUDF") == true) {
+    std::cout << f << std::endl;
+    std::cout << "============================" << std::endl;
+    INFO("Outlined UDF " + f.getFunctionName() + " :");
+    PLpgSQLGenerator generator(compiler.getConfig());
+    auto result = generator.run(f);
+    std::cout << result.code << std::endl;
+    std::cout << "============================" << std::endl;
+  }
 
   INFO(fmt::format("Transpiling UDF {}...", f.getFunctionName()));
   CFGCodeGenerator codeGenerator(compiler.getConfig());
@@ -145,9 +156,31 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
             });
   Type returnType =
       outliningEndRegion ? f.getReturnType() : returnVariable->getType();
-  Map<BasicBlock *, BasicBlock *> tmp;
-  auto newFunction = f.partialCloneAndRename(newFunctionName, newFunctionArgs,
-                                             returnType, blocksToOutline, tmp);
+
+  // find the common root region
+  const Region *rootRegion = nullptr;
+  if (duckdb::optimizerPassOnMap.at("PrintOutlinedUDF") == true) {
+    rootRegion = regionHeader->getRegion();
+    // check if all the blocks are in the same region
+    for (auto *block : blocksToOutline) {
+      Region *parentRegion = block->getRegion();
+      while (parentRegion != nullptr) {
+        if (parentRegion == rootRegion) {
+          break;
+        }
+        parentRegion = parentRegion->getParentRegion();
+      }
+      if (parentRegion != rootRegion) {
+        EXCEPTION("Blocks to outline are not in the root region. Please do "
+                  "pragma disable('PrintOutlinedUDF') to continue.");
+      }
+    }
+  }
+
+  Map<BasicBlock *, BasicBlock *> blockMap;
+  auto newFunction =
+      f.partialCloneAndRename(newFunctionName, newFunctionArgs, returnType,
+                              blocksToOutline, blockMap, rootRegion);
 
   if (!outliningEndRegion) {
     // add explicit return of the return variable to the end of the function
@@ -156,6 +189,21 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
         returnVariable->getName(), returnVariable->getType())));
 
     newFunction->renameBasicBlocks(nextBasicBlock, returnBlock);
+    blockMap[nextBasicBlock] = returnBlock;
+  }
+
+  if (duckdb::optimizerPassOnMap.at("PrintOutlinedUDF") == true) {
+    std::cout << "Cloning region\n";
+    FunctionCloneAndRenameHelper cloneHelper;
+    cloneHelper.basicBlockMap = blockMap;
+    auto clonedRegion = cloneHelper.cloneAndRename(rootRegion);
+    auto newRegion = Make<SequentialRegion>(
+        newFunction->getEntryBlock(),
+        Make<SequentialRegion>(newFunction->getBlockFromLabel("preheader"),
+                               std::move(clonedRegion)));
+    newFunction->setRegion(std::move(newRegion));
+  } else {
+    newFunction->setRegion(nullptr);
   }
 
   outlineFunction(*newFunction);

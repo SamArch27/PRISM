@@ -109,6 +109,11 @@ struct FunctionCloneAndRenameHelper {
     return nullptr;
   }
 
+  template <typename T> Own<T> cloneAndRename(const T *obj) {
+    ERROR("Not implemented yet!");
+    return nullptr;
+  }
+
   Map<const Variable *, const Variable *> variableMap;
   Map<BasicBlock *, BasicBlock *> basicBlockMap;
 };
@@ -326,10 +331,12 @@ public:
     return ss.str();
   }
 
-  Own<Function> partialCloneAndRename(
-      const String &newName, const Vec<const Variable *> &newArgs,
-      const Type &newReturnType, const Vec<BasicBlock *> basicBlocks,
-      Map<BasicBlock *, BasicBlock *> &oldToNew) const;
+  Own<Function> partialCloneAndRename(const String &newName,
+                                      const Vec<const Variable *> &newArgs,
+                                      const Type &newReturnType,
+                                      const Vec<BasicBlock *> basicBlocks,
+                                      Map<BasicBlock *, BasicBlock *> &oldToNew,
+                                      const Region *rootRegion = nullptr) const;
 
 protected:
   void print(std::ostream &os) const {

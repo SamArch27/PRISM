@@ -68,7 +68,10 @@ public:
 };
 
 class RecursiveRegion : public Region {
-protected:
+public:
+  // RecursiveRegion(BasicBlock *header, bool attach) : Region(header, attach)
+  // {}
+
   template <typename... Args>
   RecursiveRegion(BasicBlock *header, bool attach, Args... args)
       : Region(header, attach) {
@@ -83,8 +86,13 @@ protected:
 
 public:
   virtual ~RecursiveRegion() = default;
-  virtual void print(std::ostream &os) const override = 0;
-  virtual String getRegionLabel() const override = 0;
+  virtual void print(std::ostream &os) const override {
+    ERROR("print not implemented for RecursiveRegion");
+  }
+  virtual String getRegionLabel() const override {
+    ERROR("getRegionLabel not implemented for RecursiveRegion");
+    return "";
+  }
 
   Vec<const Region *> getNestedRegions() const {
     Vec<const Region *> result;
@@ -94,6 +102,21 @@ public:
       }
     }
     return result;
+  }
+
+  Vec<const Region *> getNestedRegionsWithNull() const {
+    Vec<const Region *> result;
+    for (auto &region : nestedRegions) {
+      result.push_back(region.get());
+    }
+    return result;
+  }
+
+  void addNestedRegion(Own<Region> region) {
+    if (region) {
+      region->setParentRegion(this);
+    }
+    nestedRegions.push_back(std::move(region));
   }
 
   /**

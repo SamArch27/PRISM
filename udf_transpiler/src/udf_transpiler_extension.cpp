@@ -31,7 +31,8 @@ Map<String, bool> optimizerPassOnMap = {
     {"DeadCodeElimination", true},   {"QueryMotion", true},
     {"MergeRegions", true},          {"AggressiveMergeRegions", true},
     {"AssignmentElimination", true}, {"AggressiveAssignmentElimination", true},
-    {"OutliningPass", true},         {"AggifyPass", true}};
+    {"OutliningPass", true},         {"AggifyPass", true},
+    {"PrintOutlinedUDF", true}};
 
 // replace every single quote with two single quotes
 static String doubleQuote(const String &str) {
