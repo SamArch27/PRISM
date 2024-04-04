@@ -97,7 +97,8 @@ void Compiler::optimize(Function &f) {
                                            Make<DeadCodeEliminationPass>());
 
   auto beforeOutliningPipeline = Make<FixpointPass>(Make<PipelinePass>(
-      Make<QueryMotionPass>(), Make<AssignmentEliminationPass>()));
+      Make<QueryMotionPass>(), Make<AssignmentEliminationPass>(),
+      Make<DeadCodeEliminationPass>()));
   auto rightBeforeOutliningPipeline =
       Make<FixpointPass>(Make<DeadCodeEliminationPass>());
 
