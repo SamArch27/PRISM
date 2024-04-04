@@ -253,7 +253,9 @@ Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
   newBlock->addInstruction(Make<BranchInst>(
       ifRegion->getHeader(), elseIfRegion->getHeader(), std::move(cond)));
 
+  auto prePreHeader = f.makeBasicBlock();
   auto preHeader = f.makeBasicBlock();
+  prePreHeader->addInstruction(Make<BranchInst>(preHeader));
   preHeader->addInstruction(Make<BranchInst>(newBlock));
 
   auto conditionalRegion =
@@ -261,8 +263,10 @@ Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
                               attachElse ? nullptr : std::move(elseIfRegion));
 
   auto sequentialRegion = Make<SequentialRegion>(
-      preHeader, std::move(conditionalRegion),
-      attachFallthrough ? std::move(afterIfRegion) : nullptr);
+      prePreHeader,
+      Make<SequentialRegion>(preHeader, std::move(conditionalRegion),
+                             attachFallthrough ? std::move(afterIfRegion)
+                                               : nullptr));
   return std::move(sequentialRegion);
 }
 

@@ -18,6 +18,7 @@ private:
   bool outlineBasicBlocks(Vec<BasicBlock *> basicBlocks, Function &f);
   bool runOnRegion(SelectRegions &selectRegions, const Region *rootRegion,
                    Function &f, Vec<BasicBlock *> &queuedBlocks,
+                   size_t &fallthoughStart,
                    Set<const BasicBlock *> &blockOutlined);
 
   Compiler &compiler;

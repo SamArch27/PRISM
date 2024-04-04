@@ -33,6 +33,7 @@ getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
 }
 
 void OutliningPass::outlineFunction(Function &f) {
+  drawGraph(f.getCFGString(), "cfg_outlined");
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<DeadCodeEliminationPass>(), Make<SSADestructionPass>());
   ssaDestructionPipeline->runOnFunction(f);
@@ -78,6 +79,35 @@ static bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
  */
 bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
                                        Function &f) {
+
+  for (auto *block : blocksToOutline) {
+    std::cout << "Block to outline1: " << block->getLabel() << std::endl;
+  }
+
+  // the first block should not contain phi nodes
+  bool changed = true;
+  while (changed) {
+    if (blocksToOutline.empty()) {
+      return false;
+    }
+    changed = false;
+    for (auto &inst : *(blocksToOutline.front())) {
+      if (dynamic_cast<PhiNode *>(&inst)) {
+        std::cout << "Removing block " << blocksToOutline.front()->getLabel()
+                  << std::endl;
+        blocksToOutline.erase(blocksToOutline.begin());
+        for (auto *block : blocksToOutline) {
+          std::cout << "Block to outline2: " << block->getLabel() << std::endl;
+        }
+        changed = true;
+        break;
+      }
+    }
+  }
+  for (auto *block : blocksToOutline) {
+    std::cout << "Block to outline3: " << block->getLabel() << std::endl;
+  }
+
   if (blocksToOutline.empty()) {
     return false;
   }
@@ -96,6 +126,10 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   BasicBlock *nextBasicBlock =
       nextBasicBlocks.empty() ? nullptr : *nextBasicBlocks.begin();
 
+  std::cout << "Next basic block: "
+            << (nextBasicBlock ? nextBasicBlock->getLabel() : "nullptr")
+            << std::endl;
+
   bool hasReturn = false;
   for (auto *block : blocksToOutline) {
     if (block->getSuccessors().size() == 0) {
@@ -105,8 +139,8 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   }
 
   if (nextBasicBlock != nullptr && hasReturn) {
-    INFO("Control logic goes to end but has return, this pattern cannot be "
-         "outlined for now.");
+    INFO("Control logic does not go to end but has return, this pattern cannot "
+         "be outlined for now.");
     return false;
   } else if (nextBasicBlock == nullptr && !hasReturn) {
     EXCEPTION(fmt::format("Control logic goes to end but no return."));
@@ -118,6 +152,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
+  std::cout << *liveness << std::endl;
 
   auto *regionHeader = blocksToOutline.front();
   auto liveIn = liveness->getBlockLiveIn(regionHeader);
@@ -137,9 +172,12 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
         returnVars.insert(var);
       }
     }
-    ASSERT(returnVars.size() == 1,
-           fmt::format("Do not support one region to return {} variables",
-                       returnVars.size()));
+    if (returnVars.size() != 1) {
+      INFO(fmt::format(
+          "Do not support one outlined region to return {} variables",
+          returnVars.size()));
+      return false;
+    }
   }
 
   auto *returnVariable = returnVars.empty() ? nullptr : *returnVars.begin();
@@ -158,9 +196,8 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
       outliningEndRegion ? f.getReturnType() : returnVariable->getType();
 
   Map<BasicBlock *, BasicBlock *> blockMap;
-  auto newFunction =
-      f.partialCloneAndRename(newFunctionName, newFunctionArgs, returnType,
-                              blocksToOutline, blockMap);
+  auto newFunction = f.partialCloneAndRename(
+      newFunctionName, newFunctionArgs, returnType, blocksToOutline, blockMap);
 
   if (!outliningEndRegion) {
     // add explicit return of the return variable to the end of the function
@@ -239,7 +276,11 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   }
   for (auto *pred : nextBasicBlock->getPredecessors()) {
     if (blocksToOutlineSet.count(pred) > 0) {
-      ASSERT(nextPred == nullptr, "Should not have multiple preds in region");
+      if (nextPred != nullptr) {
+        INFO("Do not support outlined region to have multiple outgoing "
+             "branches.");
+        return false;
+      }
       nextPred = pred;
     }
   }
@@ -251,9 +292,17 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 
   parentRegion->replaceNestedRegion(currentRegion, replacement);
 
+  Set<Region *> regionsToRemove;
+  for (auto *block : blocksToOutline) {
+    regionsToRemove.insert(block->getRegion());
+  }
+  parentRegion->removeNestedRegions(regionsToRemove);
+
   for (auto *block : blocksToOutline) {
     f.removeBasicBlock(block);
   }
+
+  std::cout << f << std::endl;
 
   outlinedCount++;
   return false;
@@ -262,8 +311,15 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
                                 const Region *region, Function &f,
                                 Vec<BasicBlock *> &queuedBlocks,
+                                size_t &fallthroughStart,
                                 Set<const BasicBlock *> &blockOutlined) {
 
+  std::cout << "Running on region " << region->getHeader()->getLabel()
+            << std::endl;
+  for (auto *block : queuedBlocks) {
+    std::cout << "Block: " << block->getLabel() << std::endl;
+  }
+  std::cout << "Fallthrough start: " << fallthroughStart << std::endl;
   auto queueBlock = [&](BasicBlock *block) {
     if (block != f.getEntryBlock() && blockOutlined.count(block) == 0) {
       queuedBlocks.push_back(block);
@@ -274,22 +330,33 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
   auto queueBlocksFromRegion = [&](const Region *region) {
     if (const auto *conditionalRegion =
             dynamic_cast<const ConditionalRegion *>(region)) {
+      fallthroughStart = queuedBlocks.size();
       queueBlock(conditionalRegion->getHeader());
-      for (const Region *region : conditionalRegion->getSuccessorRegions()) {
+      for (const Region *region : conditionalRegion->getNestedRegions()) {
         for (auto *block : region->getBasicBlocks()) {
           queueBlock(block);
         }
       }
+      if (conditionalRegion->getFalseRegion() != nullptr) {
+        fallthroughStart = -1;
+      }
       return;
-    }
-    for (auto *block : region->getBasicBlocks()) {
-      queueBlock(block);
+    } else {
+      for (auto *block : region->getBasicBlocks()) {
+        queueBlock(block);
+      }
+      fallthroughStart = -1;
     }
   };
 
   auto outlineQueuedBlocks = [&]() {
+    if (fallthroughStart != -1) {
+      // only outline the blocks before the fallthrough
+      queuedBlocks.resize(fallthroughStart);
+    }
     outlineBasicBlocks(queuedBlocks, f);
     queuedBlocks.clear();
+    fallthroughStart = -1;
   };
 
   // traverse the regions top down
@@ -301,13 +368,14 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
       auto *header = sequentialRegion->getHeader();
       if (!header->hasSelect()) {
         queueBlock(header);
+        fallthroughStart = -1;
       } else {
         outlineQueuedBlocks();
       }
       for (auto *nestedRegion : sequentialRegion->getNestedRegions()) {
         if (containsSelect.at(nestedRegion) == true) {
           runOnRegion(containsSelect, nestedRegion, f, queuedBlocks,
-                      blockOutlined);
+                      fallthroughStart, blockOutlined);
         } else {
           queueBlocksFromRegion(nestedRegion);
         }
@@ -318,7 +386,7 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
               dynamic_cast<const RecursiveRegion *>(region)) {
         for (auto *nestedRegion : recursiveRegion->getNestedRegions()) {
           runOnRegion(containsSelect, nestedRegion, f, queuedBlocks,
-                      blockOutlined);
+                      fallthroughStart, blockOutlined);
         }
       }
     }
@@ -356,7 +424,7 @@ bool computeSelectRegionsHelper(const Region *region,
   }
 
   if (auto *rec = dynamic_cast<const RecursiveRegion *>(region)) {
-    for (auto *nested : rec->getSuccessorRegions()) {
+    for (auto *nested : rec->getNestedRegions()) {
       if (visitedRegions.count(nested) == 0) {
         successorChanged =
             successorChanged ||
@@ -374,11 +442,17 @@ bool computeSelectRegionsHelper(const Region *region,
 
 SelectRegions OutliningPass::computeSelectRegions(const Region *region) const {
   SelectRegions selectRegions;
-  Set<const Region *> visitedRegions;
-  while (computeSelectRegionsHelper(region, selectRegions, visitedRegions)) {
-    visitedRegions.clear();
-  }
+  auto *header = region->getHeader();
+  selectRegions[region] = header->hasSelect();
 
+  if (auto *rec = dynamic_cast<const RecursiveRegion *>(region)) {
+    for (auto *nested : rec->getNestedRegions()) {
+      for (auto &[selectRegion, flag] : computeSelectRegions(nested)) {
+        selectRegions[selectRegion] = flag;
+        selectRegions[region] |= flag;
+      }
+    }
+  }
   return selectRegions;
 }
 
@@ -387,6 +461,9 @@ bool OutliningPass::runOnFunction(Function &f) {
   Vec<BasicBlock *> queuedBlocks;
   auto containsSelect = computeSelectRegions(f.getRegion());
   Set<const BasicBlock *> blockOutlined;
-  runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks, blockOutlined);
+  size_t fallthroughStart = -1;
+  runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks, fallthroughStart,
+              blockOutlined);
+  // outlineBasicBlocks(queuedBlocks, f);
   return false;
 }
