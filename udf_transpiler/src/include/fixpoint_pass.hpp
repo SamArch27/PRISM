@@ -15,7 +15,8 @@ public:
         break;
       }
       changed = false;
-      changed |= pass->runOnFunction(f);
+      auto passChanged = pass->runOnFunction(f);
+      changed = changed || passChanged;
     } while (changed);
     return changed;
   }
