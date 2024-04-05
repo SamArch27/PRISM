@@ -63,8 +63,7 @@ String PredicateAnalysis::getCondFromPath(const Vec<BasicBlock *> &path) const {
         if (prevBlock != branch->getIfFalse()) {
           cond += "NOT ";
         }
-        cond +=
-            "(" + branch->getCond()->getRawSQL() + " IS DISTINCT FROM TRUE)";
+        cond += "NOT (" + branch->getCond()->getRawSQL() + ")";
         cond += ")";
       }
     }
@@ -163,7 +162,15 @@ void PredicateAnalysis::runAnalysis() {
   // =, <=, >=, <, >
   Vec<String> ops = {"=", "<=", ">=", "<", ">"};
   Vec<String> suffix = {"eq", "leq", "geq", "lt", "gt"};
-  predicates.resize(5);
+
+  auto booleanFunction =
+      (f.getReturnType().getDuckDBTag() == DuckdbTypeTag::BOOLEAN);
+
+  if (booleanFunction) {
+    predicates.resize(1);
+  } else {
+    predicates.resize(5);
+  }
 
   // add a variable t to compare against
   f.addVariable("t", f.getReturnType(), false);
@@ -192,8 +199,11 @@ void PredicateAnalysis::runAnalysis() {
             if (condValue != "") {
               pred += condValue + " AND ";
             }
-            pred += ("(NOT (" + returnValue + " " + ops[i] +
-                     " t)) IS DISTINCT FROM TRUE");
+            if (booleanFunction) {
+              pred += "(" + returnValue + ")";
+            } else {
+              pred += ("(" + returnValue + " " + ops[i] + " t)");
+            }
             pred += "))";
           }
         }
@@ -203,12 +213,27 @@ void PredicateAnalysis::runAnalysis() {
 
   for (std::size_t i = 0; i < predicates.size(); ++i) {
     auto &pred = predicates[i];
-    String args = "(t";
+
+    String args = "(";
+    bool first = true;
+    if (!booleanFunction) {
+      args += "t ";
+      first = false;
+    }
     for (auto &arg : f.getArguments()) {
-      args += (", " + arg->getName());
+      if (first) {
+        first = false;
+      } else {
+        args += ", ";
+      }
+      args += arg->getName();
     }
     args += ")";
-    pred = "CREATE MACRO " + f.getFunctionName() + "_" + suffix[i] + args +
-           " AS (" + pred + ");";
+
+    auto functionName = f.getFunctionName();
+    if (!booleanFunction) {
+      functionName += ("_" + suffix[i]);
+    }
+    pred = ("CREATE MACRO " + functionName + args + " AS (" + pred + ");");
   }
 }
