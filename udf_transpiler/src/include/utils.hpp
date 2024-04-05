@@ -98,7 +98,11 @@ using String = std::string;
               << ")" << std::endl;                                             \
   } while (false)
 #else
-#define DEBUG_INFO(message)
+#define DEBUG_INFO(message)                                                    \
+  do {                                                                         \
+    message;                                                                   \
+  } while (false)
+
 #endif
 
 template <typename It> class Range {

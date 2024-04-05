@@ -40,7 +40,8 @@ void OutliningPass::outlineFunction(Function &f) {
 
   if (duckdb::optimizerPassOnMap.at("PrintOutlinedUDF") == true) {
     std::cout << "============================" << std::endl;
-    std::cout << "Outlined UDF " + f.getFunctionName() + " :" << std::endl;
+    std::cout << "Outlined UDF " + f.getFunctionName() + " :" << std::endl
+              << std::endl;
     PLpgSQLGenerator generator(compiler.getConfig());
     auto result = generator.run(f);
     std::cout << result.code << std::endl;

@@ -156,17 +156,6 @@ inline String UdfBuilderPragmaFun(ClientContext &context,
   return "select '' as 'Building and linking Done.';";
 }
 
-inline String UdafBuilderPragmaFun(ClientContext &context,
-                                   const FunctionParameters &parameters) {
-  COUT << "Compiling the UDAF..." << ENDL;
-  compileUDAF();
-  // load the compiled library
-  std::cout << "Installing and loading the UDF..." << std::endl;
-  Connection con(*db_instance);
-  loadUDAF(con);
-  return "select '' as 'Building and linking Done.';";
-}
-
 inline String LOCodeGenPragmaFun(ClientContext &_context,
                                  const FunctionParameters &parameters) {
   auto sql = parameters.values[0].GetValue<String>();
@@ -230,9 +219,6 @@ static void LoadInternal(DatabaseInstance &instance) {
   auto udf_builder_pragma_function =
       PragmaFunction::PragmaCall("build", UdfBuilderPragmaFun, {});
   ExtensionUtil::RegisterFunction(instance, udf_builder_pragma_function);
-  auto udaf_builder_pragma_function =
-      PragmaFunction::PragmaCall("build_agg", UdafBuilderPragmaFun, {});
-  ExtensionUtil::RegisterFunction(instance, udaf_builder_pragma_function);
   auto lo_codegen_pragma_function =
       PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun,
                                  {LogicalType::VARCHAR, LogicalType::INTEGER});

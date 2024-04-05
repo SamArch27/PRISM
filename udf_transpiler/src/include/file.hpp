@@ -13,7 +13,5 @@
 void insertDefAndReg(const String &defs, const String &regs, int udfCount);
 void compileUDF();
 void loadUDF(duckdb::Connection &connection);
-void compileUDAF();
-void loadUDAF(duckdb::Connection &connection);
 
 void drawGraph(const String &dot, String name);

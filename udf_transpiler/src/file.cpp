@@ -142,13 +142,7 @@ void insertDefAndReg(const String &defs, const String &regs, int udfCount) {
 void compileUDF() {
   // String cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
   String cmd = "cd " + current_dir + "/../" + ";make udfs";
-  DEBUG_INFO((cmd.c_str()));
-}
-
-void compileUDAF() {
-  String cmd = "cd " + current_dir + "/../" + ";make udafs";
-  std::cout << cmd << std::endl;
-  DEBUG_INFO((cmd.c_str()));
+  DEBUG_INFO(exec(cmd.c_str()));
 }
 
 /**
@@ -175,24 +169,6 @@ void loadUDF(duckdb::Connection &connection) {
   }
 }
 
-void loadUDAF(duckdb::Connection &connection) {
-  String install = "install '" + current_dir +
-                   "/../build/udfs/extension/udf_agg/" +
-                   "udf_agg.duckdb_extension'";
-  String load = "load '" + current_dir + "/../build/udfs/extension/udf_agg/" +
-                "udf_agg.duckdb_extension'";
-  std::cout << "Running: " << install << std::endl;
-  auto res = connection.Query(install);
-  if (res->HasError()) {
-    EXCEPTION(res->GetError());
-  }
-  std::cout << "Running: " << load << std::endl;
-  res = connection.Query(load);
-  if (res->HasError()) {
-    EXCEPTION(res->GetError());
-  }
-}
-
 void drawGraph(const String &dot, String name) {
   // create a hidden file in GRAPH_OUTPUT_DIR
   String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + name + ".dot";
@@ -205,5 +181,5 @@ void drawGraph(const String &dot, String name) {
 
   // run the dot command
   String cmd = "dot -Tpdf -O " + filename;
-  DEBUG_INFO((cmd.c_str()));
+  DEBUG_INFO(exec(cmd.c_str()));
 }
