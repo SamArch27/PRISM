@@ -147,6 +147,19 @@ public:
     }
   }
 
+  void removeNestedRegions(Set<Region *> regionsToRemove) {
+    auto it = nestedRegions.begin();
+    while (it != nestedRegions.end()) {
+      if (regionsToRemove.find(it->get()) != regionsToRemove.end()) {
+        ASSERT(it == nestedRegions.end() - 1,
+               "Only the last region can be removed");
+        *it = nullptr;
+      } else {
+        ++it;
+      }
+    }
+  }
+
   Vec<BasicBlock *> getBasicBlocks() const override {
     Vec<BasicBlock *> result = {getHeader()};
     for (auto &region : nestedRegions) {
