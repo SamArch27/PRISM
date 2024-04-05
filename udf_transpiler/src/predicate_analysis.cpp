@@ -63,8 +63,7 @@ String PredicateAnalysis::getCondFromPath(const Vec<BasicBlock *> &path) const {
         if (prevBlock != branch->getIfFalse()) {
           cond += "NOT ";
         }
-        cond +=
-            "(" + branch->getCond()->getRawSQL() + " IS DISTINCT FROM TRUE)";
+        cond += "NOT (" + branch->getCond()->getRawSQL() + ")";
         cond += ")";
       }
     }
@@ -192,8 +191,7 @@ void PredicateAnalysis::runAnalysis() {
             if (condValue != "") {
               pred += condValue + " AND ";
             }
-            pred += ("(NOT (" + returnValue + " " + ops[i] +
-                     " t)) IS DISTINCT FROM TRUE");
+            pred += ("(" + returnValue + " " + ops[i] + " t)");
             pred += "))";
           }
         }
