@@ -195,7 +195,9 @@ public:
     }
   }
   String getDefaultValue(bool singleQuote) const {
-    if (isNumeric()) {
+    if (isBoolean()) {
+      return "false";
+    } else if (isNumeric()) {
       return "0";
     } else if (isBlob()) {
       if (singleQuote)
@@ -217,6 +219,7 @@ public:
 
   bool isDecimal() const { return decimal; }
   bool isNumeric() const { return NumericTypes.count(duckdbTag); }
+  bool isBoolean() const { return duckdbTag == DuckdbTypeTag::BOOLEAN; }
   bool isBlob() const { return BlobTypes.count(duckdbTag); }
 
 protected:

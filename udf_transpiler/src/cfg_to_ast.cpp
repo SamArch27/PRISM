@@ -95,13 +95,13 @@ String basicBlockCodeGenerator(const Function &function, const BasicBlock *bb,
     if (auto assign = dynamic_cast<const Assignment *>(&inst)) {
       // if the instruction is an assignment, generate the corresponding
       // PL/pgSQL code
-      String code = fmt::format("{} := {};", assign->getLHS()->getName(),
+      String code = fmt::format("{} := ({});", assign->getLHS()->getName(),
                                 assign->getRHS()->getRawSQL());
       result.push_back(code);
     } else if (auto ret = dynamic_cast<const ReturnInst *>(&inst)) {
       // if the instruction is a return instruction, generate the corresponding
       // PL/pgSQL code
-      String code = fmt::format("RETURN {};", ret->getExpr()->getRawSQL());
+      String code = fmt::format("RETURN ({});", ret->getExpr()->getRawSQL());
       result.push_back(code);
     } else if (auto branch = dynamic_cast<const BranchInst *>(&inst)) {
       // we only consider adding break and continue statement at jmp position

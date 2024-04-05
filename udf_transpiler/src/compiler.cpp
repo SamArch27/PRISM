@@ -77,7 +77,7 @@ json Compiler::parseJson() const {
   auto result = pg_query_parse_plpgsql(programText.c_str());
   if (result.error) {
     printf("error: %s at %d\n", result.error->message, result.error->cursorpos);
-    ERROR(fmt::format("Error when parsing the plpgsql: {}",
+    EXCEPTION(fmt::format("Error when parsing the plpgsql: {}",
                       result.error->message));
   }
   auto json = json::parse(result.plpgsql_funcs);
