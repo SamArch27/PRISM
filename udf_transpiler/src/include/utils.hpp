@@ -91,6 +91,16 @@ using String = std::string;
               << ")" << std::endl;                                             \
   } while (false)
 
+#ifdef DEBUG
+#define DEBUG_INFO(message)                                                    \
+  do {                                                                         \
+    std::cout << "DEBUG: " << message << " (" << __FILE__ << ":" << __LINE__   \
+              << ")" << std::endl;                                             \
+  } while (false)
+#else
+#define DEBUG_INFO(message)
+#endif
+
 template <typename It> class Range {
   It b, e;
 

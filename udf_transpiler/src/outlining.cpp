@@ -39,9 +39,8 @@ void OutliningPass::outlineFunction(Function &f) {
   ssaDestructionPipeline->runOnFunction(f);
 
   if (duckdb::optimizerPassOnMap.at("PrintOutlinedUDF") == true) {
-    std::cout << f << std::endl;
     std::cout << "============================" << std::endl;
-    INFO("Outlined UDF " + f.getFunctionName() + " :");
+    std::cout << "Outlined UDF " + f.getFunctionName() + " :" << std::endl;
     PLpgSQLGenerator generator(compiler.getConfig());
     auto result = generator.run(f);
     std::cout << result.code << std::endl;
@@ -79,11 +78,6 @@ static bool allBlocksNaive(const Vec<BasicBlock *> &basicBlocks) {
  */
 bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
                                        Function &f) {
-
-  for (auto *block : blocksToOutline) {
-    std::cout << "Block to outline1: " << block->getLabel() << std::endl;
-  }
-
   // the first block should not contain phi nodes
   bool changed = true;
   while (changed) {
@@ -93,19 +87,11 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     changed = false;
     for (auto &inst : *(blocksToOutline.front())) {
       if (dynamic_cast<PhiNode *>(&inst)) {
-        std::cout << "Removing block " << blocksToOutline.front()->getLabel()
-                  << std::endl;
         blocksToOutline.erase(blocksToOutline.begin());
-        for (auto *block : blocksToOutline) {
-          std::cout << "Block to outline2: " << block->getLabel() << std::endl;
-        }
         changed = true;
         break;
       }
     }
-  }
-  for (auto *block : blocksToOutline) {
-    std::cout << "Block to outline3: " << block->getLabel() << std::endl;
   }
 
   if (blocksToOutline.empty()) {
@@ -125,10 +111,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
 
   BasicBlock *nextBasicBlock =
       nextBasicBlocks.empty() ? nullptr : *nextBasicBlocks.begin();
-
-  std::cout << "Next basic block: "
-            << (nextBasicBlock ? nextBasicBlock->getLabel() : "nullptr")
-            << std::endl;
 
   bool hasReturn = false;
   for (auto *block : blocksToOutline) {
@@ -152,7 +134,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
   LivenessAnalysis livenessAnalysis(f);
   livenessAnalysis.runAnalysis();
   const auto &liveness = livenessAnalysis.getLiveness();
-  std::cout << *liveness << std::endl;
 
   auto *regionHeader = blocksToOutline.front();
   auto liveIn = liveness->getBlockLiveIn(regionHeader);
@@ -226,7 +207,7 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
                   "pragma disable('PrintOutlinedUDF') to continue.");
       }
     }
-    std::cout << "Cloning region\n";
+    // clone the region
     FunctionCloneAndRenameHelper cloneHelper;
     cloneHelper.basicBlockMap = blockMap;
     auto clonedRegion = cloneHelper.cloneAndRenameRegion(rootRegion);
@@ -302,8 +283,6 @@ bool OutliningPass::outlineBasicBlocks(Vec<BasicBlock *> blocksToOutline,
     f.removeBasicBlock(block);
   }
 
-  std::cout << f << std::endl;
-
   outlinedCount++;
   return false;
 }
@@ -313,13 +292,6 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
                                 Vec<BasicBlock *> &queuedBlocks,
                                 size_t &fallthroughStart,
                                 Set<const BasicBlock *> &blockOutlined) {
-
-  std::cout << "Running on region " << region->getHeader()->getLabel()
-            << std::endl;
-  for (auto *block : queuedBlocks) {
-    std::cout << "Block: " << block->getLabel() << std::endl;
-  }
-  std::cout << "Fallthrough start: " << fallthroughStart << std::endl;
   auto queueBlock = [&](BasicBlock *block) {
     if (block != f.getEntryBlock() && blockOutlined.count(block) == 0) {
       queuedBlocks.push_back(block);
@@ -464,6 +436,5 @@ bool OutliningPass::runOnFunction(Function &f) {
   size_t fallthroughStart = -1;
   runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks, fallthroughStart,
               blockOutlined);
-  // outlineBasicBlocks(queuedBlocks, f);
   return false;
 }

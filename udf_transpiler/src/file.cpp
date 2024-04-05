@@ -34,9 +34,9 @@ String exec(const char *cmd) {
 void create_dir_from_dir(const String &new_dir, const String &template_dir) {
   // remove the old directory in new_dir
   String cmd = "rm -rf " + new_dir;
-  std::cout << exec(cmd.c_str()) << std::endl;
+  DEBUG_INFO(exec(cmd.c_str()));
   cmd = "cp -r " + template_dir + " " + new_dir;
-  std::cout << exec(cmd.c_str()) << std::endl;
+  DEBUG_INFO(exec(cmd.c_str()));
 }
 
 void insertDefAndReg(const String &defs, const String &regs, int udfCount) {
@@ -142,13 +142,13 @@ void insertDefAndReg(const String &defs, const String &regs, int udfCount) {
 void compileUDF() {
   // String cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
   String cmd = "cd " + current_dir + "/../" + ";make udfs";
-  std::cout << exec(cmd.c_str()) << std::endl;
+  DEBUG_INFO((cmd.c_str()));
 }
 
 void compileUDAF() {
   String cmd = "cd " + current_dir + "/../" + ";make udafs";
   std::cout << cmd << std::endl;
-  std::cout << exec(cmd.c_str()) << std::endl;
+  DEBUG_INFO((cmd.c_str()));
 }
 
 /**
@@ -194,16 +194,16 @@ void loadUDAF(duckdb::Connection &connection) {
 }
 
 void drawGraph(const String &dot, String name) {
-  // // create a hidden file in GRAPH_OUTPUT_DIR
-  // String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + name + ".dot";
-  // std::ofstream out(filename);
-  // if (out.fail()) {
-  //   ERROR("Cannot open the file for writing: " + filename);
-  // }
-  // out << dot;
-  // out.close();
+  // create a hidden file in GRAPH_OUTPUT_DIR
+  String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + name + ".dot";
+  std::ofstream out(filename);
+  if (out.fail()) {
+    ERROR("Cannot open the file for writing: " + filename);
+  }
+  out << dot;
+  out.close();
 
-  // // run the dot command
-  // String cmd = "dot -Tpdf -O " + filename;
-  // std::cout << exec(cmd.c_str()) << std::endl;
+  // run the dot command
+  String cmd = "dot -Tpdf -O " + filename;
+  DEBUG_INFO((cmd.c_str()));
 }

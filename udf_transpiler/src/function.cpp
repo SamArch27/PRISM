@@ -450,15 +450,12 @@ FunctionCloneAndRenameHelper::cloneAndRenameRegion(const Region *rootRegion) {
     return nullptr;
   }
   if (auto *leafRegion = dynamic_cast<const LeafRegion *>(rootRegion)) {
-    std::cout << "LeafRegion: " << leafRegion->getRegionLabel() << std::endl;
     if (basicBlockMap.find(leafRegion->getHeader()) == basicBlockMap.end()) {
       return nullptr;
     }
     return Make<LeafRegion>(basicBlockMap.at(leafRegion->getHeader()));
   } else if (auto *sequentialRegion =
                  dynamic_cast<const SequentialRegion *>(rootRegion)) {
-    std::cout << "SequentialRegion: " << sequentialRegion->getRegionLabel()
-              << std::endl;
     if (basicBlockMap.find(sequentialRegion->getHeader()) ==
         basicBlockMap.end()) {
       return nullptr;
@@ -473,46 +470,33 @@ FunctionCloneAndRenameHelper::cloneAndRenameRegion(const Region *rootRegion) {
     }
 
     if (nonNullCount == 0) {
-      std::cout << sequentialRegion->getRegionLabel()
-                << " has no non-null nested regions\n";
       return Make<LeafRegion>(basicBlockMap.at(sequentialRegion->getHeader()));
     } else {
       if (newNestedRegions[0].get() == nullptr) {
-        std::cout << sequentialRegion->getRegionLabel()
-                  << " has null first nested region "
-                  << sequentialRegion->getNestedRegion()->getRegionLabel()
-                  << "\n";
         return Make<SequentialRegion>(
             basicBlockMap.at(sequentialRegion->getHeader()),
             std::move(newNestedRegions[1]), nullptr);
       }
-      std::cout << sequentialRegion->getRegionLabel()
-                << " has non-null first nested region "
-                << sequentialRegion->getNestedRegion()->getRegionLabel()
-                << "\n";
       return Make<SequentialRegion>(
           basicBlockMap.at(sequentialRegion->getHeader()),
           std::move(newNestedRegions[0]), std::move(newNestedRegions[1]));
     }
   } else if (const auto *conditionalRegion =
                  dynamic_cast<const ConditionalRegion *>(rootRegion)) {
-    std::cout << "ConditionalRegion: " << conditionalRegion->getRegionLabel()
-              << std::endl;
     if (basicBlockMap.find(conditionalRegion->getHeader()) ==
         basicBlockMap.end()) {
       return nullptr;
     }
-    auto trueRegion =
-        cloneAndRenameRegion((const Region *)conditionalRegion->getTrueRegion());
-    auto falseRegion =
-        cloneAndRenameRegion((const Region *)conditionalRegion->getFalseRegion());
+    auto trueRegion = cloneAndRenameRegion(
+        (const Region *)conditionalRegion->getTrueRegion());
+    auto falseRegion = cloneAndRenameRegion(
+        (const Region *)conditionalRegion->getFalseRegion());
     ASSERT(trueRegion, "True region must be non-null");
     return Make<ConditionalRegion>(
         basicBlockMap.at(conditionalRegion->getHeader()), std::move(trueRegion),
         std::move(falseRegion));
   } else if (const auto *loopRegion =
                  dynamic_cast<const LoopRegion *>(rootRegion)) {
-    std::cout << "LoopRegion: " << loopRegion->getRegionLabel() << std::endl;
     if (basicBlockMap.find(loopRegion->getHeader()) == basicBlockMap.end()) {
       return nullptr;
     }
