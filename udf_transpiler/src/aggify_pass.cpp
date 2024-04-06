@@ -138,8 +138,10 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
   // create a new function that will be used to generate the custom aggregate
   // the data structure in this function is probably broken, so should only be
   // used for aggify code generation
+  String cursorLoopBodyFunctionName = fmt::format(
+      "{}_custom_agg_{}", oldFunction.getFunctionName(), outlinedCount);
   auto cursorLoopBodyFunction = newFunction.partialCloneAndRename(
-      newFunction.getFunctionName() + "_custom_agg", loopBodyFunctionArgs,
+      cursorLoopBodyFunctionName, loopBodyFunctionArgs,
       newFunction.getReturnType(), loopBodyBlocks, tmp);
 
   // remove the definition of cursorloopiter
@@ -388,7 +390,7 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
   auto *returnVariable = *returnVars.begin();
 
   String newFunctionName =
-      fmt::format("{}_custom_agg_{}", f.getFunctionName(), outlinedCount);
+      fmt::format("{}_aggify_{}", f.getFunctionName(), outlinedCount);
   Vec<const Variable *> newFunctionArgs;
   for (auto *var : regionArgs) {
     newFunctionArgs.push_back(var);

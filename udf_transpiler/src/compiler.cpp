@@ -17,6 +17,7 @@
 #include "pg_query.h"
 #include "predicate_analysis.hpp"
 #include "query_motion.hpp"
+#include "remove_unused_variable.hpp"
 #include "ssa_construction.hpp"
 #include "ssa_destruction.hpp"
 #include "utils.hpp"
@@ -109,6 +110,9 @@ void Compiler::optimize(Function &f) {
   auto ssaDestructionPipeline = Make<PipelinePass>(
       Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
 
+  auto finalCleanUpPipeline =
+      Make<PipelinePass>(Make<RemoveUnusedVariablePass>());
+
   // Convert to SSA
   ssaConstruction->runOnFunction(f);
 
@@ -132,30 +136,8 @@ void Compiler::optimize(Function &f) {
   // Finally get out of SSA
   ssaDestructionPipeline->runOnFunction(f);
 
-  // Remove any unused variables
-  Set<const Variable *> usedVars;
-  for (auto &block : f) {
-    for (auto &inst : block) {
-      if (inst.getResultOperand()) {
-        usedVars.insert(inst.getResultOperand());
-      }
-      for (auto *var : inst.getOperands()) {
-        usedVars.insert(var);
-      }
-    }
-  }
-
-  Set<const Variable *> toRemove;
-  for (auto &var : f.getVariables()) {
-    if (usedVars.find(var.get()) == usedVars.end()) {
-      toRemove.insert(var.get());
-    }
-  }
-  for (auto *var : toRemove) {
-    f.removeVariable(var);
-  }
-
-  std::cout << f << std::endl;
+  // clean up the variable list
+  finalCleanUpPipeline->runOnFunction(f);
 
   // Compile the UDF to PL/SQL
   PLpgSQLGenerator plpgsqlGenerator(config);
