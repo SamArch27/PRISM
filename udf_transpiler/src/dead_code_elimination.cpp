@@ -46,25 +46,5 @@ bool DeadCodeEliminationPass::runOnFunction(Function &f) {
     inst->eraseFromParent();
   }
 
-  // Remove any unused variables
-  Set<const Variable *> toRemove;
-  auto usedVars = useDefs->getUsedVariables();
-  for (auto &inst : *f.getEntryBlock()) {
-    if (inst.getResultOperand()) {
-      usedVars.insert(inst.getResultOperand());
-    }
-    for (auto *var : inst.getOperands()) {
-      usedVars.insert(var);
-    }
-  }
-  for (auto &var : f.getVariables()) {
-    if (usedVars.find(var.get()) == usedVars.end()) {
-      toRemove.insert(var.get());
-    }
-  }
-  for (auto *var : toRemove) {
-    f.removeVariable(var);
-  }
-
   return changed;
 }
