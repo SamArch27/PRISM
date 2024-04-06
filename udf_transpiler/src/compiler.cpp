@@ -78,7 +78,7 @@ json Compiler::parseJson() const {
   if (result.error) {
     printf("error: %s at %d\n", result.error->message, result.error->cursorpos);
     EXCEPTION(fmt::format("Error when parsing the plpgsql: {}",
-                      result.error->message));
+                          result.error->message));
   }
   auto json = json::parse(result.plpgsql_funcs);
   pg_query_free_plpgsql_parse_result(result);
@@ -131,6 +131,29 @@ void Compiler::optimize(Function &f) {
 
   // Finally get out of SSA
   ssaDestructionPipeline->runOnFunction(f);
+
+  // Remove any unused variables
+  Set<const Variable *> usedVars;
+  for (auto &block : f) {
+    for (auto &inst : block) {
+      if (inst.getResultOperand()) {
+        usedVars.insert(inst.getResultOperand());
+      }
+      for (auto *var : inst.getOperands()) {
+        usedVars.insert(var);
+      }
+    }
+  }
+
+  Set<const Variable *> toRemove;
+  for (auto &var : f.getVariables()) {
+    if (usedVars.find(var.get()) == usedVars.end()) {
+      toRemove.insert(var.get());
+    }
+  }
+  for (auto *var : toRemove) {
+    f.removeVariable(var);
+  }
 
   std::cout << f << std::endl;
 
