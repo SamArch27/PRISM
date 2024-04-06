@@ -25,7 +25,7 @@
 
 namespace duckdb {
 duckdb::DuckDB *db_instance;
-size_t udfCount = 0;
+size_t udfCount = 1;
 Map<String, bool> optimizerPassOnMap = {
     {"SSAConstruction", true},       {"SSADestruction", true},
     {"DeadCodeElimination", true},   {"QueryMotion", true},
@@ -50,7 +50,6 @@ static String CompilerRun(String udfString) {
   YAMLConfig config;
   Connection con(*db_instance);
 
-  udfCount++;
   auto compiler = Compiler(&con, udfString, config, udfCount);
   auto res = compiler.run();
   return "select '' as 'Transpilation Done.';";
@@ -95,6 +94,24 @@ DisableCompilerPassPragmaFun(ClientContext &context,
   return "select '' as 'Disable Done.';";
 }
 
+inline String
+DisableAllCompilerPassPragmaFun(ClientContext &context,
+                                const FunctionParameters &parameters) {
+  for (auto &pass : optimizerPassOnMap) {
+    pass.second = false;
+  }
+  return "select '' as 'Disable All Done.';";
+}
+
+inline String
+EnableAllCompilerPassPragmaFun(ClientContext &context,
+                               const FunctionParameters &parameters) {
+  for (auto &pass : optimizerPassOnMap) {
+    pass.second = true;
+  }
+  return "select '' as 'Enable All Done.';";
+}
+
 inline String UdfTranspilerPragmaFun(ClientContext &context,
                                      const FunctionParameters &parameters) {
   auto udfString = parameters.values[0].GetValue<String>();
@@ -134,7 +151,6 @@ inline String UdfCodeGeneratorPragmaFun(ClientContext &context,
   YAMLConfig config;
   Connection con(*db_instance);
   String code, registration;
-  udfCount++;
   auto compiler = Compiler(&con, buffer.str(), config, udfCount);
   auto res = compiler.run();
   COUT << "Transpiling the UDF..." << ENDL;
@@ -234,6 +250,14 @@ static void LoadInternal(DatabaseInstance &instance) {
       "disable", DisableCompilerPassPragmaFun, {LogicalType::VARCHAR});
   ExtensionUtil::RegisterFunction(instance,
                                   disable_compiler_pass_pragma_function);
+  auto disable_all_compiler_pass_pragma_function = PragmaFunction::PragmaCall(
+      "disable_all", DisableAllCompilerPassPragmaFun, {});
+  ExtensionUtil::RegisterFunction(instance,
+                                  disable_all_compiler_pass_pragma_function);
+  auto enable_all_compiler_pass_pragma_function = PragmaFunction::PragmaCall(
+      "enable_all", EnableAllCompilerPassPragmaFun, {});
+  ExtensionUtil::RegisterFunction(instance,
+                                  enable_all_compiler_pass_pragma_function);
 }
 
 void UdfTranspilerExtension::Load(DuckDB &db) {

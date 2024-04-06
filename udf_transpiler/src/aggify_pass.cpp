@@ -235,7 +235,7 @@ String AggifyPass::outlineCursorLoop(Function &newFunction,
       *cursorLoopBodyFunction, cursorLoopInfo, cursorVars, loopBodyUsedVars,
       cursorLoopBodyFunction->getBinding(
           oldFunction.getOriginalName(returnVariable->getName())),
-      compiler.getUdfCount());
+      outlinedCount);
 
   insertDefAndReg(res.code, res.registration, compiler.getUdfCount());
   // compile the template
@@ -388,7 +388,7 @@ bool AggifyPass::outlineRegion(const Region *region, Function &f) {
   auto *returnVariable = *returnVars.begin();
 
   String newFunctionName =
-      fmt::format("{}_aggify_{}", f.getFunctionName(), outlinedCount);
+      fmt::format("{}_custom_agg_{}", f.getFunctionName(), outlinedCount);
   Vec<const Variable *> newFunctionArgs;
   for (auto *var : regionArgs) {
     newFunctionArgs.push_back(var);
@@ -515,5 +515,6 @@ bool AggifyPass::runOnRegion(const Region *rootRegion, Function &f) {
 bool AggifyPass::runOnFunction(Function &f) {
   drawGraph(f.getCFGString(), "before_aggify");
   drawGraph(getRegionString(f.getRegion()), "before_aggify_region");
-  return runOnRegion(f.getRegion(), f);
+  runOnRegion(f.getRegion(), f);
+  return false;
 }

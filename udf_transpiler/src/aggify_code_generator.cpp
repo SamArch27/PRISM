@@ -39,6 +39,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
     Function &f, const json &ast, Vec<const Variable *> cursorVars,
     Vec<const Variable *> usedVars, const Variable *retVariable, size_t id) {
 
+  String name = f.getFunctionName();
   String code;
   String varyingFuncTemplate = config.aggify["varyingFuncTemplate"].Scalar();
   Vec<String> inputDependentComps(20);
@@ -157,13 +158,13 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
       fmt::arg("varInit", varInit), fmt::arg("body", body),
       fmt::arg("returnVariable", retVariable->getName()));
 
-  String registration =
-      fmt::format(fmt::runtime(config.aggify["registration"].Scalar()),
-                  fmt::arg("id", id), fmt::arg("inputTypes", inputTypes),
-                  fmt::arg("outputType", f.getReturnType().getCppType()),
-                  fmt::arg("inputLogicalTypes", inputLogicalTypes),
-                  fmt::arg("outputLogicalType",
-                           f.getReturnType().getDuckDBLogicalTypeStr()));
+  String registration = fmt::format(
+      fmt::runtime(config.aggify["registration"].Scalar()), fmt::arg("id", id),
+      fmt::arg("name", name), fmt::arg("inputTypes", inputTypes),
+      fmt::arg("outputType", f.getReturnType().getCppType()),
+      fmt::arg("inputLogicalTypes", inputLogicalTypes),
+      fmt::arg("outputLogicalType",
+               f.getReturnType().getDuckDBLogicalTypeStr()));
 
-  return {{code, registration}, "custom_agg" + std::to_string(id)};
+  return {{code, registration}, name};
 }

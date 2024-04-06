@@ -202,7 +202,7 @@ inputLogicalType: |-
 
 registration: |
   auto custom_agg{id} = Varying{id}BaseAggregate<AggState{id}, {inputTypes}, {outputType}, CustomAggOperation{id}>({inputLogicalTypes}, {outputLogicalType}, FunctionNullHandling::SPECIAL_HANDLING);
-  custom_agg{id}.name = "custom_agg{id}";
+  custom_agg{id}.name = "{name}";
   ExtensionUtil::RegisterFunction(instance, custom_agg{id});
 
 caller: |-
