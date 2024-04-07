@@ -33,7 +33,7 @@
 #   EXPORT "${DUCKDB_EXPORT_SET}"
 #   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
 #   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
-cmake_minimum_required(VERSION 3.24.1)
+cmake_minimum_required(VERSION 3.22.1)
 set(TARGET_NAME udf_transpiler)
 
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
@@ -42,7 +42,7 @@ project(${TARGET_NAME})
 
 set(CMAKE_CXX_STANDARD 20)
 # set(CMAKE_CXX_COMPILER "clang++")
-set(CMAKE_CXX_FLAGS "-O2 -Wall -pthread")
+set(CMAKE_CXX_FLAGS "-O3 -Wall -pthread")
 # set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE INTERNAL "" FORCE)
 
 # duckdb lib
@@ -62,7 +62,7 @@ add_custom_target(pg_parser
 )
 
 # the formatting lib
-# add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt)
 # add_dependencies(${EXTENSION_NAME} fmt)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/fmt/include)
 # include_directories(duckdb/third_party/fmt/include)

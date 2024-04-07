@@ -7,7 +7,7 @@ class RemoveUnusedVariablePass : public FunctionPass {
 public:
   RemoveUnusedVariablePass() : FunctionPass() {}
 
-  bool runOnFunction(Function &f) {
+  bool runOnFunction(Function &f) override {
     // Remove any unused variables
     Set<const Variable *> usedVars;
     for (auto &block : f) {
