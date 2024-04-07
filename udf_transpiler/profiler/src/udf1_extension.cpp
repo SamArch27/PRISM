@@ -66,6 +66,7 @@ string reformat_sql_string(const string &str) {
 
 string repeat_run(const string &sql, int warmup_times, int times) {
   for (int i = 0; i < warmup_times; i++) {
+    std::cout << "warmup " << i << std::endl;
     auto result = con->Query(sql);
     if (result->HasError()) {
       std::string err = result->GetError();
@@ -79,6 +80,7 @@ string repeat_run(const string &sql, int warmup_times, int times) {
   // double sum = 0; // in ms
   std::vector<double> times_list;
   for (int i = 0; i < times; i++) {
+    std::cout << "run " << i << std::endl;
     start = std::chrono::steady_clock::now();
     auto result = con->Query(sql);
     end = std::chrono::steady_clock::now();
