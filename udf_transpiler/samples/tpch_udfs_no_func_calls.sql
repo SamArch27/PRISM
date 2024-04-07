@@ -1,14 +1,14 @@
 -- NOTE: "total_value" and "avg_actbal" udfs are not supported since they have select statements
 
 create function discount_price(extprice decimal(12,2), disc decimal(12,2))
-returns decimal(18,4) as $$
+returns decimal(12,2) as $$
 begin
     return extprice*(1-disc);
 end $$
 LANGUAGE PLPGSQL;
 
 create function discount_taxprice(extprice decimal(12,2), disc decimal(12,2), tax decimal(12,2))
-returns decimal(18,6) as $$
+returns decimal(12,2) as $$
 begin
     return extprice*(1-disc) * (1+tax);
 end $$
@@ -18,7 +18,7 @@ create function profit_amount(extprice decimal(12,2),
                                   discount decimal(12,2),
                                   suppcost decimal(12,2),
                                   qty int)
-returns decimal(18,4) as $$
+returns decimal(12,2) as $$
 begin
     return extprice*(1-discount)-suppcost*qty;
 end $$

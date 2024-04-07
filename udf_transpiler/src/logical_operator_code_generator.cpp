@@ -171,8 +171,9 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
       EXCEPTION("BinaryNumericDivideWrapper not implemented yet.");
       break;
     case ScalarFunctionInfo::BinaryZeroIsNullWrapper:
-      // udf_todo
-      EXCEPTION("BinaryZeroIsNullWrapper not implemented yet.");
+      function_name = "BinaryZeroIsNullWrapper::Operation";
+      template_args.insert(template_args.begin(),
+                           get_struct_name(function_info.cpp_name));
       break;
     case ScalarFunctionInfo::BinaryZeroIsNullHugeintWrapper:
       // udf_todo

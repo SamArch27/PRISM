@@ -7,7 +7,7 @@
  * AddOperator
  * DecimalAddOverflowCheck
  * AddTimeOperator
-*/
+ */
 #include "duckdb/common/operator/add.hpp"
 
 /**
@@ -16,28 +16,39 @@
  * SubtractOperator
  * DecimalSubtractOverflowCheck
  * SubtractTimeOperator
-*/
+ */
 #include "duckdb/common/operator/subtract.hpp"
-
 
 /**
  * Multiply functions - done
  * Can inline
  * MultiplyOperator
  * MultiplyOperatorOverflowCheck
-*/
+ */
 #include "duckdb/common/operator/multiply.hpp"
 
 /**
  * Divide functions - done
  * Can inline
  * DivideOperator
-*/
+ */
 #include "duckdb/common/operator/numeric_binary_operators.hpp"
 
 /**
  * Modulo functions - done
  * Can inline
  * ModuloOperator
-*/
+ */
 // already included by divide
+
+struct BinaryZeroIsNullWrapper {
+  template <class OP, class LEFT_TYPE, class RIGHT_TYPE, class RESULT_TYPE>
+  static inline RESULT_TYPE Operation(LEFT_TYPE left, RIGHT_TYPE right) {
+    if (right == 0) {
+      throw std::runtime_error("Division by zero");
+    } else {
+      return OP::template Operation<LEFT_TYPE, RIGHT_TYPE, RESULT_TYPE>(left,
+                                                                        right);
+    }
+  }
+};
