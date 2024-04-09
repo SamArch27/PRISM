@@ -318,6 +318,7 @@ DuckdbTypeTag Type::lookupDuckdbTag(PostgresTypeTag pgTag) const {
   case PostgresTypeTag::UNKNOWN:
     return DuckdbTypeTag::UNKNOWN;
   }
+  ERROR("Unknown type.");
 }
 
 CppTypeTag Type::lookupCppTag(DuckdbTypeTag duckdbTag, Opt<int> width,
@@ -378,6 +379,7 @@ CppTypeTag Type::lookupCppTag(DuckdbTypeTag duckdbTag, Opt<int> width,
   case DuckdbTypeTag::VARCHAR:
     return CppTypeTag::STRING_T;
   }
+  ERROR("Unknown type.");
 }
 
 void Type::print(std::ostream &os) const {

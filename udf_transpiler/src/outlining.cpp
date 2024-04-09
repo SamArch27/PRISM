@@ -323,7 +323,7 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
   };
 
   auto outlineQueuedBlocks = [&]() {
-    if (fallthroughStart != -1) {
+    if (fallthroughStart != (size_t) -1) {
       // only outline the blocks before the fallthrough
       queuedBlocks.resize(fallthroughStart);
     }

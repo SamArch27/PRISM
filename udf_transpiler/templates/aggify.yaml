@@ -58,6 +58,8 @@ c19: |-
 c20: |-
   input_type{i}, 
 
+optionalChunkReset: |
+  ((STATE_TYPE **)sdata.data)[0]->tmp_chunk.Reset();
 
 varyingFuncTemplate: |
   template <class STATE_TYPE, {c1}, class OP>
@@ -88,6 +90,7 @@ varyingFuncTemplate: |
 
     {c13}
     states.ToUnifiedFormat(count, sdata);
+    {optionalChunkReset}
 
     Varying{id}ScatterLoop<STATE_TYPE, {c18}, OP>(
         aggr_input_data, {c14}, (STATE_TYPE **)sdata.data, count, {c15}, *sdata.sel, {c16});

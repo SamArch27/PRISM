@@ -136,7 +136,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
     basicBlockCodeGenerator(&bbUniq, f, function_info);
   }
 
-  String optionalDataChunk, dataChunkInit, tmpVecInit;
+  String optionalDataChunk, dataChunkInit, tmpVecInit, optionalChunkReset;
   if (function_info.vectorCount > 0) {
     optionalDataChunk =
         fmt::format(fmt::runtime(config.aggify["optionalDataChunk"].Scalar()));
@@ -148,6 +148,8 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
           fmt::format(fmt::runtime(config.aggify["tmpVecInit"].Scalar()),
                       fmt::arg("vecId", i));
     }
+    optionalChunkReset =
+        fmt::format(fmt::runtime(config.aggify["optionalChunkReset"].Scalar()));
   }
 
   String body = joinVector(container.basicBlockCodes, "\n");
@@ -158,6 +160,7 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
     String c = "c" + std::to_string(i + 1);
     store.push_back(fmt::arg(c.c_str(), inputDependentComps[i]));
   }
+  store.push_back(fmt::arg("optionalChunkReset", optionalChunkReset));
 
   code = fmt::vformat(fmt::runtime(varyingFuncTemplate).str, store);
 
