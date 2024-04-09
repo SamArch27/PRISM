@@ -136,6 +136,20 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
     basicBlockCodeGenerator(&bbUniq, f, function_info);
   }
 
+  String optionalDataChunk, dataChunkInit, tmpVecInit;
+  if (function_info.vectorCount > 0) {
+    optionalDataChunk =
+        fmt::format(fmt::runtime(config.aggify["optionalDataChunk"].Scalar()));
+    dataChunkInit =
+        fmt::format(fmt::runtime(config.aggify["dataChunkInit"].Scalar()),
+                    fmt::arg("vectorCount", function_info.vectorCount));
+    for (int i = 0; i < function_info.vectorCount; i++) {
+      tmpVecInit +=
+          fmt::format(fmt::runtime(config.aggify["tmpVecInit"].Scalar()),
+                      fmt::arg("vecId", i));
+    }
+  }
+
   String body = joinVector(container.basicBlockCodes, "\n");
 
   fmt::dynamic_format_arg_store<fmt::format_context> store;
@@ -152,7 +166,10 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(
       fmt::arg("id", id), fmt::arg("c1", inputDependentComps[0]),
       fmt::arg("stateDefinition", stateDefinition),
       fmt::arg("createValue", createValue),
+      fmt::arg("optionalDataChunk", optionalDataChunk),
+      fmt::arg("dataChunkInit", dataChunkInit),
       fmt::arg("destroyValue", destroyValue), fmt::arg("argInit", argInit),
+      fmt::arg("tmpVecInit", tmpVecInit),
       fmt::arg("operationArgs", operationArgs),
       fmt::arg("operationNullArgs", operationNullArgs),
       fmt::arg("varInit", varInit), fmt::arg("body", body),

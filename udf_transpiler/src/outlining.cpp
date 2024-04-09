@@ -360,14 +360,13 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
         for (auto *nestedRegion : recursiveRegion->getNestedRegions()) {
           runOnRegion(containsSelect, nestedRegion, f, queuedBlocks,
                       fallthroughStart, blockOutlined);
+          outlineQueuedBlocks();
         }
       }
     }
   } else {
     queueBlocksFromRegion(region);
   }
-
-  outlineQueuedBlocks();
   return true;
 }
 
@@ -437,5 +436,6 @@ bool OutliningPass::runOnFunction(Function &f) {
   size_t fallthroughStart = -1;
   runOnRegion(containsSelect, f.getRegion(), f, queuedBlocks, fallthroughStart,
               blockOutlined);
+  outlineBasicBlocks(queuedBlocks, f);
   return false;
 }

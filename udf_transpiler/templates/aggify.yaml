@@ -136,14 +136,26 @@ createValue: |
 destroyValue: |
   DestroyValue({name});
 
+optionalDataChunk: |
+  DataChunk tmp_chunk;
+
+tmpVecInit: |
+  auto tmp_vec{vecId} = state.tmp_chunk.data[{vecId}];
+
+dataChunkInit: |
+  vector<LogicalType> tmp_types({vectorCount}, LogicalType::VARCHAR);
+  tmp_chunk.Initialize(*context, tmp_types);
+
 customAggregateTemplate: |
   struct AggState{id} : public StateBase
   {{
     bool isInitialized;
     {stateDefinition}
+    {optionalDataChunk}
 
     AggState{id}() {{
       {createValue}
+      {dataChunkInit}
     }}
 
     ~AggState{id}() {{
@@ -175,6 +187,7 @@ customAggregateTemplate: |
         {varInit}
       }}
       {argInit}
+      {tmpVecInit}
       {body}
     }}
 
