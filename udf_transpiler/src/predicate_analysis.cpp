@@ -59,11 +59,14 @@ String PredicateAnalysis::getCondFromPath(const Vec<BasicBlock *> &path) const {
         }
 
         cond += "(";
-
+        bool addNot = true;
         if (prevBlock != branch->getIfFalse()) {
-          cond += "NOT ";
+          addNot = false;
         }
-        cond += "NOT (" + branch->getCond()->getRawSQL() + ")";
+        if (addNot) {
+          cond += "NOT";
+        }
+        cond += " (" + branch->getCond()->getRawSQL() + ")";
         cond += ")";
       }
     }
