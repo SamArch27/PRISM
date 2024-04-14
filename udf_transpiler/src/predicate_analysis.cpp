@@ -103,17 +103,20 @@ PredicateAnalysis::getExprOnPath(const Vec<BasicBlock *> &path,
         } else if (auto *phi = dynamic_cast<const PhiNode *>(def)) {
           // find the corresponding predecessor
           auto *block = phi->getParent();
-          for (auto *pred : block->getPredecessors()) {
-            if (std::find(path.begin(), path.end(), pred) != path.end()) {
-              // for the matching predecessor, get the corresponding phi op
-              auto phiOp = phi->getRHS()[block->getPredNumber(pred)];
-              // then do the replacement
-              Map<const Variable *, const SelectExpression *> oldToNew;
-              oldToNew.insert({phi->getLHS(), phiOp});
-              resolvedValue =
-                  f.replaceVarWithExpression(resolvedValue.get(), oldToNew);
-            }
-          }
+
+          auto it = std::find(path.begin(), path.end(), block);
+          ASSERT(it != path.end(), "Path must contain definition!");
+          // get the next block in the path
+          ++it;
+          auto *pred = *it;
+          // for the matching predecessor, get the corresponding phi op
+          auto phiOp = phi->getRHS()[block->getPredNumber(pred)];
+          // then do the replacement
+          Map<const Variable *, const SelectExpression *> oldToNew;
+          oldToNew.insert({phi->getLHS(), phiOp});
+          resolvedValue =
+              f.replaceVarWithExpression(resolvedValue.get(), oldToNew);
+
         } else {
           ERROR("Can't have definition which isn't a phi or assignment!");
         }
@@ -124,6 +127,7 @@ PredicateAnalysis::getExprOnPath(const Vec<BasicBlock *> &path,
 }
 
 void PredicateAnalysis::runAnalysis() {
+
   auto root = f.getRegion();
 
   Set<const Region *> worklist;
@@ -186,12 +190,12 @@ void PredicateAnalysis::runAnalysis() {
         for (auto &path : pathsToReturn) {
           String condValue = "";
           auto cond = getCondFromPath(path);
+          auto returnValue = getExprOnPath(path, ret->getExpr());
+
           if (cond != "") {
             auto boundCondition = f.bindExpression(cond, Type::BOOLEAN);
             condValue = getExprOnPath(path, boundCondition.get());
           }
-
-          auto returnValue = getExprOnPath(path, ret->getExpr());
 
           for (std::size_t i = 0; i < predicates.size(); ++i) {
             auto &pred = predicates[i];
