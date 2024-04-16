@@ -8,6 +8,7 @@
 #include "liveness_analysis.hpp"
 #include "merge_regions.hpp"
 #include "pipeline_pass.hpp"
+#include "remove_unused_variable.hpp"
 #include "ssa_destruction.hpp"
 #include "udf_transpiler_extension.hpp"
 #include "utils.hpp"
@@ -35,7 +36,8 @@ getNextBasicBlock(const Vec<BasicBlock *> &basicBlocks) {
 void OutliningPass::outlineFunction(Function &f) {
   drawGraph(f.getCFGString(), "cfg_outlined");
   auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<DeadCodeEliminationPass>(), Make<SSADestructionPass>());
+      Make<DeadCodeEliminationPass>(), Make<SSADestructionPass>(),
+      Make<RemoveUnusedVariablePass>());
   ssaDestructionPipeline->runOnFunction(f);
 
   if (duckdb::optimizerPassOnMap.at("PrintOutlinedUDF") == true) {
@@ -323,7 +325,7 @@ bool OutliningPass::runOnRegion(SelectRegions &containsSelect,
   };
 
   auto outlineQueuedBlocks = [&]() {
-    if (fallthroughStart != (size_t) -1) {
+    if (fallthroughStart != (size_t)-1) {
       // only outline the blocks before the fallthrough
       queuedBlocks.resize(fallthroughStart);
     }

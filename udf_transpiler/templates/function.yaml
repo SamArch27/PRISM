@@ -60,11 +60,13 @@ subfunc_arg_0: |-
 
 fbodyshell: |-
   inline void {function_name}_body({fbody_args}Value& result, bool& result_null) {{
+    /*
     if ({check_null})
     {{
       result_null = true;
       return;
     }}
+    */
     // the declaration / initialization of local variables
     {vars_init}
     {action}
@@ -95,6 +97,9 @@ func_dec: |-
   void {function_name}(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result);
 
 fcreate: |
-  auto {function_name}_scalar_function = ScalarFunction("{function_name}", {{{args_logical_types}}}, {return_logical_type}, {function_name});
+  auto {function_name}_scalar_function = ScalarFunction("{function_name}", {{{args_logical_types}}}, {return_logical_type}, {function_name}, 
+                     nullptr, nullptr, nullptr, nullptr,
+                     LogicalType(LogicalTypeId::INVALID),
+                     FunctionSideEffects::NO_SIDE_EFFECTS,
+                     FunctionNullHandling::SPECIAL_HANDLING);
   ExtensionUtil::RegisterFunction(instance, {function_name}_scalar_function);
-  
