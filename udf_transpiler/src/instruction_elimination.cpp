@@ -37,7 +37,8 @@ bool InstructionEliminationPass::runOnFunction(Function &f) {
         continue;
       }
 
-      if (duckdb::dbPlatform == "duckdb" && uses.size() > 1) {
+      if (duckdb::dbPlatform == "duckdb" && uses.size() > 1 &&
+          assign->getRHS()->isSQLExpression()) {
         continue;
       }
 
