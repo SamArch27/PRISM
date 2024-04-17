@@ -1,5 +1,6 @@
 #include "instruction_elimination.hpp"
 #include "instructions.hpp"
+#include "udf_transpiler_extension.hpp"
 #include "utils.hpp"
 #include <iostream>
 
@@ -33,6 +34,10 @@ bool InstructionEliminationPass::runOnFunction(Function &f) {
       // skip if there are no uses
       auto uses = useDefs->getUses(assign->getLHS());
       if (uses.empty()) {
+        continue;
+      }
+
+      if (duckdb::dbPlatform == "duckdb" && uses.size() > 1) {
         continue;
       }
 

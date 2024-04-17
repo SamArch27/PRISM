@@ -26,13 +26,20 @@
 namespace duckdb {
 duckdb::DuckDB *db_instance;
 size_t udfCount = 1;
+String dbPlatform = "duckdb";
 Map<String, bool> optimizerPassOnMap = {
-    {"SSAConstruction", true},       {"SSADestruction", true},
-    {"DeadCodeElimination", true},   {"QueryMotion", true},
-    {"MergeRegions", true},          {"AggressiveMergeRegions", true},
-    {"AssignmentElimination", true}, {"AggressiveAssignmentElimination", true},
-    {"OutliningPass", true},         {"AggifyPass", true},
-    {"PrintOutlinedUDF", true},      {"RemoveUnusedVariable", true}};
+    {"SSAConstruction", true},
+    {"SSADestruction", true},
+    {"DeadCodeElimination", true},
+    {"QueryMotion", true},
+    {"MergeRegions", true},
+    {"AggressiveMergeRegions", true},
+    {"InstructionElimination", true},
+    {"AggressiveInstructionElimination", true},
+    {"OutliningPass", true},
+    {"AggifyPass", true},
+    {"PrintOutlinedUDF", true},
+    {"RemoveUnusedVariable", true}};
 
 // replace every single quote with two single quotes
 static String doubleQuote(const String &str) {
@@ -110,6 +117,25 @@ EnableAllCompilerPassPragmaFun(ClientContext &context,
     pass.second = true;
   }
   return "select '' as 'Enable All Done.';";
+}
+
+inline String setPlatform(ClientContext &context,
+                          const FunctionParameters &parameters) {
+  auto platform = parameters.values[0].GetValue<String>();
+  if (platform != "duckdb" && platform != "sqlserver") {
+    String err = "Invalid platform: " + doubleQuote(platform);
+    return "select '" + err + "' as 'Platform Set Failed.';";
+  }
+  dbPlatform = platform;
+  return "select '' as 'Platform Set Done.';";
+}
+
+inline String getPlatform(ClientContext &context,
+                          const FunctionParameters &parameters) {
+  return ("select platform, selected from (values ('duckdb', " +
+          String(dbPlatform == "duckdb" ? "'✔️'" : "''") + "), ('sqlserver', " +
+          String(dbPlatform == "sqlserver" ? "'✔️'" : "''") +
+          ")) tmp(platform, selected);");
 }
 
 inline String UdfTranspilerPragmaFun(ClientContext &context,
@@ -258,6 +284,12 @@ static void LoadInternal(DatabaseInstance &instance) {
       "enable_all", EnableAllCompilerPassPragmaFun, {});
   ExtensionUtil::RegisterFunction(instance,
                                   enable_all_compiler_pass_pragma_function);
+  auto set_platform_pragma_function = PragmaFunction::PragmaCall(
+      "set_platform", setPlatform, {LogicalType::VARCHAR});
+  ExtensionUtil::RegisterFunction(instance, set_platform_pragma_function);
+  auto get_platform_pragma_function =
+      PragmaFunction::PragmaCall("get_platform", getPlatform, {});
+  ExtensionUtil::RegisterFunction(instance, get_platform_pragma_function);
 }
 
 void UdfTranspilerExtension::Load(DuckDB &db) {
