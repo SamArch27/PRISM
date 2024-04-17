@@ -1,7 +1,6 @@
 #include "compiler.hpp"
 #include "aggify_code_generator.hpp"
 #include "aggify_pass.hpp"
-#include "assignment_elimination.hpp"
 #include "ast_to_cfg.hpp"
 #include "cfg_code_generator.hpp"
 #include "cfg_to_ast.hpp"
@@ -11,6 +10,7 @@
 #include "expression_printer.hpp"
 #include "file.hpp"
 #include "function.hpp"
+#include "instruction_elimination.hpp"
 #include "liveness_analysis.hpp"
 #include "merge_regions.hpp"
 #include "outlining.hpp"
@@ -92,19 +92,19 @@ void Compiler::optimize(Function &f) {
       Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
 
   auto coreOptimizations = Make<FixpointPass>(Make<PipelinePass>(
-      Make<AssignmentEliminationPass>(), Make<DeadCodeEliminationPass>()));
+      Make<InstructionEliminationPass>(), Make<DeadCodeEliminationPass>()));
 
   auto aggifyPipeline = Make<PipelinePass>(Make<AggifyPass>(*this),
                                            Make<DeadCodeEliminationPass>());
 
   auto beforeOutliningPipeline = Make<FixpointPass>(Make<PipelinePass>(
-      Make<QueryMotionPass>(), Make<AssignmentEliminationPass>(),
+      Make<QueryMotionPass>(), Make<InstructionEliminationPass>(),
       Make<DeadCodeEliminationPass>()));
   auto rightBeforeOutliningPipeline =
       Make<FixpointPass>(Make<DeadCodeEliminationPass>());
 
   auto outliningPipeline = Make<PipelinePass>(
-      Make<OutliningPass>(*this), Make<AggressiveAssignmentEliminationPass>(),
+      Make<OutliningPass>(*this), Make<AggressiveInstructionEliminationPass>(),
       Make<DeadCodeEliminationPass>());
 
   auto ssaDestructionPipeline = Make<PipelinePass>(

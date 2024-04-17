@@ -1,9 +1,9 @@
-#include "assignment_elimination.hpp"
+#include "instruction_elimination.hpp"
 #include "instructions.hpp"
 #include "utils.hpp"
 #include <iostream>
 
-bool AssignmentEliminationPass::runOnFunction(Function &f) {
+bool InstructionEliminationPass::runOnFunction(Function &f) {
   bool changed = false;
 
   UseDefAnalysis useDefAnalysis(f);
