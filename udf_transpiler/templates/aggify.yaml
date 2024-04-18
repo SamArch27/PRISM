@@ -157,6 +157,7 @@ customAggregateTemplate: |
     {optionalDataChunk}
 
     AggState{id}() {{
+      isInitialized = false;
       {createValue}
       {dataChunkInit}
     }}
