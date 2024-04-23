@@ -369,7 +369,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp,
   switch (exp.GetExpressionType()) {
   case ExpressionType::OPERATOR_NOT:
     ASSERT(exp.children.size() == 1, "NOT operator should have 1 child.");
-    return fmt::format("(!{})", Transpile(*exp.children[0], insert));
+    return fmt::format("(!({}))", Transpile(*exp.children[0], insert));
   // case ExpressionType::OPERATOR_IS_NULL:
   //     have a {}_isnull for all function variables
   default:
