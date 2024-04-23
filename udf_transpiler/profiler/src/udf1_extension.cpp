@@ -104,6 +104,7 @@ string repeat_run(const string &sql, int warmup_times, int times) {
       res += " ";
     }
   }
+  std::cout << res << std::endl;
   return res;
 }
 

@@ -45,7 +45,12 @@ template <> void StateBase::DestroyValue(Vector *&value) {
 template <>
 void StateBase::AssignValue(string_t &target, string_t new_value,
                             bool is_initialized) {
-  string_t old_target = target;
+  if (target.GetData() == new_value.GetData()) {
+    return;
+  }
+  if (is_initialized) {
+    DestroyValue(target);
+  }
   if (new_value.IsInlined()) {
     target = new_value;
   } else {
@@ -55,9 +60,6 @@ void StateBase::AssignValue(string_t &target, string_t new_value,
     memcpy(ptr, new_value.GetData(), len);
 
     target = string_t(ptr, len);
-  }
-  if (is_initialized) {
-    DestroyValue(old_target);
   }
 }
 
