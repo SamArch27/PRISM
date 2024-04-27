@@ -58,6 +58,8 @@ c19: |-
 c20: |-
   input_type{i}, 
 
+optionalChunkReset: |
+  ((STATE_TYPE **)sdata.data)[0]->tmp_chunk.Reset();
 
 varyingFuncTemplate: |
   template <class STATE_TYPE, {c1}, class OP>
@@ -88,6 +90,7 @@ varyingFuncTemplate: |
 
     {c13}
     states.ToUnifiedFormat(count, sdata);
+    {optionalChunkReset}
 
     Varying{id}ScatterLoop<STATE_TYPE, {c18}, OP>(
         aggr_input_data, {c14}, (STATE_TYPE **)sdata.data, count, {c15}, *sdata.sel, {c16});
@@ -109,10 +112,10 @@ varyingFuncTemplate: |
       {{{c20}}}, return_type, AggregateFunction::StateSize<STATE>,
       AggregateFunction::StateInitialize<STATE, OP>, Varying{id}ScatterUpdate<STATE, {c18}, OP>,
       nullptr, AggregateFunction::StateFinalize<STATE, RESULT_TYPE, OP>,
-      null_handling, nullptr);
+      null_handling, nullptr, nullptr, AggregateFunction::StateDestroy<STATE, OP>);
   }}
 
-stateDefition: |
+stateDefinition: |
   {type} {name};
 
 operationArg: |-
@@ -122,14 +125,48 @@ operationNullArg: |-
   bool {name}_isnull, 
 
 varInit: |
-  state.{name} = {name};
+  STATE::template AssignValue<TYPE{i}>(state.{name}, {name}_arg, false);
+
+argInit: |
+  auto {name} = state.{name};
+
+argStore: |
+  STATE::template AssignValue<TYPE{i}>(state.{name}, {name}, true);
+
+createValue: |
+  CreateValue({name});
+
+destroyValue: |
+  DestroyValue({name});
+
+optionalDataChunk: |
+  DataChunk tmp_chunk;
+
+tmpVecInit: |
+  auto tmp_vec{vecId} = state.tmp_chunk.data[{vecId}];
+
+dataChunkInit: |
+  vector<LogicalType> tmp_types({vectorCount}, LogicalType::VARCHAR);
+  tmp_chunk.Initialize(*context, tmp_types);
 
 customAggregateTemplate: |
-  struct AggState{id}
+  struct AggState{id} : public StateBase
   {{
     bool isInitialized;
-    // int32_t count;
-    {stateDefition}
+    {stateDefinition}
+    {optionalDataChunk}
+
+    AggState{id}() {{
+      isInitialized = false;
+      {createValue}
+      {dataChunkInit}
+    }}
+
+    ~AggState{id}() {{
+      if (isInitialized) {{
+        {destroyValue}
+      }}
+    }}
   }};
 
   struct CustomAggOperation{id}
@@ -138,6 +175,12 @@ customAggregateTemplate: |
     static void Initialize(STATE &state)
     {{
       state.isInitialized = false;
+      new (&state) STATE;
+    }}
+
+    template <class STATE>
+    static void Destroy(STATE &state, AggregateInputData &aggr_input_data) {{
+      state.~STATE();
     }}
 
     template <{c1}, class STATE, class OP>
@@ -147,14 +190,19 @@ customAggregateTemplate: |
         state.isInitialized = true;
         {varInit}
       }}
+      {argInit}
+      {tmpVecInit}
       {body}
     }}
 
     template <class TARGET_TYPE, class STATE>
     static void Finalize(STATE &state, TARGET_TYPE &target, AggregateFinalizeData &finalize_data)
     {{
-      // todo
-      // target = state.count;
+      if (!state.isInitialized) {{
+        finalize_data.ReturnNull();
+      }} else {{
+        STATE::template ReadValue(finalize_data.result, state.{returnVariable}, target);
+      }}
     }}
 
     static bool IgnoreNull()
@@ -171,10 +219,10 @@ inputLogicalType: |-
 
 registration: |
   auto custom_agg{id} = Varying{id}BaseAggregate<AggState{id}, {inputTypes}, {outputType}, CustomAggOperation{id}>({inputLogicalTypes}, {outputLogicalType}, FunctionNullHandling::SPECIAL_HANDLING);
-  custom_agg{id}.name = "custom_agg{id}";
+  custom_agg{id}.name = "{name}";
   ExtensionUtil::RegisterFunction(instance, custom_agg{id});
 
 caller: |-
   (SELECT CASE WHEN count(*) > 0 THEN
-        custom_agg{id}({funcArgs}) ELSE ANY_VALUE({returnVarName}) END
+        {customAggName}({funcArgs}) ELSE {returnVarName} END
         FROM ({cursorQuery}) aggify_tmp)

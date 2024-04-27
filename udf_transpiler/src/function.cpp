@@ -1,5 +1,6 @@
 #include "function.hpp"
 #include "dominator_analysis.hpp"
+#include "duckdb/common/types.hpp"
 #include "duckdb/function/cast_rules.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/connection.hpp"
@@ -52,6 +53,13 @@ Own<SelectExpression> Function::renameVarInExpression(
   return bindExpression(replacedText, original->getReturnType())->clone();
 }
 
+void Function::renameBasicBlocks(const BasicBlock *oldBlock,
+                                 BasicBlock *newBlock) {
+  for (auto &block : *this) {
+    block.renameBasicBlock(oldBlock, newBlock);
+  }
+}
+
 Own<SelectExpression> Function::replaceVarWithExpression(
     const SelectExpression *original,
     const Map<const Variable *, const SelectExpression *> &oldToNew) {
@@ -65,7 +73,7 @@ Own<SelectExpression> Function::replaceVarWithExpression(
 }
 
 int Function::typeMatches(const String &rhs, const Type &type,
-                          bool needContext) {
+                          duckdb::LogicalType &duckDBType, bool needContext) {
   String selectExpressionCommand;
   if (needContext) {
     selectExpressionCommand = fmt::format("SELECT ({}) FROM tmp;", rhs);
@@ -80,7 +88,7 @@ int Function::typeMatches(const String &rhs, const Type &type,
   Shared<LogicalPlan> boundExpression;
   Shared<duckdb::Binder> plannerBinder;
   try {
-    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
+    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, false,
                                                  plannerBinder);
 
   } catch (const std::exception &e) {
@@ -92,49 +100,80 @@ int Function::typeMatches(const String &rhs, const Type &type,
   boundExpression->ResolveOperatorTypes();
   auto castCost = duckdb::CastRules::ImplicitCast(boundExpression->types[0],
                                                   type.getDuckDBLogicalType());
+  duckDBType = boundExpression->types[0];
+
+  // needs to handle the case for decimals because duckdb thinks converting
+  // between decimals has 0 cost, but that is not true if the width or scale is
+  // different
+  if (duckDBType.id() == duckdb::LogicalTypeId::DECIMAL && type.isDecimal()) {
+    auto width = duckdb::DecimalType::GetWidth(duckDBType);
+    auto scale = duckdb::DecimalType::GetScale(duckDBType);
+    if (width == (uint8_t)type.getWidth().value() &&
+        scale == (uint8_t)type.getScale().value()) {
+      castCost = 0;
+    } else {
+      castCost = 100;
+    }
+  }
   return castCost;
 }
 
-Own<SelectExpression> Function::bindExpression(const String &expr,
-                                               const Type &retType,
-                                               bool needContext) {
+Own<SelectExpression>
+Function::bindExpression(const String &expr, const Type &retType,
+                         bool needContext, bool enforeCast, bool noBracket) {
   if (needContext) {
     destroyDuckDBContext();
     makeDuckDBContext();
   }
+
+  ASSERT(expr != "", "expr in bindExpression should not be the empty string!");
 
   // trim leading and trailing whitespace
   auto first = expr.find_first_not_of(' ');
   auto last = expr.find_last_not_of(' ');
   auto cleanedExpr = expr.substr(first, (last - first + 1));
 
-  int castCost = typeMatches(cleanedExpr, retType, needContext);
-  if (castCost < 0) {
-    destroyDuckDBContext();
-    EXCEPTION(fmt::format(
-        "Cannot bind expression {} to type {}, please add explicit cast.", expr,
-        retType.getDuckDBType()));
-  } else if (castCost > 0) {
-    cleanedExpr = fmt::format("({})::{}", cleanedExpr, retType.getDuckDBType());
-  } else {
-    // do nothing
+  if (enforeCast) {
+    duckdb::LogicalType duckDBType;
+    int castCost = typeMatches(cleanedExpr, retType, duckDBType, needContext);
+    if (castCost < 0) {
+      destroyDuckDBContext();
+      EXCEPTION(fmt::format("Cannot bind expression {} of type {} to type {}, "
+                            "please add explicit cast.",
+                            expr, duckDBType.ToString(),
+                            retType.getDuckDBType()));
+    } else if (castCost > 0) {
+      cleanedExpr =
+          fmt::format("({})::{}", cleanedExpr, retType.getDuckDBType());
+    } else {
+      // do nothing
+    }
   }
 
   String selectExpressionCommand;
   if (needContext) {
-    selectExpressionCommand = fmt::format("SELECT ({}) FROM tmp", cleanedExpr);
+    if (noBracket) {
+      selectExpressionCommand = fmt::format("SELECT {} FROM tmp", cleanedExpr);
+    } else {
+      selectExpressionCommand =
+          fmt::format("SELECT ({}) FROM tmp", cleanedExpr);
+    }
   } else {
-    selectExpressionCommand = fmt::format("SELECT ({})", cleanedExpr);
+    if (noBracket) {
+      selectExpressionCommand = fmt::format("SELECT {}", cleanedExpr);
+    } else {
+      selectExpressionCommand = fmt::format("SELECT ({})", cleanedExpr);
+    }
   }
 
   auto clientContext = conn->context.get();
   clientContext->config.enable_optimizer = true;
   auto &config = duckdb::DBConfig::GetConfig(*clientContext);
-  std::set<duckdb::OptimizerType> disable_optimizers_should_delete;
+  std::set<duckdb::OptimizerType> tmpOptimizerDisableFlag;
 
   if (config.options.disabled_optimizers.count(
           duckdb::OptimizerType::STATISTICS_PROPAGATION) == 0) {
-    disable_optimizers_should_delete.insert(
+    tmpOptimizerDisableFlag.insert(
         duckdb::OptimizerType::STATISTICS_PROPAGATION);
   }
   config.options.disabled_optimizers.insert(
@@ -142,7 +181,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
 
   if (config.options.disabled_optimizers.count(
           duckdb::OptimizerType::COMMON_SUBEXPRESSIONS) == 0) {
-    disable_optimizers_should_delete.insert(
+    tmpOptimizerDisableFlag.insert(
         duckdb::OptimizerType::COMMON_SUBEXPRESSIONS);
   }
   config.options.disabled_optimizers.insert(
@@ -152,18 +191,20 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
   Shared<LogicalPlan> boundExpression;
   Shared<duckdb::Binder> plannerBinder;
   try {
-    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, true,
+    boundExpression = clientContext->ExtractPlan(selectExpressionCommand, false,
                                                  plannerBinder);
 
-    for (auto &type : disable_optimizers_should_delete) {
+    for (auto &type : tmpOptimizerDisableFlag) {
       config.options.disabled_optimizers.erase(type);
     }
   } catch (const std::exception &e) {
-    for (auto &type : disable_optimizers_should_delete) {
+    for (auto &type : tmpOptimizerDisableFlag) {
       config.options.disabled_optimizers.erase(type);
     }
 
     destroyDuckDBContext();
+    std::cout << "While binding expression: " << selectExpressionCommand
+              << std::endl;
     EXCEPTION(e.what());
   }
 
@@ -172,7 +213,7 @@ Own<SelectExpression> Function::bindExpression(const String &expr,
 
   // for each used variable, bind it to a Variable*
   Set<const Variable *> usedVariables;
-  for (const auto &varName : usedVariableFinder.usedVariables) {
+  for (const auto &varName : usedVariableFinder.getUsedVariables()) {
     usedVariables.insert(getBinding(varName));
   }
 
@@ -245,7 +286,15 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
   auto *bottomRegion = bottom->getRegion();
   auto *topRegion = bottomRegion->getParentRegion();
   auto *parent = topRegion->getParentRegion();
-  parent->replaceNestedRegion(topRegion, bottomRegion);
+
+  topRegion->releaseNestedRegions();
+  if (parent) {
+    parent->replaceNestedRegion(topRegion, bottomRegion);
+  } else {
+    bottomRegion->setParentRegion(nullptr);
+    functionRegion.reset(bottomRegion);
+    bottom->setLabel("entry");
+  }
 
   // copy instructions from top into bottom (in reverse order)
   Vec<Instruction *> topInstructions;
@@ -260,12 +309,12 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
     }
   }
 
-  // update predecessors of bottom to jump to top
+  // update predecessors of top to jump to bottom
   for (auto *pred : top->getPredecessors()) {
     if (auto *terminator = dynamic_cast<BranchInst *>(pred->getTerminator())) {
       // replace the branch instruction to target the bottom block
       if (terminator->isUnconditional()) {
-        terminator->replaceWith(Make<BranchInst>(bottom));
+        terminator->replaceWith(Make<BranchInst>(bottom), true);
       } else {
         auto *newTrue = terminator->getIfTrue();
         newTrue = (newTrue == top) ? bottom : newTrue;
@@ -273,19 +322,18 @@ void Function::mergeBasicBlocks(BasicBlock *top, BasicBlock *bottom) {
         auto *newFalse = terminator->getIfFalse();
         newFalse = (newFalse == top) ? bottom : newFalse;
 
-        terminator->replaceWith(Make<BranchInst>(
-            newTrue, newFalse, terminator->getCond()->clone()));
+        terminator->replaceWith(
+            Make<BranchInst>(newTrue, newFalse, terminator->getCond()->clone()),
+            true);
       }
-      // update the predecessors "successors"
-      pred->removeSuccessor(top);
-      pred->addSuccessor(bottom);
-
-      // add this predecessor as a predecessor to the bottom block
-      bottom->addPredecessor(pred);
     }
   }
 
-  // finally remove the basic block from the function
+  // remove all instructions of the block
+  for (auto it = top->begin(); it != top->end();) {
+    it = top->removeInst(it);
+  }
+  // erase the block
   removeBasicBlock(top);
 }
 
@@ -293,18 +341,259 @@ void Function::removeBasicBlock(BasicBlock *toRemove) {
   auto it = basicBlocks.begin();
   while (it != basicBlocks.end()) {
     if (it->get() == toRemove) {
-      // make all predecessors not reference this
-      for (auto &pred : toRemove->getPredecessors()) {
-        pred->removeSuccessor(toRemove);
-      }
-      // make all successors not reference this
-      for (auto &succ : toRemove->getSuccessors()) {
-        succ->removePredecessor(toRemove);
-      }
       // finally erase the block
       it = basicBlocks.erase(it);
     } else {
       ++it;
     }
   }
+}
+
+template <>
+Own<Variable>
+FunctionCloneAndRenameHelper::cloneAndRename(const Variable &var) {
+  return Make<Variable>(var.getName(), var.getType(), var.isNull());
+}
+
+template <>
+Own<SelectExpression>
+FunctionCloneAndRenameHelper::cloneAndRename(const SelectExpression &expr) {
+  Set<const Variable *> newUsedVariables;
+  for (auto *var : expr.getUsedVariables()) {
+    ASSERT(variableMap.find(var) != variableMap.end(),
+           fmt::format("Variable {} not found in variableMap", var->getName()));
+    newUsedVariables.insert(variableMap.at(var));
+  }
+  return Make<SelectExpression>(expr.getRawSQL(), expr.getReturnType(),
+                                expr.getLogicalPlanShared(), newUsedVariables);
+}
+
+template <>
+Own<PhiNode> FunctionCloneAndRenameHelper::cloneAndRename(const PhiNode &phi) {
+  VecOwn<SelectExpression> newRHS;
+  for (auto &op : phi.getRHS()) {
+    newRHS.emplace_back(cloneAndRename(*op));
+  }
+  ASSERT(variableMap.find(phi.getLHS()) != variableMap.end(),
+         fmt::format("Variable {} not found in variableMap",
+                     phi.getLHS()->getName()));
+  return Make<PhiNode>(variableMap.at(phi.getLHS()), std::move(newRHS));
+}
+
+template <>
+Own<Assignment>
+FunctionCloneAndRenameHelper::cloneAndRename(const Assignment &assign) {
+  ASSERT(variableMap.find(assign.getLHS()) != variableMap.end(),
+         fmt::format("Variable {} not found in variableMap",
+                     assign.getLHS()->getName()));
+  return Make<Assignment>(variableMap.at(assign.getLHS()),
+                          cloneAndRename(*assign.getRHS()));
+}
+
+template <>
+Own<ReturnInst>
+FunctionCloneAndRenameHelper::cloneAndRename(const ReturnInst &ret) {
+  return Make<ReturnInst>(cloneAndRename(*ret.getExpr()));
+}
+
+template <>
+Own<BranchInst>
+FunctionCloneAndRenameHelper::cloneAndRename(const BranchInst &branch) {
+  // ASSERT(basicBlockMap.find(branch.getIfTrue()) != basicBlockMap.end(),
+  //        fmt::format("BasicBlock {} not found in basicBlockMap",
+  //                    branch.getIfTrue()->getLabel()));
+  BasicBlock *trueBlock;
+  if (basicBlockMap.find(branch.getIfTrue()) != basicBlockMap.end()) {
+    trueBlock = basicBlockMap.at(branch.getIfTrue());
+  } else {
+    trueBlock = branch.getIfTrue();
+  }
+  if (branch.isUnconditional()) {
+    return Make<BranchInst>(trueBlock);
+  }
+  // ASSERT(basicBlockMap.find(branch.getIfFalse()) != basicBlockMap.end(),
+  //        fmt::format("BasicBlock {} not found in basicBlockMap",
+  //                    branch.getIfFalse()->getLabel()));
+  BasicBlock *falseBlock;
+  if (basicBlockMap.find(branch.getIfFalse()) != basicBlockMap.end()) {
+    falseBlock = basicBlockMap.at(branch.getIfFalse());
+  } else {
+    falseBlock = branch.getIfFalse();
+  }
+  return Make<BranchInst>(trueBlock, falseBlock,
+                          cloneAndRename(*branch.getCond()));
+}
+
+template <>
+Own<Instruction>
+FunctionCloneAndRenameHelper::cloneAndRename(const Instruction &inst) {
+  if (auto *assign = dynamic_cast<const Assignment *>(&inst)) {
+    return cloneAndRename(*assign);
+  } else if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
+    return cloneAndRename(*phi);
+  } else if (auto *ret = dynamic_cast<const ReturnInst *>(&inst)) {
+    return cloneAndRename(*ret);
+  } else if (auto *branch = dynamic_cast<const BranchInst *>(&inst)) {
+    return cloneAndRename(*branch);
+  } else {
+    std::cout
+        << "Unhandled case in FunctionCloneAndRenameHelper::cloneAndRename!"
+        << std::endl;
+    std::cout << inst << std::endl;
+    ERROR("Unhandled case in FunctionCloneAndRenameHelper::cloneAndRename!");
+  }
+}
+
+Own<Region>
+FunctionCloneAndRenameHelper::cloneAndRenameRegion(const Region *rootRegion) {
+  if (rootRegion == nullptr) {
+    return nullptr;
+  }
+  if (auto *leafRegion = dynamic_cast<const LeafRegion *>(rootRegion)) {
+    if (basicBlockMap.find(leafRegion->getHeader()) == basicBlockMap.end()) {
+      return nullptr;
+    }
+    return Make<LeafRegion>(basicBlockMap.at(leafRegion->getHeader()));
+  } else if (auto *sequentialRegion =
+                 dynamic_cast<const SequentialRegion *>(rootRegion)) {
+    if (basicBlockMap.find(sequentialRegion->getHeader()) ==
+        basicBlockMap.end()) {
+      return nullptr;
+    }
+    Vec<Own<Region>> newNestedRegions;
+    int nonNullCount = 0;
+    for (const auto *region : sequentialRegion->getNestedRegionsWithNull()) {
+      newNestedRegions.push_back(cloneAndRenameRegion(region));
+      if (newNestedRegions.back().get() != nullptr) {
+        nonNullCount++;
+      }
+    }
+
+    if (nonNullCount == 0) {
+      return Make<LeafRegion>(basicBlockMap.at(sequentialRegion->getHeader()));
+    } else {
+      if (newNestedRegions[0].get() == nullptr) {
+        return Make<SequentialRegion>(
+            basicBlockMap.at(sequentialRegion->getHeader()),
+            std::move(newNestedRegions[1]), nullptr);
+      }
+      return Make<SequentialRegion>(
+          basicBlockMap.at(sequentialRegion->getHeader()),
+          std::move(newNestedRegions[0]), std::move(newNestedRegions[1]));
+    }
+  } else if (const auto *conditionalRegion =
+                 dynamic_cast<const ConditionalRegion *>(rootRegion)) {
+    if (basicBlockMap.find(conditionalRegion->getHeader()) ==
+        basicBlockMap.end()) {
+      return nullptr;
+    }
+    auto trueRegion = cloneAndRenameRegion(
+        (const Region *)conditionalRegion->getTrueRegion());
+    auto falseRegion = cloneAndRenameRegion(
+        (const Region *)conditionalRegion->getFalseRegion());
+    ASSERT(trueRegion, "True region must be non-null");
+    return Make<ConditionalRegion>(
+        basicBlockMap.at(conditionalRegion->getHeader()), std::move(trueRegion),
+        std::move(falseRegion));
+  } else if (const auto *loopRegion =
+                 dynamic_cast<const LoopRegion *>(rootRegion)) {
+    if (basicBlockMap.find(loopRegion->getHeader()) == basicBlockMap.end()) {
+      return nullptr;
+    }
+    auto bodyRegion =
+        cloneAndRenameRegion((const Region *)loopRegion->getBodyRegion());
+    ASSERT(bodyRegion, "Body region must be non-null");
+    return Make<LoopRegion>(basicBlockMap.at(loopRegion->getHeader()),
+                            std::move(bodyRegion));
+  } else {
+    ERROR("Unhandled case in FunctionCloneAndRenameHelper::cloneAndRename!");
+  }
+}
+
+Own<Function> Function::partialCloneAndRename(
+    const String &newName, const Vec<const Variable *> &newArgs,
+    const Type &newReturnType, const Vec<BasicBlock *> basicBlocks,
+    Map<BasicBlock *, BasicBlock *> &oldToNew) const {
+  Map<const Variable *, const Variable *> variableMap;
+  Map<BasicBlock *, BasicBlock *> basicBlockMap;
+  auto newFunction = Make<Function>(conn, newName, newReturnType);
+  for (const auto *arg : newArgs) {
+    newFunction->addArgument(getOriginalName(arg->getName()), arg->getType());
+  }
+
+  for (const auto &[name, var] : bindings) {
+    if (!newFunction->hasBinding(name)) {
+      newFunction->addVariable(name, var->getType(), var->isNull());
+    }
+    variableMap[var] = newFunction->getBinding(name);
+  }
+
+  // create the entry block
+  auto entry = newFunction->makeBasicBlock("entry");
+  // there is no variable in the new function, every data pass in by argument
+  for (const auto &basicBlock : basicBlocks) {
+    auto newBlock = newFunction->makeBasicBlock(basicBlock->getLabel());
+    basicBlockMap[basicBlock] = newBlock;
+  }
+
+  oldToNew = basicBlockMap;
+
+  FunctionCloneAndRenameHelper cloneHelper{variableMap, basicBlockMap};
+  for (auto &[oldBasicBlock, newBasicBlock] : basicBlockMap) {
+    for (const auto &inst : *oldBasicBlock) {
+      auto newInst = cloneHelper.cloneAndRename(inst);
+      // cannot use addInstruction because it will update the successor and
+      // predecessor relationship which may be wrong at this point
+      newBasicBlock->addInstruction(std::move(newInst));
+    }
+  }
+
+  // let the entry jump to the first block of the first region
+  ASSERT(basicBlockMap.find(basicBlocks.front()) != basicBlockMap.end(),
+         fmt::format("BasicBlock {} not found in basicBlockMap",
+                     basicBlocks.front()->getLabel()));
+
+  ASSERT(entry == newFunction->getEntryBlock(),
+         "The entry block should be the first block created");
+  for (auto *arg : newArgs) {
+    entry->addInstruction(
+        Make<Assignment>(variableMap.at(arg),
+                         newFunction->bindExpression(
+                             getOriginalName(arg->getName()), arg->getType())));
+  }
+
+  // create a preheader block to serve as the place for code insertation during
+  // phi node deconstruction, let it jump to the first block of the first region
+  auto preheader = newFunction->makeBasicBlock("preheader");
+  preheader->addInstruction(
+      Make<BranchInst>(basicBlockMap.at(basicBlocks.front())));
+  entry->addInstruction(
+      Make<BranchInst>(preheader)); // let the entry jump to the preheader
+
+  // update the successor/predecessor relationship even though some previous
+  // code may have done this
+  for (auto &[oldBasicBlock, newBasicBlock] : basicBlockMap) {
+    newBasicBlock->clearSuccessors();
+    for (auto *succ : oldBasicBlock->getSuccessors()) {
+      if (basicBlockMap.find(succ) != basicBlockMap.end()) {
+        newBasicBlock->addSuccessor(basicBlockMap.at(succ));
+      } else {
+        // make this pointer dangling because later it will be updated
+        newBasicBlock->addSuccessor(succ);
+      }
+    }
+    newBasicBlock->clearPredecessors();
+    for (auto *pred : oldBasicBlock->getPredecessors()) {
+      if (basicBlockMap.find(pred) != basicBlockMap.end()) {
+        newBasicBlock->addPredecessor(basicBlockMap.at(pred));
+      } else {
+        // if there is no map for the predecessor
+        // it must be the preheader, since we assume only one outside
+        // predecessor of the outlined basic blocks
+        newBasicBlock->addPredecessor(preheader);
+      }
+    }
+  }
+
+  return newFunction;
 }

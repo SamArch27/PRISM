@@ -15,8 +15,10 @@ void BranchInst::print(std::ostream &os) const {
     os << " [" << ifTrue->getLabel() << "] ";
   }
 }
-Instruction *Instruction::replaceWith(Own<Instruction> replacement) {
-  return &*parent->replaceInst(parent->findInst(this), std::move(replacement));
+Instruction *Instruction::replaceWith(Own<Instruction> replacement,
+                                      bool updateSuccPred) {
+  return &*parent->replaceInst(parent->findInst(this), std::move(replacement),
+                               updateSuccPred);
 }
 void Instruction::eraseFromParent() {
   parent->removeInst(parent->findInst(this));

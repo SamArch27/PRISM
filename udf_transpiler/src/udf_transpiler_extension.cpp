@@ -25,7 +25,21 @@
 
 namespace duckdb {
 duckdb::DuckDB *db_instance;
-size_t udfCount = 0;
+size_t udfCount = 1;
+String dbPlatform = "duckdb";
+Map<String, bool> optimizerPassOnMap = {
+    {"SSAConstruction", true},
+    {"SSADestruction", true},
+    {"DeadCodeElimination", true},
+    {"QueryMotion", true},
+    {"MergeRegions", true},
+    {"AggressiveMergeRegions", true},
+    {"InstructionElimination", true},
+    {"AggressiveInstructionElimination", true},
+    {"OutliningPass", true},
+    {"AggifyPass", true},
+    {"PrintOutlinedUDF", true},
+    {"RemoveUnusedVariable", true}};
 
 // replace every single quote with two single quotes
 static String doubleQuote(const String &str) {
@@ -39,29 +53,96 @@ static String doubleQuote(const String &str) {
   return result;
 }
 
-static String UdfTranspilerMain(String udfString) {
+static String CompilerRun(String udfString) {
   YAMLConfig config;
   Connection con(*db_instance);
 
   auto compiler = Compiler(&con, udfString, config, udfCount);
   auto res = compiler.run();
-  udfCount++;
-  COUT << "Transpiling the UDF..." << ENDL;
-  insertDefAndReg(res.code, res.registration, udfCount);
-  // compile the template
-  COUT << "Compiling the UDF..." << ENDL;
-  compileUDF();
-  // load the compiled library
-  COUT << "Installing and loading the UDF..." << ENDL;
-  loadUDF(con);
   return "select '' as 'Transpilation Done.';";
+}
+
+inline String ListCompilerPassPragmaFun(ClientContext &context,
+                                        const FunctionParameters &parameters) {
+  String result;
+  for (auto &pass : optimizerPassOnMap) {
+    result +=
+        fmt::format("('{}', {}),", pass.first, pass.second ? "true" : "false");
+  }
+  result = result.substr(0, result.size() - 1);
+  return fmt::format("select col0 as Pass, col1 as \"Enabled?\" from (values "
+                     "{}) order by Pass;",
+                     result);
+}
+
+inline String
+EnableCompilerPassPragmaFun(ClientContext &context,
+                            const FunctionParameters &parameters) {
+  auto passName = parameters.values[0].GetValue<String>();
+  if (optimizerPassOnMap.count(passName) == 0) {
+    String err = "Invalid compiler pass: " + doubleQuote(passName);
+    return "select '" + err + "' as 'Enable Failed.';";
+  }
+
+  optimizerPassOnMap[passName] = true;
+  return "select '' as 'Enable Done.';";
+}
+
+inline String
+DisableCompilerPassPragmaFun(ClientContext &context,
+                             const FunctionParameters &parameters) {
+  auto passName = parameters.values[0].GetValue<String>();
+  if (optimizerPassOnMap.count(passName) == 0) {
+    String err = "Invalid compiler pass: " + doubleQuote(passName);
+    return "select '" + err + "' as 'Disable Failed.';";
+  }
+
+  optimizerPassOnMap[passName] = false;
+  return "select '' as 'Disable Done.';";
+}
+
+inline String
+DisableAllCompilerPassPragmaFun(ClientContext &context,
+                                const FunctionParameters &parameters) {
+  for (auto &pass : optimizerPassOnMap) {
+    pass.second = false;
+  }
+  return "select '' as 'Disable All Done.';";
+}
+
+inline String
+EnableAllCompilerPassPragmaFun(ClientContext &context,
+                               const FunctionParameters &parameters) {
+  for (auto &pass : optimizerPassOnMap) {
+    pass.second = true;
+  }
+  return "select '' as 'Enable All Done.';";
+}
+
+inline String setPlatform(ClientContext &context,
+                          const FunctionParameters &parameters) {
+  auto platform = parameters.values[0].GetValue<String>();
+  if (platform != "duckdb" && platform != "sqlserver") {
+    String err = "Invalid platform: " + doubleQuote(platform);
+    return "select '" + err + "' as 'Platform Set Failed.';";
+  }
+  dbPlatform = platform;
+  return "select '' as 'Platform Set Done.';";
+}
+
+inline String getPlatform(ClientContext &context,
+                          const FunctionParameters &parameters) {
+  return ("select platform, selected from (values ('duckdb', " +
+          String(dbPlatform == "duckdb" ? "'✔️'" : "''") + "), ('sqlserver', " +
+          String(dbPlatform == "sqlserver" ? "'✔️'" : "''") +
+          ")) tmp(platform, selected);");
 }
 
 inline String UdfTranspilerPragmaFun(ClientContext &context,
                                      const FunctionParameters &parameters) {
   auto udfString = parameters.values[0].GetValue<String>();
 
-  return UdfTranspilerMain(udfString);
+  return CompilerRun(udfString);
 }
 
 inline String UdfFileTranspilerPragmaFun(ClientContext &context,
@@ -76,7 +157,7 @@ inline String UdfFileTranspilerPragmaFun(ClientContext &context,
     return "select '" + err + "' as 'Transpilation Failed.';";
   }
 
-  return UdfTranspilerMain(buffer.str());
+  return CompilerRun(buffer.str());
 }
 
 /**
@@ -98,7 +179,6 @@ inline String UdfCodeGeneratorPragmaFun(ClientContext &context,
   String code, registration;
   auto compiler = Compiler(&con, buffer.str(), config, udfCount);
   auto res = compiler.run();
-  udfCount++;
   COUT << "Transpiling the UDF..." << ENDL;
   insertDefAndReg(res.code, res.registration, udfCount);
   return "select '' as 'Code Generation Done.';";
@@ -118,17 +198,6 @@ inline String UdfBuilderPragmaFun(ClientContext &context,
   return "select '' as 'Building and linking Done.';";
 }
 
-inline String UdafBuilderPragmaFun(ClientContext &context,
-                                   const FunctionParameters &parameters) {
-  COUT << "Compiling the UDAF..." << ENDL;
-  compileUDAF();
-  // load the compiled library
-  std::cout << "Installing and loading the UDF..." << std::endl;
-  Connection con(*db_instance);
-  loadUDAF(con);
-  return "select '' as 'Building and linking Done.';";
-}
-
 inline String LOCodeGenPragmaFun(ClientContext &_context,
                                  const FunctionParameters &parameters) {
   auto sql = parameters.values[0].GetValue<String>();
@@ -141,19 +210,17 @@ inline String LOCodeGenPragmaFun(ClientContext &_context,
   context->config.enable_optimizer = enable_optimizer;
   // if(enable_optimizer) context->config.disableStatisticsPropagation = true;
   auto &config = DBConfig::GetConfig(*context);
-  std::set<OptimizerType> disable_optimizers_should_delete;
+  std::set<OptimizerType> tmpOptimizerDisableFlag;
 
   if (enable_optimizer) {
     if (config.options.disabled_optimizers.count(
             OptimizerType::STATISTICS_PROPAGATION) == 0)
-      disable_optimizers_should_delete.insert(
-          OptimizerType::STATISTICS_PROPAGATION);
+      tmpOptimizerDisableFlag.insert(OptimizerType::STATISTICS_PROPAGATION);
     config.options.disabled_optimizers.insert(
         OptimizerType::STATISTICS_PROPAGATION);
     if (config.options.disabled_optimizers.count(
             OptimizerType::COMMON_SUBEXPRESSIONS) == 0)
-      disable_optimizers_should_delete.insert(
-          OptimizerType::COMMON_SUBEXPRESSIONS);
+      tmpOptimizerDisableFlag.insert(OptimizerType::COMMON_SUBEXPRESSIONS);
     config.options.disabled_optimizers.insert(
         OptimizerType::COMMON_SUBEXPRESSIONS);
   }
@@ -161,11 +228,11 @@ inline String LOCodeGenPragmaFun(ClientContext &_context,
   try {
     auto plan = context->ExtractPlan(sql);
     locg.VisitOperator(*plan);
-    for (auto &type : disable_optimizers_should_delete) {
+    for (auto &type : tmpOptimizerDisableFlag) {
       config.options.disabled_optimizers.erase(type);
     }
   } catch (Exception &e) {
-    for (auto &type : disable_optimizers_should_delete) {
+    for (auto &type : tmpOptimizerDisableFlag) {
       config.options.disabled_optimizers.erase(type);
     }
     EXCEPTION(e.what());
@@ -194,13 +261,35 @@ static void LoadInternal(DatabaseInstance &instance) {
   auto udf_builder_pragma_function =
       PragmaFunction::PragmaCall("build", UdfBuilderPragmaFun, {});
   ExtensionUtil::RegisterFunction(instance, udf_builder_pragma_function);
-  auto udaf_builder_pragma_function =
-      PragmaFunction::PragmaCall("build_agg", UdafBuilderPragmaFun, {});
-  ExtensionUtil::RegisterFunction(instance, udaf_builder_pragma_function);
   auto lo_codegen_pragma_function =
       PragmaFunction::PragmaCall("partial", LOCodeGenPragmaFun,
                                  {LogicalType::VARCHAR, LogicalType::INTEGER});
   ExtensionUtil::RegisterFunction(instance, lo_codegen_pragma_function);
+  auto list_compiler_pass_pragma_function =
+      PragmaFunction::PragmaCall("list", ListCompilerPassPragmaFun, {});
+  ExtensionUtil::RegisterFunction(instance, list_compiler_pass_pragma_function);
+  auto enable_compiler_pass_pragma_function = PragmaFunction::PragmaCall(
+      "enable", EnableCompilerPassPragmaFun, {LogicalType::VARCHAR});
+  ExtensionUtil::RegisterFunction(instance,
+                                  enable_compiler_pass_pragma_function);
+  auto disable_compiler_pass_pragma_function = PragmaFunction::PragmaCall(
+      "disable", DisableCompilerPassPragmaFun, {LogicalType::VARCHAR});
+  ExtensionUtil::RegisterFunction(instance,
+                                  disable_compiler_pass_pragma_function);
+  auto disable_all_compiler_pass_pragma_function = PragmaFunction::PragmaCall(
+      "disable_all", DisableAllCompilerPassPragmaFun, {});
+  ExtensionUtil::RegisterFunction(instance,
+                                  disable_all_compiler_pass_pragma_function);
+  auto enable_all_compiler_pass_pragma_function = PragmaFunction::PragmaCall(
+      "enable_all", EnableAllCompilerPassPragmaFun, {});
+  ExtensionUtil::RegisterFunction(instance,
+                                  enable_all_compiler_pass_pragma_function);
+  auto set_platform_pragma_function = PragmaFunction::PragmaCall(
+      "set_platform", setPlatform, {LogicalType::VARCHAR});
+  ExtensionUtil::RegisterFunction(instance, set_platform_pragma_function);
+  auto get_platform_pragma_function =
+      PragmaFunction::PragmaCall("get_platform", getPlatform, {});
+  ExtensionUtil::RegisterFunction(instance, get_platform_pragma_function);
 }
 
 void UdfTranspilerExtension::Load(DuckDB &db) {

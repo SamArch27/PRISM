@@ -94,7 +94,7 @@ void SSAConstructionPass::renameVariablesToSSA(
   auto renameVariable = [&](const Variable *var, bool updateVariable) {
     auto i = updateVariable ? accessCounter(var) : accessStack(var).top();
     auto oldName = f.getOriginalName(var->getName());
-    auto newName = oldName + "_" + std::to_string(i) + "_";
+    auto newName = oldName + "__" + std::to_string(i) + "__";
     auto *oldVar = f.getBinding(oldName);
     if (!f.hasBinding(newName)) {
       f.addVariable(newName, oldVar->getType(), oldVar->isNull());
@@ -115,7 +115,7 @@ void SSAConstructionPass::renameVariablesToSSA(
     for (auto *var : expr->getUsedVariables()) {
       auto i = accessStack(var).top();
       auto newName =
-          f.getOriginalName(var->getName()) + "_" + std::to_string(i) + "_";
+          f.getOriginalName(var->getName()) + "__" + std::to_string(i) + "__";
       oldToNew.insert({var->getName(), newName});
     }
 
@@ -180,6 +180,7 @@ void SSAConstructionPass::renameVariablesToSSA(
       for (auto it = succ->begin(); it != succ->end(); ++it) {
         auto &inst = *it;
         if (auto *phi = dynamic_cast<const PhiNode *>(&inst)) {
+
           VecOwn<SelectExpression> newArguments;
           for (auto *arg : phi->getRHS()) {
             newArguments.emplace_back(arg->clone());
@@ -214,7 +215,9 @@ void SSAConstructionPass::renameVariablesToSSA(
   for (const auto &arg : f.getArguments()) {
     auto oldName = arg->getName();
     auto newName = renameVariable(arg.get(), true)->getName();
-    f.addVariable(newName, arg->getType(), false);
+    if (!f.hasBinding(newName)) {
+      f.addVariable(newName, arg->getType(), false);
+    }
     auto assign = Make<Assignment>(f.getBinding(newName),
                                    f.bindExpression(oldName, arg->getType()));
     auto *entryBlock = f.getEntryBlock();

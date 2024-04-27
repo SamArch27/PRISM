@@ -45,5 +45,6 @@ bool DeadCodeEliminationPass::runOnFunction(Function &f) {
     }
     inst->eraseFromParent();
   }
+
   return changed;
 }

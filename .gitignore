@@ -17,3 +17,4 @@ test/python/__pycache__/
 
 *.duckdb
 header_file/duckdb/
+udf_transpiler/duckdb/

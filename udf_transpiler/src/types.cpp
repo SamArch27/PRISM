@@ -3,7 +3,10 @@
 #include <regex>
 #define FMT_HEADER_ONLY
 
-Type Type::BOOLEAN = Type(false, std::nullopt, std::nullopt, PostgresTypeTag::BOOLEAN);
+Type Type::BOOLEAN = Type(false, std::nullopt, std::nullopt,
+                          PostgresTypeTag::BOOLEAN, "BOOLEAN");
+Type Type::INT =
+    Type(false, std::nullopt, std::nullopt, PostgresTypeTag::INT, "INT");
 
 std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
   switch (tag) {
@@ -79,94 +82,94 @@ std::ostream &operator<<(std::ostream &os, DuckdbTypeTag tag) {
 
 duckdb::LogicalType Type::getDuckDBLogicalType() const {
   switch (duckdbTag) {
-  {
-  case DuckdbTypeTag::BIGINT:
-    return duckdb::LogicalType::BIGINT;
-  }
-  {
-  case DuckdbTypeTag::BIT:
-    return duckdb::LogicalType::BIT;
-  }
-  {
-  case DuckdbTypeTag::BLOB:
-    return duckdb::LogicalType::BLOB;
-  }
-  {
-  case DuckdbTypeTag::BOOLEAN:
-    return duckdb::LogicalType::BOOLEAN;
-  }
-  {
-  case DuckdbTypeTag::DATE:
-    return duckdb::LogicalType::DATE;
-  }
-  {
-  case DuckdbTypeTag::DECIMAL:
-    return duckdb::LogicalType::DECIMAL(*width, *scale);
-  }
-  {
-  case DuckdbTypeTag::DOUBLE:
-    return duckdb::LogicalType::DOUBLE;
-  }
-  {
-  case DuckdbTypeTag::HUGEINT:
-    return duckdb::LogicalType::HUGEINT;
-  }
-  {
-  case DuckdbTypeTag::INTEGER:
-    return duckdb::LogicalType::INTEGER;
-  }
-  {
-  case DuckdbTypeTag::INTERVAL:
-    return duckdb::LogicalType::INTERVAL;
-  }
-  {
-  case DuckdbTypeTag::REAL:
-    return duckdb::LogicalType::FLOAT;
-  }
-  {
-  case DuckdbTypeTag::SMALLINT:
-    return duckdb::LogicalType::SMALLINT;
-  }
-  {
-  case DuckdbTypeTag::TIME:
-    return duckdb::LogicalType::TIME;
-  }
-  {
-  case DuckdbTypeTag::TIMESTAMP:
-    return duckdb::LogicalType::TIMESTAMP;
-  }
-  {
-  case DuckdbTypeTag::TINYINT:
-    return duckdb::LogicalType::TINYINT;
-  }
-  {
-  case DuckdbTypeTag::UBIGINT:
-    return duckdb::LogicalType::UBIGINT;
-  }
-  {
-  case DuckdbTypeTag::UINTEGER:
-    return duckdb::LogicalType::UINTEGER;
-  }
-  {
-  case DuckdbTypeTag::UNKNOWN:
-    return duckdb::LogicalType::INVALID;
-  }
-  {
-  case DuckdbTypeTag::USMALLINT:
-    return duckdb::LogicalType::USMALLINT;
-  }
-  {
-  case DuckdbTypeTag::UTINYINT:
-    return duckdb::LogicalType::UTINYINT;
-  }
-  {
-  case DuckdbTypeTag::UUID:
-    return duckdb::LogicalType::UUID;
-  }
-  {
-  case DuckdbTypeTag::VARCHAR:
-    return duckdb::LogicalType::VARCHAR;
-  }
+    {
+    case DuckdbTypeTag::BIGINT:
+      return duckdb::LogicalType::BIGINT;
+    }
+    {
+    case DuckdbTypeTag::BIT:
+      return duckdb::LogicalType::BIT;
+    }
+    {
+    case DuckdbTypeTag::BLOB:
+      return duckdb::LogicalType::BLOB;
+    }
+    {
+    case DuckdbTypeTag::BOOLEAN:
+      return duckdb::LogicalType::BOOLEAN;
+    }
+    {
+    case DuckdbTypeTag::DATE:
+      return duckdb::LogicalType::DATE;
+    }
+    {
+    case DuckdbTypeTag::DECIMAL:
+      return duckdb::LogicalType::DECIMAL(*width, *scale);
+    }
+    {
+    case DuckdbTypeTag::DOUBLE:
+      return duckdb::LogicalType::DOUBLE;
+    }
+    {
+    case DuckdbTypeTag::HUGEINT:
+      return duckdb::LogicalType::HUGEINT;
+    }
+    {
+    case DuckdbTypeTag::INTEGER:
+      return duckdb::LogicalType::INTEGER;
+    }
+    {
+    case DuckdbTypeTag::INTERVAL:
+      return duckdb::LogicalType::INTERVAL;
+    }
+    {
+    case DuckdbTypeTag::REAL:
+      return duckdb::LogicalType::FLOAT;
+    }
+    {
+    case DuckdbTypeTag::SMALLINT:
+      return duckdb::LogicalType::SMALLINT;
+    }
+    {
+    case DuckdbTypeTag::TIME:
+      return duckdb::LogicalType::TIME;
+    }
+    {
+    case DuckdbTypeTag::TIMESTAMP:
+      return duckdb::LogicalType::TIMESTAMP;
+    }
+    {
+    case DuckdbTypeTag::TINYINT:
+      return duckdb::LogicalType::TINYINT;
+    }
+    {
+    case DuckdbTypeTag::UBIGINT:
+      return duckdb::LogicalType::UBIGINT;
+    }
+    {
+    case DuckdbTypeTag::UINTEGER:
+      return duckdb::LogicalType::UINTEGER;
+    }
+    {
+    case DuckdbTypeTag::UNKNOWN:
+      return duckdb::LogicalType::INVALID;
+    }
+    {
+    case DuckdbTypeTag::USMALLINT:
+      return duckdb::LogicalType::USMALLINT;
+    }
+    {
+    case DuckdbTypeTag::UTINYINT:
+      return duckdb::LogicalType::UTINYINT;
+    }
+    {
+    case DuckdbTypeTag::UUID:
+      return duckdb::LogicalType::UUID;
+    }
+    {
+    case DuckdbTypeTag::VARCHAR:
+      return duckdb::LogicalType::VARCHAR;
+    }
   default:
     ERROR("Unknown type.");
   }
@@ -315,6 +318,7 @@ DuckdbTypeTag Type::lookupDuckdbTag(PostgresTypeTag pgTag) const {
   case PostgresTypeTag::UNKNOWN:
     return DuckdbTypeTag::UNKNOWN;
   }
+  ERROR("Unknown type.");
 }
 
 CppTypeTag Type::lookupCppTag(DuckdbTypeTag duckdbTag, Opt<int> width,
@@ -375,6 +379,7 @@ CppTypeTag Type::lookupCppTag(DuckdbTypeTag duckdbTag, Opt<int> width,
   case DuckdbTypeTag::VARCHAR:
     return CppTypeTag::STRING_T;
   }
+  ERROR("Unknown type.");
 }
 
 void Type::print(std::ostream &os) const {
@@ -385,4 +390,84 @@ void Type::print(std::ostream &os) const {
     ss << duckdbTag;
     os << ss.str();
   }
+}
+
+PostgresTypeTag Type::getPostgresTag(const String &type) {
+  // remove spaces and capitalize the name
+  String upper = toUpper(removeSpaces(type));
+
+  Map<String, PostgresTypeTag> nameToTag = {
+      {"BIGINT", PostgresTypeTag::BIGINT},
+      {"BINARY", PostgresTypeTag::BINARY},
+      {"BIT", PostgresTypeTag::BIT},
+      {"BITSTRING", PostgresTypeTag::BITSTRING},
+      {"BLOB", PostgresTypeTag::BLOB},
+      {"BOOL", PostgresTypeTag::BOOL},
+      {"BOOLEAN", PostgresTypeTag::BOOLEAN},
+      {"BPCHAR", PostgresTypeTag::BPCHAR},
+      {"BYTEA", PostgresTypeTag::BYTEA},
+      {"CHAR", PostgresTypeTag::CHAR},
+      {"DATE", PostgresTypeTag::DATE},
+      {"DATETIME", PostgresTypeTag::DATETIME},
+      {"DECIMAL", PostgresTypeTag::DECIMAL},
+      {"DOUBLE", PostgresTypeTag::DOUBLE},
+      {"FLOAT", PostgresTypeTag::FLOAT},
+      {"FLOAT4", PostgresTypeTag::FLOAT4},
+      {"FLOAT8", PostgresTypeTag::FLOAT8},
+      {"HUGEINT", PostgresTypeTag::HUGEINT},
+      {"INT", PostgresTypeTag::INT},
+      {"INT1", PostgresTypeTag::INT1},
+      {"INT2", PostgresTypeTag::INT2},
+      {"INT4", PostgresTypeTag::INT4},
+      {"INT8", PostgresTypeTag::INT8},
+      {"INTEGER", PostgresTypeTag::INTEGER},
+      {"INTERVAL", PostgresTypeTag::INTERVAL},
+      {"LOGICAL", PostgresTypeTag::LOGICAL},
+      {"LONG", PostgresTypeTag::LONG},
+      {"NUMERIC", PostgresTypeTag::NUMERIC},
+      {"REAL", PostgresTypeTag::REAL},
+      {"SHORT", PostgresTypeTag::SHORT},
+      {"SIGNED", PostgresTypeTag::SIGNED},
+      {"SMALLINT", PostgresTypeTag::SMALLINT},
+      {"STRING", PostgresTypeTag::STRING},
+      {"TEXT", PostgresTypeTag::TEXT},
+      {"TIME", PostgresTypeTag::TIME},
+      {"TIMESTAMP", PostgresTypeTag::TIMESTAMP},
+      {"TINYINT", PostgresTypeTag::TINYINT},
+      {"UBIGINT", PostgresTypeTag::UBIGINT},
+      {"UINTEGER", PostgresTypeTag::UINTEGER},
+      {"UNKNOWN", PostgresTypeTag::UNKNOWN},
+      {"USMALLINT", PostgresTypeTag::USMALLINT},
+      {"UTINYINT", PostgresTypeTag::UTINYINT},
+      {"UUID", PostgresTypeTag::UUID},
+      {"VARBINARY", PostgresTypeTag::VARBINARY},
+      {"VARCHAR", PostgresTypeTag::VARCHAR}};
+
+  // Edge case for DECIMAL(width,scale)
+  if (upper.starts_with("DECIMAL")) {
+    return nameToTag.at("DECIMAL");
+  }
+
+  else if (upper.starts_with("VARCHAR")) {
+    return nameToTag.at("VARCHAR");
+  }
+
+  if (nameToTag.find(upper) == nameToTag.end()) {
+    EXCEPTION(type + " is not a valid Postgres Type.");
+  }
+  return nameToTag.at(upper);
+}
+
+Opt<WidthScale> Type::getDecimalWidthScale(const String &type) {
+  std::regex decimalPattern("DECIMAL\\((\\d+),(\\d+)\\)",
+                            std::regex_constants::icase);
+  std::smatch decimalMatch;
+  auto strippedString = removeSpaces(type);
+  std::regex_search(strippedString, decimalMatch, decimalPattern);
+  if (decimalMatch.size() == 3) {
+    auto width = std::stoi(decimalMatch[1]);
+    auto scale = std::stoi(decimalMatch[2]);
+    return {std::make_pair(width, scale)};
+  }
+  return {};
 }

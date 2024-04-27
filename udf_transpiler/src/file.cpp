@@ -34,9 +34,9 @@ String exec(const char *cmd) {
 void create_dir_from_dir(const String &new_dir, const String &template_dir) {
   // remove the old directory in new_dir
   String cmd = "rm -rf " + new_dir;
-  std::cout << exec(cmd.c_str()) << std::endl;
+  DEBUG_INFO(exec(cmd.c_str()));
   cmd = "cp -r " + template_dir + " " + new_dir;
-  std::cout << exec(cmd.c_str()) << std::endl;
+  DEBUG_INFO(exec(cmd.c_str()));
 }
 
 void insertDefAndReg(const String &defs, const String &regs, int udfCount) {
@@ -142,13 +142,7 @@ void insertDefAndReg(const String &defs, const String &regs, int udfCount) {
 void compileUDF() {
   // String cmd = "cd " + current_dir + "/../" + ";make udfs >/dev/null 2>&1";
   String cmd = "cd " + current_dir + "/../" + ";make udfs";
-  std::cout << exec(cmd.c_str()) << std::endl;
-}
-
-void compileUDAF() {
-  String cmd = "cd " + current_dir + "/../" + ";make udafs";
-  std::cout << cmd << std::endl;
-  std::cout << exec(cmd.c_str()) << std::endl;
+  DEBUG_INFO(exec(cmd.c_str()));
 }
 
 /**
@@ -162,36 +156,13 @@ void loadUDF(duckdb::Connection &connection) {
   String filename = exec(cmd.c_str());
   filename = filename.substr(0, filename.find("\n"));
   String install = "install '" + current_dir +
-                   "/../build/udfs/extension/udf1/"
-                   // + "udf" + std::to_string(udfCount) + ".duckdb_extension'";
-                   + filename + "'";
+                   "/../build/udfs/extension/udf1/" + filename + "'";
   String load = "load '" + current_dir + "/../build/udfs/extension/udf1/" +
-                //  "udf" + std::to_string(udfCount) + ".duckdb_extension'";
                 filename + "'";
-  COUT << "Running: " << install << ENDL;
   auto res = connection.Query(install);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
   }
-  std::cout << "Running: " << load << std::endl;
-  res = connection.Query(load);
-  if (res->HasError()) {
-    EXCEPTION(res->GetError());
-  }
-}
-
-void loadUDAF(duckdb::Connection &connection) {
-  String install = "install '" + current_dir +
-                   "/../build/udfs/extension/udf_agg/" +
-                   "udf_agg.duckdb_extension'";
-  String load = "load '" + current_dir + "/../build/udfs/extension/udf_agg/" +
-                "udf_agg.duckdb_extension'";
-  std::cout << "Running: " << install << std::endl;
-  auto res = connection.Query(install);
-  if (res->HasError()) {
-    EXCEPTION(res->GetError());
-  }
-  std::cout << "Running: " << load << std::endl;
   res = connection.Query(load);
   if (res->HasError()) {
     EXCEPTION(res->GetError());
@@ -199,16 +170,16 @@ void loadUDAF(duckdb::Connection &connection) {
 }
 
 void drawGraph(const String &dot, String name) {
-  // create a hidden file in GRAPH_OUTPUT_DIR
-  String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + name + ".dot";
-  std::ofstream out(filename);
-  if (out.fail()) {
-    ERROR("Cannot open the file for writing: " + filename);
-  }
-  out << dot;
-  out.close();
+  // // create a hidden file in GRAPH_OUTPUT_DIR
+  // String filename = current_dir + "/" + GRAPH_OUTPUT_DIR + name + ".dot";
+  // std::ofstream out(filename);
+  // if (out.fail()) {
+  //   ERROR("Cannot open the file for writing: " + filename);
+  // }
+  // out << dot;
+  // out.close();
 
-  // run the dot command
-  String cmd = "dot -Tpdf -O " + filename;
-  std::cout << exec(cmd.c_str()) << std::endl;
+  // // run the dot command
+  // String cmd = "dot -Tpdf -O " + filename;
+  // DEBUG_INFO(exec(cmd.c_str()));
 }

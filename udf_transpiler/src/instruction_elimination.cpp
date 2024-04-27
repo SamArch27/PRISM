@@ -1,9 +1,10 @@
-#include "expression_propagation.hpp"
+#include "instruction_elimination.hpp"
 #include "instructions.hpp"
+#include "udf_transpiler_extension.hpp"
 #include "utils.hpp"
 #include <iostream>
 
-bool ExpressionPropagationPass::runOnFunction(Function &f) {
+bool InstructionEliminationPass::runOnFunction(Function &f) {
   bool changed = false;
 
   UseDefAnalysis useDefAnalysis(f);
@@ -36,14 +37,22 @@ bool ExpressionPropagationPass::runOnFunction(Function &f) {
         continue;
       }
 
+      if (duckdb::dbPlatform == "duckdb" && uses.size() > 1 &&
+          assign->getRHS()->isSQLExpression()) {
+        continue;
+      }
+
       // don't do propagation of SQL statements
-      if (assign->getRHS()->isSQLExpression()) {
+      if (!aggressive && assign->getRHS()->isSQLExpression()) {
         continue;
       }
 
       // replace all occurrences of LHS with RHS
+      auto bracketedRHS =
+          f.bindExpression("(" + assign->getRHS()->getRawSQL() + ")",
+                           assign->getRHS()->getReturnType());
       Map<const Variable *, const SelectExpression *> oldToNew{
-          {assign->getLHS(), assign->getRHS()}};
+          {assign->getLHS(), bracketedRHS.get()}};
 
       // replace uses of RHS with LHS and add to the worklist
       for (auto &[oldInst, newInst] :

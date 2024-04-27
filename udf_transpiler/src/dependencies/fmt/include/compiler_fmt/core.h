@@ -271,7 +271,9 @@ template <typename T>
 using remove_const_t = typename std::remove_const<T>::type;
 template <typename T>
 using remove_cvref_t = typename std::remove_cv<remove_reference_t<T>>::type;
-template <typename T> struct type_identity { using type = T; };
+template <typename T> struct type_identity {
+  using type = T;
+};
 template <typename T> using type_identity_t = typename type_identity<T>::type;
 template <typename T>
 using underlying_t = typename std::underlying_type<T>::type;
@@ -305,7 +307,7 @@ constexpr FMT_INLINE auto is_constant_evaluated(
     bool default_value = false) noexcept -> bool {
 // Workaround for incompatibility between libstdc++ consteval-based
 // std::is_constant_evaluated() implementation and clang-14.
-// https://github.com/fmtlib/compile_fmt/issues/3247
+// https://github.com/fmtlib/compiler_fmt/issues/3247
 #if FMT_CPLUSPLUS >= 202002L && defined(_GLIBCXX_RELEASE) && \
     _GLIBCXX_RELEASE >= 12 &&                                \
     (FMT_CLANG_VERSION >= 1400 && FMT_CLANG_VERSION < 1500)
@@ -1446,7 +1448,7 @@ template <typename Context> struct arg_mapper {
     return val;
   }
   template <typename T, FMT_ENABLE_IF(!formattable<T>::value)>
-  FMT_CONSTEXPR FMT_INLINE auto do_map(T &&) -> unformattable {
+  FMT_CONSTEXPR FMT_INLINE auto do_map(T&&) -> unformattable {
     return {};
   }
 
@@ -1616,7 +1618,9 @@ FMT_CONSTEXPR auto copy_str(R&& rng, OutputIt out) -> OutputIt {
 
 #if FMT_GCC_VERSION && FMT_GCC_VERSION < 500
 // A workaround for gcc 4.8 to make void_t work in a SFINAE context.
-template <typename...> struct void_t_impl { using type = void; };
+template <typename...> struct void_t_impl {
+  using type = void;
+};
 template <typename... T> using void_t = typename void_t_impl<T...>::type;
 #else
 template <typename...> using void_t = void;
@@ -2675,7 +2679,9 @@ template <typename Char = char> struct vformat_args {
   using type = basic_format_args<
       basic_format_context<std::back_insert_iterator<buffer<Char>>, Char>>;
 };
-template <> struct vformat_args<char> { using type = format_args; };
+template <> struct vformat_args<char> {
+  using type = format_args;
+};
 
 // Use vformat_args and avoid type_identity to keep symbols short.
 template <typename Char>
@@ -2807,7 +2813,7 @@ FMT_API auto vformat(string_view fmt, format_args args) -> std::string;
 
   **Example**::
 
-    #include <compile_fmt/core.h>
+    #include <compiler_fmt/core.h>
     std::string message = fmt::format("The answer is {}.", 42);
   \endrst
 */

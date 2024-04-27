@@ -36,7 +36,6 @@ fshell2: |-
       }}
     }}
 
-    result.Verify(count);
   }}
 
 vector_create: |-
@@ -54,18 +53,20 @@ argindex: |-
   auto {var_name}_index = {var_name}_data.sel->get_index(base_idx);
 
 subfunc_arg: |-
-  {var_name}.GetValue({var_name}_index), !{var_name}_data.validity.RowIsValid({var_name}_index)
+  {var_name}.GetValue(base_idx), !{var_name}_data.validity.RowIsValid({var_name}_index)
 
 subfunc_arg_0: |-
   {var_name}.GetValue(0), !{var_name}_data.validity.RowIsValid(0)
 
 fbodyshell: |-
   inline void {function_name}_body({fbody_args}Value& result, bool& result_null) {{
+    /*
     if ({check_null})
     {{
       result_null = true;
       return;
     }}
+    */
     // the declaration / initialization of local variables
     {vars_init}
     {action}
@@ -96,6 +97,9 @@ func_dec: |-
   void {function_name}(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result);
 
 fcreate: |
-  auto {function_name}_scalar_function = ScalarFunction("{function_name}", {{{args_logical_types}}}, {return_logical_type}, {function_name});
+  auto {function_name}_scalar_function = ScalarFunction("{function_name}", {{{args_logical_types}}}, {return_logical_type}, {function_name}, 
+                     nullptr, nullptr, nullptr, nullptr,
+                     LogicalType(LogicalTypeId::INVALID),
+                     FunctionSideEffects::NO_SIDE_EFFECTS,
+                     FunctionNullHandling::SPECIAL_HANDLING);
   ExtensionUtil::RegisterFunction(instance, {function_name}_scalar_function);
-  

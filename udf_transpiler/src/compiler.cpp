@@ -1,24 +1,23 @@
 #include "compiler.hpp"
 #include "aggify_code_generator.hpp"
-#include "aggify_dfa.hpp"
+#include "aggify_pass.hpp"
 #include "ast_to_cfg.hpp"
-#include "break_phi_interference.hpp"
 #include "cfg_code_generator.hpp"
 #include "cfg_to_ast.hpp"
 #include "dead_code_elimination.hpp"
 #include "dominator_analysis.hpp"
 #include "duckdb/main/connection.hpp"
 #include "expression_printer.hpp"
-#include "expression_propagation.hpp"
 #include "file.hpp"
-#include "fixpoint_pass.hpp"
 #include "function.hpp"
+#include "instruction_elimination.hpp"
 #include "liveness_analysis.hpp"
 #include "merge_regions.hpp"
+#include "outlining.hpp"
 #include "pg_query.h"
-#include "pipeline_pass.hpp"
 #include "predicate_analysis.hpp"
 #include "query_motion.hpp"
+#include "remove_unused_variable.hpp"
 #include "ssa_construction.hpp"
 #include "ssa_destruction.hpp"
 #include "utils.hpp"
@@ -57,10 +56,20 @@ CompilationResult Compiler::run() {
 
   for (auto &f : functions) {
     optimize(*f);
-    auto res = generateCode(*f);
-    codeRes.code += res.code;
-    codeRes.registration += res.registration;
   }
+  codeRes.success = true;
+  return codeRes;
+}
+
+CompilationResult Compiler::runOnFunction(Function &f) {
+  auto ssaDestructionPipeline = Make<PipelinePass>(
+      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
+  ssaDestructionPipeline->runOnFunction(f);
+
+  CompilationResult codeRes;
+  auto res = generateCode(f);
+  codeRes.code += res.code;
+  codeRes.registration += res.registration;
   codeRes.success = true;
   return codeRes;
 }
@@ -69,8 +78,8 @@ json Compiler::parseJson() const {
   auto result = pg_query_parse_plpgsql(programText.c_str());
   if (result.error) {
     printf("error: %s at %d\n", result.error->message, result.error->cursorpos);
-    ERROR(fmt::format("Error when parsing the plpgsql: {}",
-                      result.error->message));
+    EXCEPTION(fmt::format("Error when parsing the plpgsql: {}",
+                          result.error->message));
   }
   auto json = json::parse(result.plpgsql_funcs);
   pg_query_free_plpgsql_parse_result(result);
@@ -78,19 +87,31 @@ json Compiler::parseJson() const {
 }
 
 void Compiler::optimize(Function &f) {
-  auto coreOptimizations = Make<FixpointPass>(Make<PipelinePass>(
-      Make<MergeRegionsPass>(), Make<ExpressionPropagationPass>(),
-      Make<DeadCodeEliminationPass>()));
 
   auto ssaConstruction =
       Make<PipelinePass>(Make<MergeRegionsPass>(), Make<SSAConstructionPass>());
 
-  auto outliningPipeline =
-      Make<PipelinePass>(Make<QueryMotionPass>() /*, Outlining, */);
+  auto coreOptimizations = Make<FixpointPass>(Make<PipelinePass>(
+      Make<InstructionEliminationPass>(), Make<DeadCodeEliminationPass>()));
+
+  auto aggifyPipeline = Make<PipelinePass>(Make<AggifyPass>(*this),
+                                           Make<DeadCodeEliminationPass>());
+
+  auto beforeOutliningPipeline = Make<FixpointPass>(Make<PipelinePass>(
+      Make<QueryMotionPass>(), Make<InstructionEliminationPass>(),
+      Make<DeadCodeEliminationPass>()));
+  auto rightBeforeOutliningPipeline =
+      Make<FixpointPass>(Make<DeadCodeEliminationPass>());
+
+  auto outliningPipeline = Make<PipelinePass>(
+      Make<OutliningPass>(*this), Make<AggressiveInstructionEliminationPass>(),
+      Make<DeadCodeEliminationPass>());
 
   auto ssaDestructionPipeline = Make<PipelinePass>(
-      Make<BreakPhiInterferencePass>(), Make<SSADestructionPass>(),
-      Make<AggressiveMergeRegionsPass>());
+      Make<SSADestructionPass>(), Make<AggressiveMergeRegionsPass>());
+
+  auto finalCleanUpPipeline =
+      Make<PipelinePass>(Make<RemoveUnusedVariablePass>());
 
   // Convert to SSA
   ssaConstruction->runOnFunction(f);
@@ -107,19 +128,23 @@ void Compiler::optimize(Function &f) {
   }
 
   // Now perform outlining
+  aggifyPipeline->runOnFunction(f);
+  beforeOutliningPipeline->runOnFunction(f);
+  rightBeforeOutliningPipeline->runOnFunction(f);
   outliningPipeline->runOnFunction(f);
 
   // Finally get out of SSA
   ssaDestructionPipeline->runOnFunction(f);
 
-  std::cout << f << std::endl;
+  // clean up the variable list
+  finalCleanUpPipeline->runOnFunction(f);
 
   // Compile the UDF to PL/SQL
   PLpgSQLGenerator plpgsqlGenerator(config);
   auto plpgsqlRes = plpgsqlGenerator.run(f);
-  COUT << "----------- PLpgSQL code start -----------\n";
-  COUT << plpgsqlRes.code << ENDL;
-  COUT << "----------- PLpgSQL code end-----------\n";
+  std::cout << "----------- PLpgSQL code start -----------\n";
+  std::cout << plpgsqlRes.code << std::endl;
+  std::cout << "----------- PLpgSQL code end-----------\n";
 }
 
 /**

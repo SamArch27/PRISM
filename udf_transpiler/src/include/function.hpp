@@ -41,12 +41,10 @@ public:
     return tmp;
   }
 
-  friend bool operator==(const BasicBlockIterator &a,
-                         const BasicBlockIterator &b) {
+  friend bool operator==(BasicBlockIterator &a, BasicBlockIterator &b) {
     return a.iter == b.iter;
   };
-  friend bool operator!=(const BasicBlockIterator &a,
-                         const BasicBlockIterator &b) {
+  friend bool operator!=(BasicBlockIterator &a, BasicBlockIterator &b) {
     return !(a == b);
   };
 
@@ -104,6 +102,18 @@ private:
 };
 
 class UseDefs;
+
+struct FunctionCloneAndRenameHelper {
+  template <typename T> Own<T> cloneAndRename(const T &obj) {
+    ERROR("Not implemented yet!");
+    return nullptr;
+  }
+
+  Own<Region> cloneAndRenameRegion(const Region *rootRegion);
+
+  Map<const Variable *, const Variable *> variableMap;
+  Map<BasicBlock *, BasicBlock *> basicBlockMap;
+};
 
 class Function {
 public:
@@ -178,7 +188,7 @@ public:
   }
 
   const Variable *createTempVariable(Type type, bool isNULL) {
-    auto newName = "temp_" + std::to_string(tempVariableCounter) + "_";
+    auto newName = "temp" + std::to_string(tempVariableCounter) + "__";
     addVariable(newName, type, isNULL);
     ++tempVariableCounter;
     return getBinding(newName);
@@ -189,8 +199,8 @@ public:
     declarations.emplace_back(std::move(assignment));
   }
 
-  String getOriginalName(const String &ssaName) {
-    return ssaName.substr(0, ssaName.find_first_of("_"));
+  static String getOriginalName(const String &ssaName) {
+    return ssaName.substr(0, ssaName.find("__"));
   };
 
   duckdb::Connection *getConnection() const { return conn; }
@@ -252,7 +262,14 @@ public:
     return phis;
   }
 
-  BasicBlock *getEntryBlock() { return basicBlocks[0].get(); }
+  BasicBlock *getEntryBlock() {
+    for (auto &block : basicBlocks) {
+      if (block->getLabel() == "entry") {
+        return block.get();
+      }
+    }
+    return nullptr;
+  }
 
   BasicBlock *getBlockFromLabel(const String &label) {
     return labelToBasicBlock.at(label);
@@ -275,14 +292,23 @@ public:
       const SelectExpression *original,
       const Map<const Variable *, const Variable *> &oldToNew);
 
+  /**
+   * Assume the new block is a fresh block that has no predecessors or
+   * successors
+   */
+  void renameBasicBlocks(const BasicBlock *oldBlock, BasicBlock *newBlock);
+
   Own<SelectExpression> replaceVarWithExpression(
       const SelectExpression *original,
       const Map<const Variable *, const SelectExpression *> &oldToNew);
 
-  int typeMatches(const String &rhs, const Type &type, bool needContext = true);
+  int typeMatches(const String &rhs, const Type &type,
+                  duckdb::LogicalType &duckDBType, bool needContext = true);
 
   Own<SelectExpression> bindExpression(const String &expr, const Type &retType,
-                                       bool needContext = true);
+                                       bool needContext = true,
+                                       bool enforeCast = true,
+                                       bool noBracket = false);
 
   Map<Instruction *, Instruction *> replaceUsesWithExpr(
       const Map<const Variable *, const SelectExpression *> &oldToNew,
@@ -302,13 +328,11 @@ public:
     return ss.str();
   }
 
-  String getRegionString() const {
-    std::stringstream ss;
-    ss << "digraph region {";
-    ss << *functionRegion << std::endl;
-    ss << "}" << std::endl;
-    return ss.str();
-  }
+  Own<Function> partialCloneAndRename(const String &newName,
+                                      const Vec<const Variable *> &newArgs,
+                                      const Type &newReturnType,
+                                      const Vec<BasicBlock *> basicBlocks,
+                                      Map<BasicBlock *, BasicBlock *> &oldToNew) const;
 
 protected:
   void print(std::ostream &os) const {
@@ -330,25 +354,13 @@ protected:
     os << "Control Flow Graph: \n" << std::endl;
     os << getCFGString() << std::endl;
 
-    os << "Regions: \n" << std::endl;
-    os << getRegionString() << std::endl;
+    if (functionRegion) {
+      os << "Regions: \n" << std::endl;
+      os << getRegionString(functionRegion.get()) << std::endl;
+    }
   }
 
 private:
-  class CompilationState {
-  public:
-    std::size_t labelNumber;
-    VecOwn<BasicBlock> basicBlocks;
-    // more things to memorize later
-    CompilationState(std::size_t _labelNumber, VecOwn<BasicBlock> &_basicBlocks)
-        : labelNumber(_labelNumber) {
-      for (auto &bb : _basicBlocks) {
-        std::cout << "Pushing: " << *bb << std::endl;
-        this->basicBlocks.push_back(std::move(bb));
-      }
-    }
-  };
-
   duckdb::Connection *conn;
   std::size_t labelNumber;
   std::size_t tempVariableCounter;

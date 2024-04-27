@@ -7,18 +7,21 @@ const Vec<BasicBlock *> &BasicBlock::getPredecessors() const {
   return predecessors;
 }
 
-void BasicBlock::addSuccessor(BasicBlock *succ) { successors.push_back(succ); }
-void BasicBlock::addPredecessor(BasicBlock *pred) {
-  predecessors.push_back(pred);
-}
-void BasicBlock::removeSuccessor(BasicBlock *succ) {
-  successors.erase(std::remove(successors.begin(), successors.end(), succ),
-                   successors.end());
-}
-void BasicBlock::removePredecessor(BasicBlock *pred) {
-  predecessors.erase(
-      std::remove(predecessors.begin(), predecessors.end(), pred),
-      predecessors.end());
+/**
+ * Replace the old predecessor with the new predecessor
+ * If the old predecessor is not found, then add the new predecessor
+ */
+void BasicBlock::replacePredecessor(const BasicBlock *oldPred,
+                                    BasicBlock *newPred) {
+  auto it = std::find(predecessors.begin(), predecessors.end(), oldPred);
+  if (it != predecessors.end()) {
+    *it = newPred;
+  } else {
+    if (std::find(predecessors.begin(), predecessors.end(), newPred) ==
+        predecessors.end()) {
+      addPredecessor(newPred);
+    }
+  }
 }
 
 void BasicBlock::addInstruction(Own<Instruction> inst) {
@@ -26,9 +29,15 @@ void BasicBlock::addInstruction(Own<Instruction> inst) {
   // successor/predecessors appropriately
   inst->setParent(this);
   if (inst->isTerminator()) {
+    // clear current successors
+    successors.clear();
     for (auto *succBlock : inst->getSuccessors()) {
       addSuccessor(succBlock);
-      succBlock->addPredecessor(this);
+      if (std::find(succBlock->getPredecessors().begin(),
+                    succBlock->getPredecessors().end(),
+                    this) == succBlock->getPredecessors().end()) {
+        succBlock->addPredecessor(this);
+      }
     }
   }
   instructions.emplace_back(std::move(inst));
@@ -44,14 +53,14 @@ InstIterator BasicBlock::insertBeforeTerminator(Own<Instruction> newInst) {
   return insertBefore(std::prev(instructions.end()), std::move(newInst));
 }
 
-InstIterator BasicBlock::insertAfter(InstIterator targetInst,
-                                     Own<Instruction> newInst) {
-  newInst->setParent(this);
-  ++targetInst; // import that we increment the iterator before to insert after
-  return instructions.insert(targetInst.iter, std::move(newInst));
-}
-
 InstIterator BasicBlock::removeInst(InstIterator targetInst) {
+  if (targetInst->isTerminator()) {
+    // clear current successors
+    for (auto *succ : successors) {
+      succ->removePredecessor(this);
+    }
+    successors.clear();
+  }
   return instructions.erase(targetInst.iter);
 }
 
@@ -67,20 +76,36 @@ InstIterator BasicBlock::findInst(Instruction *inst) {
 }
 
 InstIterator BasicBlock::replaceInst(InstIterator targetInst,
-                                     Own<Instruction> newInst) {
-  auto it = insertBefore(targetInst, std::move(newInst));
-  removeInst(targetInst);
-  return it;
+                                     Own<Instruction> newInst,
+                                     bool updateSuccPred) {
+  if (updateSuccPred) {
+    // careful with terminators
+    if (newInst->isTerminator()) {
+      removeInst(targetInst);
+      addInstruction(std::move(newInst));
+      return InstIterator(std::prev(instructions.end()));
+    } else {
+      auto it = insertBefore(targetInst, std::move(newInst));
+      removeInst(targetInst);
+      return it;
+    }
+  } else {
+    auto it = insertBefore(targetInst, std::move(newInst));
+    instructions.erase(targetInst.iter);
+    return it;
+  }
 }
 
 Instruction *BasicBlock::getInitiator() { return instructions.begin()->get(); }
 
 Instruction *BasicBlock::getTerminator() {
-  auto last = std::prev(instructions.end());
-  ASSERT((*last)->isTerminator(),
+  auto &last = instructions.back();
+  ASSERT(last->isTerminator(),
          "Last instruction of BasicBlock must be a Terminator instruction.");
-  return last->get();
+  return last.get();
 }
+
+void BasicBlock::setLabel(const String &newLabel) { label = newLabel; }
 
 String BasicBlock::getLabel() const { return label; }
 
@@ -91,5 +116,71 @@ void BasicBlock::print(std::ostream &os) const {
   for (const auto &inst : instructions) {
 
     os << *inst << std::endl;
+  }
+}
+
+void BasicBlock::addSuccessor(BasicBlock *succ) { successors.push_back(succ); }
+void BasicBlock::addPredecessor(BasicBlock *pred) {
+  predecessors.push_back(pred);
+}
+void BasicBlock::removeSuccessor(BasicBlock *succ) {
+  successors.erase(std::remove(successors.begin(), successors.end(), succ),
+                   successors.end());
+}
+void BasicBlock::removePredecessor(BasicBlock *pred) {
+  predecessors.erase(
+      std::remove(predecessors.begin(), predecessors.end(), pred),
+      predecessors.end());
+}
+
+void BasicBlock::renameBasicBlock(const BasicBlock *oldBlock,
+                                  BasicBlock *newBlock,
+                                  const BasicBlock *newBlocksPrevPred) {
+  for (auto it = begin(); it != end(); ++it) {
+    auto &inst = *it;
+    if (auto *branchInst = dynamic_cast<BranchInst *>(&inst)) {
+      auto *trueBlock = branchInst->getIfTrue();
+      auto *falseBlock = branchInst->getIfFalse();
+
+      if (trueBlock == oldBlock) {
+        trueBlock = newBlock;
+        // update the predecessor of the new block
+        if (newBlocksPrevPred == nullptr) {
+          trueBlock->clearPredecessors();
+          trueBlock->addPredecessor(this);
+        } else {
+          trueBlock->replacePredecessor(newBlocksPrevPred, this);
+        }
+      }
+
+      // update the successor of the current block
+      successors.clear();
+      addSuccessor(trueBlock);
+
+      if (falseBlock == nullptr) {
+        it = replaceInst(it, Make<BranchInst>(trueBlock));
+        return;
+      } else {
+        // do the same for the false block if any
+        if (falseBlock == oldBlock) {
+          falseBlock = newBlock;
+          // update the predecessor of the new block
+          if (newBlocksPrevPred == nullptr) {
+            falseBlock->clearPredecessors();
+            falseBlock->addPredecessor(this);
+          } else {
+            falseBlock->replacePredecessor(newBlocksPrevPred, this);
+          }
+        }
+
+        if (falseBlock != nullptr) {
+          addSuccessor(falseBlock);
+        }
+
+        it = replaceInst(it, Make<BranchInst>(trueBlock, falseBlock,
+                                              branchInst->getCond()->clone()));
+        return;
+      }
+    }
   }
 }

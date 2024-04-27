@@ -75,12 +75,8 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
 
   auto *entryBlock = f.makeBasicBlock("entry");
 
-  // Create a "declare" BasicBlock with all declarations
+  // Create a "declare" BasicBlock
   auto declareBlock = f.makeBasicBlock();
-  auto declarations = f.takeDeclarations();
-  for (auto &declaration : declarations) {
-    declareBlock->addInstruction(std::move(declaration));
-  }
 
   // Get the statements from the body
   auto statements = getJsonList(body);
@@ -93,6 +89,12 @@ void AstToCFG::buildCFG(Function &f, const json &ast) {
 
   // Build the CFG as a hierarchy of regions
   auto bodyRegion = constructCFG(f, statements, initialContinuations, true);
+
+  // fill the declare block with the declarations
+  auto declarations = f.takeDeclarations();
+  for (auto &declaration : declarations) {
+    declareBlock->addInstruction(std::move(declaration));
+  }
 
   // Link the declare block to the returned result
   declareBlock->addInstruction(Make<BranchInst>(bodyRegion->getHeader()));
@@ -180,19 +182,20 @@ Own<Region> AstToCFG::constructAssignmentCFG(const json &assignmentJson,
   auto *var = f.getBinding(left);
   auto expr = f.bindExpression(right, var->getType());
 
+  auto preHeader = f.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
+
   newBlock->addInstruction(Make<Assignment>(var, std::move(expr)));
 
   auto nestedRegion =
       constructCFG(f, statements, continuations, attachFallthrough);
   newBlock->addInstruction(Make<BranchInst>(nestedRegion->getHeader()));
 
-  Own<Region> assignmentRegion = Make<LeafRegion>(newBlock);
-  if (attachFallthrough) {
-    assignmentRegion =
-        Make<SequentialRegion>(newBlock, std::move(nestedRegion));
-  }
-
-  return assignmentRegion;
+  return attachFallthrough
+             ? Make<SequentialRegion>(
+                   preHeader,
+                   Make<SequentialRegion>(newBlock, std::move(nestedRegion)))
+             : Make<SequentialRegion>(preHeader, Make<LeafRegion>(newBlock));
 }
 
 Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
@@ -204,11 +207,13 @@ Own<Region> AstToCFG::constructReturnCFG(const json &returnJson, Function &f,
     EXCEPTION("There is a path without return value.");
     return nullptr;
   }
+  auto preHeader = f.makeBasicBlock();
   auto newBlock = f.makeBasicBlock();
+  preHeader->addInstruction(Make<BranchInst>(newBlock));
   String ret = getJsonExpr(returnJson["expr"]);
   newBlock->addInstruction(
       Make<ReturnInst>(f.bindExpression(ret, f.getReturnType())));
-  return Make<LeafRegion>(newBlock);
+  return Make<SequentialRegion>(preHeader, Make<LeafRegion>(newBlock));
 }
 
 Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
@@ -248,7 +253,9 @@ Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
   newBlock->addInstruction(Make<BranchInst>(
       ifRegion->getHeader(), elseIfRegion->getHeader(), std::move(cond)));
 
+  auto prePreHeader = f.makeBasicBlock();
   auto preHeader = f.makeBasicBlock();
+  prePreHeader->addInstruction(Make<BranchInst>(preHeader));
   preHeader->addInstruction(Make<BranchInst>(newBlock));
 
   auto conditionalRegion =
@@ -256,8 +263,10 @@ Own<Region> AstToCFG::constructIfCFG(const json &ifJson, Function &f,
                               attachElse ? nullptr : std::move(elseIfRegion));
 
   auto sequentialRegion = Make<SequentialRegion>(
-      preHeader, std::move(conditionalRegion),
-      attachFallthrough ? std::move(afterIfRegion) : nullptr);
+      prePreHeader,
+      Make<SequentialRegion>(preHeader, std::move(conditionalRegion),
+                             attachFallthrough ? std::move(afterIfRegion)
+                                               : nullptr));
   return std::move(sequentialRegion);
 }
 
@@ -452,13 +461,110 @@ Own<Region> AstToCFG::constructCursorLoopCFG(const json &cursorLoopJson,
                                              List<json> &statements,
                                              const Continuations &continuations,
                                              bool attachFallthrough) {
-  ERROR("Cursor loops are not currently supported.");
-  return Make<LeafRegion>(nullptr);
-}
+  auto newBlock = f.makeBasicBlock();
+  f.addVariable("cursorloopiter", getTypeFromPostgresName("INT"), false);
+  f.addVarInitialization(f.getBinding("cursorloopiter"),
+                         f.bindExpression("0", Type::INT, false));
 
-void AstToCFG::buildCursorLoopCFG(Function &f, const json &ast) {
-  ERROR("Cursor loops are not currently supported.");
-  return;
+  auto iInit = f.bindExpression("0", Type::INT, false);
+
+  newBlock->addInstruction(
+      Make<Assignment>(f.getBinding("cursorloopiter"), std::move(iInit)));
+
+  auto headerBlock = f.makeBasicBlock();
+
+  auto afterLoopRegion =
+      constructCFG(f, statements, continuations, attachFallthrough);
+  auto condBlock = f.makeBasicBlock();
+
+  headerBlock->addInstruction(Make<BranchInst>(condBlock));
+
+  // ? first argument is not used
+  auto newContinuations =
+      Continuations(headerBlock, headerBlock,
+                    afterLoopRegion ? afterLoopRegion->getHeader() : nullptr);
+  auto bodyStatements = getJsonList(cursorLoopJson["body"]);
+  auto loopBodyRegion =
+      constructCFG(f, bodyStatements, newContinuations, attachFallthrough);
+
+  String fetchQuery =
+      cursorLoopJson["query"]["PLpgSQL_expr"]["query"].get<String>();
+  String commentedFetchQuery =
+      "/*fetchQueryStart*/" + fetchQuery + "/*fetchQueryEnd*/";
+  // create a block for the condition
+  String cursorLoopWhileQuery =
+      fmt::format("select ANY_VALUE(cursorloopiter) < count(*) from tmp, {} "
+                  "cursorloopEmptyTmp",
+                  commentedFetchQuery);
+  auto condExpr = f.bindExpression(cursorLoopWhileQuery, Type::BOOLEAN, true);
+
+  auto incrementBlock = f.makeBasicBlock();
+  incrementBlock->addInstruction(
+      Make<Assignment>(f.getBinding("cursorloopiter"),
+                       f.bindExpression("cursorloopiter + 1", Type::INT)));
+
+  auto loopVarBlockPreHeader = f.makeBasicBlock();
+  condBlock->addInstruction(Make<BranchInst>(loopVarBlockPreHeader,
+                                             afterLoopRegion->getHeader(),
+                                             std::move(condExpr)));
+  auto loopVarBlock = f.makeBasicBlock();
+  loopVarBlockPreHeader->addInstruction(Make<BranchInst>(loopVarBlock));
+
+  size_t varId = 0;
+  Vec<String> varsInCursorLoop;
+  Vec<String> varsInFetchQuery;
+  ASSERT(cursorLoopJson.contains("var") &&
+             cursorLoopJson["var"].contains("PLpgSQL_row") &&
+             cursorLoopJson["var"]["PLpgSQL_row"].contains("fields"),
+         "Cursor loop must have a var with fields.");
+  for (auto &var : cursorLoopJson["var"]["PLpgSQL_row"]["fields"]) {
+    varsInCursorLoop.push_back(var["name"]);
+    varsInFetchQuery.push_back("fetchQueryVar" + std::to_string(varId));
+    varId++;
+  }
+
+  String fetchVarQuery = fmt::format(
+      "SELECT {{}} FROM ({}) fetchQueryTmpTable({}) WHERE cursorloopiter::BOOL",
+      fetchQuery, joinVector(varsInFetchQuery, ", "));
+  varId = 0;
+  for (auto &var : varsInCursorLoop) {
+    loopVarBlock->addInstruction(Make<Assignment>(
+        f.getBinding(var),
+        f.bindExpression(
+            fmt::format(fmt::runtime(fetchVarQuery), varsInFetchQuery[varId]),
+            f.getBinding(var)->getType(), true, false)));
+    varId++;
+  }
+  loopVarBlock->addInstruction(Make<BranchInst>(incrementBlock));
+
+  incrementBlock->addInstruction(Make<BranchInst>(loopBodyRegion->getHeader()));
+
+  // the block jumps immediately to the cond block
+  newBlock->addInstruction(Make<BranchInst>(headerBlock));
+
+  // construct the regions and add useful annotations
+  loopBodyRegion->setMetadata(json({{"udf_info", "cursorLoopBodyRegion"}}));
+  auto incrementRegion =
+      Make<SequentialRegion>(incrementBlock, std::move(loopBodyRegion));
+  auto loopVarRegion =
+      Make<SequentialRegion>(loopVarBlock, std::move(incrementRegion));
+  loopVarRegion->setMetadata(json({{"udf_info", "cursorLoopVarRegion"}}));
+  auto cursorLoopRegion = Make<LoopRegion>(
+      headerBlock,
+      Make<ConditionalRegion>(
+          condBlock, Make<SequentialRegion>(loopVarBlockPreHeader,
+                                            std::move(loopVarRegion))));
+
+  auto cursorLoopRegionMeta = cursorLoopJson;
+  cursorLoopRegionMeta["udf_info"] = "cursorLoopRegion";
+  cursorLoopRegionMeta["firstCursorVar"] = {
+      {"name", varsInCursorLoop[0]},
+      {"type", f.getBinding(varsInCursorLoop[0])->getType().serialize()}};
+  cursorLoopRegion->setMetadata(cursorLoopRegionMeta);
+  auto sequentialRegion = Make<SequentialRegion>(
+      newBlock, std::move(cursorLoopRegion),
+      attachFallthrough ? std::move(afterLoopRegion) : nullptr);
+  return std::move(sequentialRegion);
 }
 
 StringPair AstToCFG::unpackAssignment(const String &assignment) {
@@ -480,101 +586,9 @@ List<json> AstToCFG::getJsonList(const json &body) {
   return res;
 }
 
-PostgresTypeTag AstToCFG::getPostgresTag(const String &type) {
-  // remove spaces and capitalize the name
-  String upper = toUpper(removeSpaces(type));
-
-  Map<String, PostgresTypeTag> nameToTag = {
-      {"BIGINT", PostgresTypeTag::BIGINT},
-      {"BINARY", PostgresTypeTag::BINARY},
-      {"BIT", PostgresTypeTag::BIT},
-      {"BITSTRING", PostgresTypeTag::BITSTRING},
-      {"BLOB", PostgresTypeTag::BLOB},
-      {"BOOL", PostgresTypeTag::BOOL},
-      {"BOOLEAN", PostgresTypeTag::BOOLEAN},
-      {"BPCHAR", PostgresTypeTag::BPCHAR},
-      {"BYTEA", PostgresTypeTag::BYTEA},
-      {"CHAR", PostgresTypeTag::CHAR},
-      {"DATE", PostgresTypeTag::DATE},
-      {"DATETIME", PostgresTypeTag::DATETIME},
-      {"DECIMAL", PostgresTypeTag::DECIMAL},
-      {"DOUBLE", PostgresTypeTag::DOUBLE},
-      {"FLOAT", PostgresTypeTag::FLOAT},
-      {"FLOAT4", PostgresTypeTag::FLOAT4},
-      {"FLOAT8", PostgresTypeTag::FLOAT8},
-      {"HUGEINT", PostgresTypeTag::HUGEINT},
-      {"INT", PostgresTypeTag::INT},
-      {"INT1", PostgresTypeTag::INT1},
-      {"INT2", PostgresTypeTag::INT2},
-      {"INT4", PostgresTypeTag::INT4},
-      {"INT8", PostgresTypeTag::INT8},
-      {"INTEGER", PostgresTypeTag::INTEGER},
-      {"INTERVAL", PostgresTypeTag::INTERVAL},
-      {"LOGICAL", PostgresTypeTag::LOGICAL},
-      {"LONG", PostgresTypeTag::LONG},
-      {"NUMERIC", PostgresTypeTag::NUMERIC},
-      {"REAL", PostgresTypeTag::REAL},
-      {"SHORT", PostgresTypeTag::SHORT},
-      {"SIGNED", PostgresTypeTag::SIGNED},
-      {"SMALLINT", PostgresTypeTag::SMALLINT},
-      {"STRING", PostgresTypeTag::STRING},
-      {"TEXT", PostgresTypeTag::TEXT},
-      {"TIME", PostgresTypeTag::TIME},
-      {"TIMESTAMP", PostgresTypeTag::TIMESTAMP},
-      {"TINYINT", PostgresTypeTag::TINYINT},
-      {"UBIGINT", PostgresTypeTag::UBIGINT},
-      {"UINTEGER", PostgresTypeTag::UINTEGER},
-      {"UNKNOWN", PostgresTypeTag::UNKNOWN},
-      {"USMALLINT", PostgresTypeTag::USMALLINT},
-      {"UTINYINT", PostgresTypeTag::UTINYINT},
-      {"UUID", PostgresTypeTag::UUID},
-      {"VARBINARY", PostgresTypeTag::VARBINARY},
-      {"VARCHAR", PostgresTypeTag::VARCHAR}};
-
-  // Edge case for DECIMAL(width,scale)
-  if (upper.starts_with("DECIMAL")) {
-    return nameToTag.at("DECIMAL");
-  }
-
-  else if (upper.starts_with("VARCHAR")) {
-    return nameToTag.at("VARCHAR");
-  }
-
-  if (nameToTag.find(upper) == nameToTag.end()) {
-    EXCEPTION(type + " is not a valid Postgres Type.");
-  }
-  return nameToTag.at(upper);
-}
-
-Opt<WidthScale> AstToCFG::getDecimalWidthScale(const String &type) {
-  std::regex decimalPattern("DECIMAL\\((\\d+),(\\d+)\\)",
-                            std::regex_constants::icase);
-  std::smatch decimalMatch;
-  auto strippedString = removeSpaces(type);
-  std::regex_search(strippedString, decimalMatch, decimalPattern);
-  if (decimalMatch.size() == 3) {
-    auto width = std::stoi(decimalMatch[1]);
-    auto scale = std::stoi(decimalMatch[2]);
-    return {std::make_pair(width, scale)};
-  }
-  return {};
-}
-
 Type AstToCFG::getTypeFromPostgresName(const String &name) const {
   auto resolvedName = resolveTypeName(name);
-  auto tag = getPostgresTag(resolvedName);
-  if (tag == PostgresTypeTag::DECIMAL) {
-    // provide width, scale info if available
-    auto widthScale = getDecimalWidthScale(resolvedName);
-    if (widthScale) {
-      auto [width, scale] = *widthScale;
-      return Type(true, width, scale, tag);
-    } else {
-      return Type(true, std::nullopt, std::nullopt, tag);
-    }
-  } else {
-    return Type(false, std::nullopt, std::nullopt, tag);
-  }
+  return Type::fromString(resolvedName);
 }
 
 String AstToCFG::resolveTypeName(const String &type) const {

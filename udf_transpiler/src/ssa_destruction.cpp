@@ -3,6 +3,22 @@
 bool SSADestructionPass::runOnFunction(Function &f) {
   removePhis(f);
   removeSSANames(f);
+
+  // Remove every self assignment
+  auto *entry = f.getEntryBlock();
+  for (auto it = entry->begin(); it != entry->end();) {
+    auto &inst = *it;
+    if (auto *assign = dynamic_cast<Assignment *>(&inst)) {
+      auto rhs = assign->getRHS()->getRawSQL();
+      if (f.hasBinding(rhs)) {
+        if (assign->getLHS() == f.getBinding(rhs)) {
+          it = entry->removeInst(it);
+          continue;
+        }
+      }
+    }
+    ++it;
+  }
   return true;
 }
 
@@ -24,11 +40,6 @@ void SSADestructionPass::removePhis(Function &f) {
           }
 
           auto newAssignment = Make<Assignment>(phi->getLHS(), arg->clone());
-          if (pred->isConditional()) {
-            ASSERT(pred->getPredecessors().size() == 1,
-                   "Must have unique predecessor for conditional block!!");
-            pred = pred->getPredecessors().front();
-          }
           pred->insertBeforeTerminator(std::move(newAssignment));
         }
         // Remove the phi

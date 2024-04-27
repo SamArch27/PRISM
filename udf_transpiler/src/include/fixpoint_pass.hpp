@@ -11,13 +11,19 @@ public:
   bool runOnFunction(Function &f) override {
     bool changed = false;
     do {
+      if (!passOn(pass->getPassName())) {
+        break;
+      }
       changed = false;
-      changed |= pass->runOnFunction(f);
+      auto passChanged = pass->runOnFunction(f);
+      changed = changed || passChanged;
     } while (changed);
     return changed;
   }
 
   String getPassName() const override { return "Fixpoint"; }
+
+  FunctionPass &getPass() { return *pass; }
 
 private:
   Own<FunctionPass> pass;

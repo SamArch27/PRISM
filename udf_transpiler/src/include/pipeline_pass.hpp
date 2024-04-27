@@ -1,6 +1,7 @@
 #pragma once
 
 #include "function_pass.hpp"
+#include "udf_transpiler_extension.hpp"
 #include "utils.hpp"
 #include <chrono>
 
@@ -20,8 +21,13 @@ public:
     bool changed = false;
 
     for (auto &pass : pipeline) {
+      if (!passOn(pass->getPassName())) {
+        continue;
+      }
+      std::cout << "Running: " << pass->getPassName() << std::endl;
       auto start = std::chrono::high_resolution_clock::now();
-      changed |= pass->runOnFunction(f);
+      auto passChanged = pass->runOnFunction(f);
+      changed = changed || passChanged;
       auto stop = std::chrono::high_resolution_clock::now();
       auto duration =
           std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
@@ -32,6 +38,8 @@ public:
   }
 
   String getPassName() const override { return "Pipeline"; }
+
+  VecOwn<FunctionPass> &getPipeline() { return pipeline; }
 
 private:
   VecOwn<FunctionPass> pipeline;

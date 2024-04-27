@@ -87,60 +87,6 @@ private:
   Map<BasicBlock *, Set<const Variable *>> blockLiveOut;
 };
 
-class InterferenceGraph {
-public:
-  void addInterferenceEdge(const Variable *left, const Variable *right) {
-    edge[left].insert(right);
-    edge[right].insert(left);
-  }
-
-  bool interferes(const Variable *left, const Variable *right) const {
-    if (edge.find(left) == edge.end()) {
-      return false;
-    }
-    if (edge.find(right) == edge.end()) {
-      return false;
-    }
-    auto &leftEdges = edge.at(left);
-    auto &rightEdges = edge.at(right);
-    return leftEdges.find(right) != leftEdges.end() ||
-           rightEdges.find(left) != rightEdges.end();
-  }
-
-  void removeEdge(const Variable *left, const Variable *right) {
-    edge[left].erase(right);
-    edge[right].erase(left);
-  }
-
-  friend std::ostream &operator<<(std::ostream &os,
-                                  const InterferenceGraph &interferenceGraph) {
-    interferenceGraph.print(os);
-    return os;
-  }
-
-private:
-  void print(std::ostream &os) const {
-    os << "digraph cfg {" << std::endl;
-    for (const auto &[var, others] : edge) {
-      if (others.empty()) {
-        continue;
-      }
-      os << "\t" << var->getName() << " [label=\"" << var->getName() << "\"];";
-      for (const auto *other : others) {
-        // only print left to right edges
-        if (var->getName() < other->getName()) {
-          continue;
-        }
-        os << "\t" << var->getName() << " -> " << other->getName()
-           << " [dir=none];" << std::endl;
-      }
-    }
-    os << "}" << std::endl;
-  }
-
-  Map<const Variable *, Set<const Variable *>> edge;
-};
-
 template <typename T> struct DataflowResult {
 public:
   T in;
@@ -149,18 +95,17 @@ public:
 
 class LivenessAnalysis : public Analysis {
 public:
-  LivenessAnalysis(Function &f) : Analysis(f) {}
+  LivenessAnalysis(Function &f) : Analysis(f) {
+    useDefAnalysis = Make<UseDefAnalysis>(f);
+  }
 
   void runAnalysis() override;
 
   Liveness *getLiveness() const { return liveness.get(); }
-  InterferenceGraph *getInterferenceGraph() const {
-    return interferenceGraph.get();
-  }
 
 private:
   BitVector transfer(BitVector out, BasicBlock *block);
-  BitVector meet(BitVector in, BasicBlock *succ, BasicBlock *block);
+  BitVector meet(BitVector result, BitVector in, BasicBlock *block);
   void preprocess();
   void preprocessInst(Instruction *inst);
   void genBoundaryInner();
@@ -168,15 +113,16 @@ private:
   void finalize();
 
   void computeLiveness();
-  void computeInterferenceGraph();
 
-  Map<BasicBlock *, Set<const Instruction *>> defs;
-  Map<BasicBlock *, Set<const Instruction *>> uses;
-  Vec<const Instruction *> definingInstructions;
-  Map<const Instruction *, std::size_t> instToIndex;
+  Map<BasicBlock *, Set<const Variable *>> allDefs;
+  Map<BasicBlock *, Set<const Variable *>> phiDefs;
+  Map<BasicBlock *, Set<const Variable *>> phiUses;
+  Map<BasicBlock *, Set<const Variable *>> upwardsExposed;
+  Vec<const Variable *> variables;
+  Map<const Variable *, std::size_t> varToIndex;
 
+  Own<UseDefAnalysis> useDefAnalysis;
   Own<Liveness> liveness;
-  Own<InterferenceGraph> interferenceGraph;
 
   BitVector innerStart;
   BitVector boundaryStart;

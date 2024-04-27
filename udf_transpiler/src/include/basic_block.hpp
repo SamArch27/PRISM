@@ -122,7 +122,15 @@ public:
     return std::distance(predecessors.begin(), it);
   };
 
-  BasicBlock *getPred(std::size_t offset) const { return predecessors[offset]; }
+  /**
+   * This function maintains the order of predecessors of all existing blocks.
+   *
+   * When newsPrevPred == nullptr, assume newBlock is a fresh block that has no
+   * predecessors or successors. Otherwise, newBlock is an existing block that
+   * has a predecessor newsPrevPred.
+   */
+  void renameBasicBlock(const BasicBlock *oldBlock, BasicBlock *newBlock,
+                        const BasicBlock *newsPrevPred = nullptr);
 
   const Vec<BasicBlock *> &getSuccessors() const;
   const Vec<BasicBlock *> &getPredecessors() const;
@@ -130,6 +138,8 @@ public:
   void addPredecessor(BasicBlock *pred);
   void removeSuccessor(BasicBlock *succ);
   void removePredecessor(BasicBlock *pred);
+  void replacePredecessor(const BasicBlock *oldPred, BasicBlock *newPred);
+
   void addInstruction(Own<Instruction> inst);
 
   ConstInstIterator begin() const {
@@ -143,11 +153,11 @@ public:
 
   InstIterator insertBefore(InstIterator targetInst, Own<Instruction> newInst);
   InstIterator insertBeforeTerminator(Own<Instruction> newInst);
-  InstIterator insertAfter(InstIterator targetInst, Own<Instruction> newInst);
 
   InstIterator findInst(Instruction *inst);
   InstIterator removeInst(InstIterator targetInst);
-  InstIterator replaceInst(InstIterator targetInst, Own<Instruction> newInst);
+  InstIterator replaceInst(InstIterator targetInst, Own<Instruction> newInst,
+                           bool updateSuccPred = false);
 
   Instruction *getInitiator();
   Instruction *getTerminator();
@@ -155,10 +165,23 @@ public:
   void setRegion(Region *region) { parentRegion = region; }
   Region *getRegion() const { return parentRegion; }
 
+  void setLabel(const String &newLabel);
   String getLabel() const;
   bool isConditional() const;
 
   size_t size() const { return instructions.size(); }
+
+  bool hasSelect() const {
+    for (auto &inst : *this) {
+      if (inst.hasSelect()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void clearPredecessors() { predecessors.clear(); }
+  void clearSuccessors() { successors.clear(); }
 
 protected:
   void print(std::ostream &os) const;

@@ -59,12 +59,14 @@ String PredicateAnalysis::getCondFromPath(const Vec<BasicBlock *> &path) const {
         }
 
         cond += "(";
-
+        bool addNot = true;
         if (prevBlock != branch->getIfFalse()) {
-          cond += "NOT ";
+          addNot = false;
         }
-        cond +=
-            "(" + branch->getCond()->getRawSQL() + " IS DISTINCT FROM TRUE)";
+        if (addNot) {
+          cond += "NOT";
+        }
+        cond += " (" + branch->getCond()->getRawSQL() + ")";
         cond += ")";
       }
     }
@@ -101,17 +103,20 @@ PredicateAnalysis::getExprOnPath(const Vec<BasicBlock *> &path,
         } else if (auto *phi = dynamic_cast<const PhiNode *>(def)) {
           // find the corresponding predecessor
           auto *block = phi->getParent();
-          for (auto *pred : block->getPredecessors()) {
-            if (std::find(path.begin(), path.end(), pred) != path.end()) {
-              // for the matching predecessor, get the corresponding phi op
-              auto phiOp = phi->getRHS()[block->getPredNumber(pred)];
-              // then do the replacement
-              Map<const Variable *, const SelectExpression *> oldToNew;
-              oldToNew.insert({phi->getLHS(), phiOp});
-              resolvedValue =
-                  f.replaceVarWithExpression(resolvedValue.get(), oldToNew);
-            }
-          }
+
+          auto it = std::find(path.begin(), path.end(), block);
+          ASSERT(it != path.end(), "Path must contain definition!");
+          // get the next block in the path
+          ++it;
+          auto *pred = *it;
+          // for the matching predecessor, get the corresponding phi op
+          auto phiOp = phi->getRHS()[block->getPredNumber(pred)];
+          // then do the replacement
+          Map<const Variable *, const SelectExpression *> oldToNew;
+          oldToNew.insert({phi->getLHS(), phiOp});
+          resolvedValue =
+              f.replaceVarWithExpression(resolvedValue.get(), oldToNew);
+
         } else {
           ERROR("Can't have definition which isn't a phi or assignment!");
         }
@@ -122,6 +127,7 @@ PredicateAnalysis::getExprOnPath(const Vec<BasicBlock *> &path,
 }
 
 void PredicateAnalysis::runAnalysis() {
+
   auto root = f.getRegion();
 
   Set<const Region *> worklist;
@@ -163,7 +169,15 @@ void PredicateAnalysis::runAnalysis() {
   // =, <=, >=, <, >
   Vec<String> ops = {"=", "<=", ">=", "<", ">"};
   Vec<String> suffix = {"eq", "leq", "geq", "lt", "gt"};
-  predicates.resize(5);
+
+  auto booleanFunction =
+      (f.getReturnType().getDuckDBTag() == DuckdbTypeTag::BOOLEAN);
+
+  if (booleanFunction) {
+    predicates.resize(1);
+  } else {
+    predicates.resize(5);
+  }
 
   // add a variable t to compare against
   f.addVariable("t", f.getReturnType(), false);
@@ -174,19 +188,30 @@ void PredicateAnalysis::runAnalysis() {
         auto pathsToReturn = getAllPathsToBlock(&block);
 
         for (auto &path : pathsToReturn) {
-
+          String condValue = "";
           auto cond = getCondFromPath(path);
-          auto boundCondition = f.bindExpression(cond, Type::BOOLEAN);
           auto returnValue = getExprOnPath(path, ret->getExpr());
-          auto condValue = getExprOnPath(path, boundCondition.get());
+
+          if (cond != "") {
+            auto boundCondition = f.bindExpression(cond, Type::BOOLEAN);
+            condValue = getExprOnPath(path, boundCondition.get());
+          }
 
           for (std::size_t i = 0; i < predicates.size(); ++i) {
             auto &pred = predicates[i];
             if (pred != "") {
               pred += " OR ";
             }
-            pred += ("((" + condValue + " AND (NOT (" + returnValue + " " +
-                     ops[i] + " t)) IS DISTINCT FROM TRUE))");
+            pred += "((";
+            if (condValue != "") {
+              pred += condValue + " AND ";
+            }
+            if (booleanFunction) {
+              pred += "(" + returnValue + ")";
+            } else {
+              pred += ("(" + returnValue + " " + ops[i] + " t)");
+            }
+            pred += "))";
           }
         }
       }
@@ -195,12 +220,27 @@ void PredicateAnalysis::runAnalysis() {
 
   for (std::size_t i = 0; i < predicates.size(); ++i) {
     auto &pred = predicates[i];
-    String args = "(t";
+
+    String args = "(";
+    bool first = true;
+    if (!booleanFunction) {
+      args += "t ";
+      first = false;
+    }
     for (auto &arg : f.getArguments()) {
-      args += (", " + arg->getName());
+      if (first) {
+        first = false;
+      } else {
+        args += ", ";
+      }
+      args += arg->getName();
     }
     args += ")";
-    pred = "CREATE MACRO " + f.getFunctionName() + "_" + suffix[i] + args +
-           " AS (" + pred + ");";
+
+    auto functionName = f.getFunctionName();
+    if (!booleanFunction) {
+      functionName += ("_" + suffix[i]);
+    }
+    pred = ("CREATE MACRO " + functionName + args + " AS (" + pred + ");");
   }
 }

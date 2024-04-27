@@ -5,6 +5,8 @@
 #include <iostream>
 #include <set>
 
+using WidthScale = Pair<int, int>;
+
 enum class PostgresTypeTag {
   BIGINT,
   BINARY,
@@ -102,13 +104,34 @@ public:
   static constexpr int DEFAULT_SCALE = 3;
 
   static Type BOOLEAN;
+  static Type INT;
 
   Type(bool decimal, Opt<int> width, Opt<int> scale,
-       PostgresTypeTag postgresTag)
+       PostgresTypeTag postgresTag, String typeString)
       : decimal(decimal), width(getWidth(isDecimal(), width)),
         scale(getScale(isDecimal(), scale)), postgresTag(postgresTag),
         duckdbTag(lookupDuckdbTag(postgresTag)),
-        cppTag(lookupCppTag(duckdbTag, width, scale)) {}
+        cppTag(lookupCppTag(duckdbTag, width, scale)), typeString(typeString) {}
+
+  String serialize() const { return typeString; }
+
+  static Opt<WidthScale> getDecimalWidthScale(const String &type);
+  static PostgresTypeTag getPostgresTag(const String &name);
+
+  static Type fromString(const String &str) {
+    auto tag = getPostgresTag(str);
+    if (tag == PostgresTypeTag::DECIMAL) {
+      auto widthScale = getDecimalWidthScale(str);
+      if (widthScale) {
+        auto [width, scale] = *widthScale;
+        return Type(true, width, scale, tag, str);
+      } else {
+        return Type(true, {DEFAULT_WIDTH}, {DEFAULT_SCALE}, tag, str);
+      }
+    } else {
+      return Type(false, std::nullopt, std::nullopt, tag, str);
+    }
+  }
 
   static Opt<int> getWidth(bool decimal, Opt<int> width) {
     if (decimal) {
@@ -131,7 +154,8 @@ public:
   const static inline Set<DuckdbTypeTag> NumericTypes = {
       DuckdbTypeTag::BOOLEAN,  DuckdbTypeTag::TINYINT, DuckdbTypeTag::SMALLINT,
       DuckdbTypeTag::INTEGER,  DuckdbTypeTag::BIGINT,  DuckdbTypeTag::UBIGINT,
-      DuckdbTypeTag::UINTEGER, DuckdbTypeTag::DECIMAL, DuckdbTypeTag::DOUBLE};
+      DuckdbTypeTag::UINTEGER, DuckdbTypeTag::DECIMAL, DuckdbTypeTag::DOUBLE,
+      DuckdbTypeTag::REAL};
 
   const static inline Set<DuckdbTypeTag> BlobTypes = {DuckdbTypeTag::BLOB,
                                                       DuckdbTypeTag::VARCHAR};
@@ -171,7 +195,9 @@ public:
     }
   }
   String getDefaultValue(bool singleQuote) const {
-    if (isNumeric()) {
+    if (isBoolean()) {
+      return "false";
+    } else if (isNumeric()) {
       return "0";
     } else if (isBlob()) {
       if (singleQuote)
@@ -193,6 +219,7 @@ public:
 
   bool isDecimal() const { return decimal; }
   bool isNumeric() const { return NumericTypes.count(duckdbTag); }
+  bool isBoolean() const { return duckdbTag == DuckdbTypeTag::BOOLEAN; }
   bool isBlob() const { return BlobTypes.count(duckdbTag); }
 
 protected:
@@ -207,4 +234,5 @@ protected:
   PostgresTypeTag postgresTag;
   DuckdbTypeTag duckdbTag;
   CppTypeTag cppTag;
+  String typeString;
 };

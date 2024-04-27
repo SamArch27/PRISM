@@ -49,8 +49,6 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
   int target_width = function_info.width_scale2.first;
   LogicalType source_type = LogicalType::DECIMAL(source_width, source_scale);
   LogicalType target_type = LogicalType::DECIMAL(target_width, target_scale);
-  std::cout << source_width << ", " << source_scale << std::endl;
-  std::cout << target_width << ", " << target_scale << std::endl;
   String source_physical =
       ScalarFunctionInfo::DecimalTypeToCppType(source_width, source_scale);
   String target_physical =
@@ -59,14 +57,25 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
     // scale up
     auto scale_difference = target_scale - source_scale;
     auto multiply_factor = pow10String(scale_difference);
+    if (target_physical == "hugeint_t") {
+      multiply_factor = "hugeint_t(" + multiply_factor + ")";
+    }
     auto res_width = target_width - scale_difference;
     if (source_width < res_width) {
       if (source_physical != target_physical) {
-        function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        if (multiply_factor == "1" or multiply_factor == "hugeint_t(1)") {
+          function_name = fmt::format("Cast::Operation");
+        } else {
+          function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        }
         template_args.push_back(source_physical);
         template_args.push_back(target_physical);
       } else {
-        function_name = fmt::format("{} * ", multiply_factor);
+        if (multiply_factor == "1" or multiply_factor == "hugeint_t(1)") {
+          function_name = fmt::format("");
+        } else {
+          function_name = fmt::format("{} * ", multiply_factor);
+        }
       }
     } else {
       // DecimalScaleUpCheckOperator
@@ -77,6 +86,10 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
       args.pop_front();
       args.push_front(newVar);
       String limit = pow10String(res_width);
+      if (res_width > 18) {
+        // hugeint
+        limit = "Hugeint::POWERS_OF_TEN[" + std::to_string(res_width) + "]";
+      }
       insert.lines.push_back(fmt::format("\
       if ({input} >= {limit} || {input} <= -{limit}){{\n\
         throw CastException(\"Numeric value out of range\");\n\
@@ -85,15 +98,24 @@ void decimalDecimalCastHandler(const ScalarFunctionInfo &function_info,
                                          fmt::arg("input", newVar),
                                          fmt::arg("limit", limit)));
       if (source_physical != target_physical) {
-        function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        if (multiply_factor == "1" or multiply_factor == "hugeint_t(1)") {
+          function_name = fmt::format("Cast::Operation");
+        } else {
+          function_name = fmt::format("{} * Cast::Operation", multiply_factor);
+        }
         template_args.push_back(source_physical);
         template_args.push_back(target_physical);
       } else {
-        function_name = fmt::format("{} * ", multiply_factor);
+        if (multiply_factor == "1" or multiply_factor == "hugeint_t(1)") {
+          function_name = fmt::format("");
+        } else {
+          function_name = fmt::format("{} * ", multiply_factor);
+        }
       }
     }
   } else {
     // scale down
+    // udf_todo: consider hugeint
     auto scale_difference = source_scale - target_scale;
     auto multiply_factor = pow10String(scale_difference);
     auto res_width = target_width + scale_difference;
@@ -149,8 +171,9 @@ void BoundExpressionCodeGenerator::SpecialCaseHandler(
       EXCEPTION("BinaryNumericDivideWrapper not implemented yet.");
       break;
     case ScalarFunctionInfo::BinaryZeroIsNullWrapper:
-      // udf_todo
-      EXCEPTION("BinaryZeroIsNullWrapper not implemented yet.");
+      function_name = "BinaryZeroIsNullWrapper::Operation";
+      template_args.insert(template_args.begin(),
+                           get_struct_name(function_info.cpp_name));
       break;
     case ScalarFunctionInfo::BinaryZeroIsNullHugeintWrapper:
       // udf_todo
@@ -346,7 +369,7 @@ BoundExpressionCodeGenerator::Transpile(const BoundOperatorExpression &exp,
   switch (exp.GetExpressionType()) {
   case ExpressionType::OPERATOR_NOT:
     ASSERT(exp.children.size() == 1, "NOT operator should have 1 child.");
-    return fmt::format("(!{})", Transpile(*exp.children[0], insert));
+    return fmt::format("(!({}))", Transpile(*exp.children[0], insert));
   // case ExpressionType::OPERATOR_IS_NULL:
   //     have a {}_isnull for all function variables
   default:
@@ -361,10 +384,36 @@ BoundExpressionCodeGenerator::Transpile(const BoundConstantExpression &exp,
                                         CodeGenInfo &insert) {
   if (exp.value.type().IsNumeric() or
       exp.value.type() == LogicalType::BOOLEAN) {
-    return fmt::format(
-        "({}) {}", ScalarFunctionInfo::LogicalTypeToCppType(exp.return_type),
-        exp.value.GetValue<uint64_t>()); // int64_t should be enough for
-                                         // most numeric types
+    switch (exp.value.type().InternalType()) {
+    case PhysicalType::INT8:
+      return fmt::format("int8_t({})", exp.value.GetValueUnsafe<int8_t>());
+    case PhysicalType::INT16:
+      return fmt::format("int16_t({})", exp.value.GetValueUnsafe<int16_t>());
+    case PhysicalType::INT32:
+      return fmt::format("int32_t({})", exp.value.GetValueUnsafe<int32_t>());
+    case PhysicalType::INT64:
+      return fmt::format("int64_t({})", exp.value.GetValueUnsafe<int64_t>());
+    case PhysicalType::INT128:
+      return fmt::format("hugeint_t({})",
+                         exp.value.GetValueUnsafe<hugeint_t>().ToString());
+    case PhysicalType::UINT8:
+      return fmt::format("uint8_t({})", exp.value.GetValueUnsafe<uint8_t>());
+    case PhysicalType::UINT16:
+      return fmt::format("uint16_t({})", exp.value.GetValueUnsafe<uint16_t>());
+    case PhysicalType::UINT32:
+      return fmt::format("uint32_t({})", exp.value.GetValueUnsafe<uint32_t>());
+    case PhysicalType::UINT64:
+      return fmt::format("uint64_t({})", exp.value.GetValueUnsafe<uint64_t>());
+    case PhysicalType::FLOAT:
+      return fmt::format("float({})", exp.value.GetValueUnsafe<float>());
+    case PhysicalType::DOUBLE:
+      return fmt::format("double({})", exp.value.GetValueUnsafe<double>());
+    case PhysicalType::BOOL:
+      return fmt::format("bool({})", exp.value.GetValueUnsafe<bool>());
+    default:
+      return fmt::format("[Not supported const: {}: {}]", exp.value.ToString(),
+                         exp.return_type.ToString());
+    }
   } else if (exp.value.type() == LogicalType::DATE) {
     return fmt::format("date_t({})", exp.value.GetValueUnsafe<int32_t>());
   } else if (exp.value.type() == LogicalType::VARCHAR) {
@@ -379,6 +428,9 @@ template <>
 String
 BoundExpressionCodeGenerator::Transpile(const BoundReferenceExpression &exp,
                                         CodeGenInfo &insert) {
+  if (exp.GetName().find("(") != std::string::npos) {
+    return fmt::format("[BoundReferenceExpression: {}]", exp.GetName());
+  }
   return toLower(exp.GetName());
 }
 

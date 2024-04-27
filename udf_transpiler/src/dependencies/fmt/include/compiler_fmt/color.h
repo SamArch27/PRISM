@@ -526,7 +526,7 @@ inline std::basic_string<Char> vformat(
 
   **Example**::
 
-    #include <compile_fmt/color.h>
+    #include <compiler_fmt/color.h>
     std::string message = fmt::format(fmt::emphasis::bold | fg(fmt::color::red),
                                       "The answer is {}", 42);
   \endrst
@@ -563,9 +563,10 @@ OutputIt vformat_to(
                    fmt::emphasis::bold | fg(fmt::color::red), "{}", 42);
   \endrst
 */
-template <typename OutputIt, typename S, typename... Args,
-          bool enable = detail::is_output_iterator<OutputIt, char_t<S>>::value&&
-              detail::is_string<S>::value>
+template <
+    typename OutputIt, typename S, typename... Args,
+    bool enable = detail::is_output_iterator<OutputIt, char_t<S>>::value &&
+                  detail::is_string<S>::value>
 inline auto format_to(OutputIt out, const text_style& ts, const S& format_str,
                       Args&&... args) ->
     typename std::enable_if<enable, OutputIt>::type {

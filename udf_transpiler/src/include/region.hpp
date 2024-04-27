@@ -3,6 +3,8 @@
 
 #include "basic_block.hpp"
 
+using json = nlohmann::json;
+
 class RecursiveRegion;
 
 // Every region has a single entry point (a header)
@@ -10,7 +12,8 @@ class RecursiveRegion;
 class Region {
 protected:
   // Make the constructor protected to ensure no one is creating raw regions
-  Region(BasicBlock *header, bool attach) : header(header) {
+  Region(BasicBlock *header, bool attach, String metadata = "")
+      : header(header) {
     if (attach) {
       header->setRegion(this);
     }
@@ -40,9 +43,15 @@ public:
   void setParentRegion(RecursiveRegion *parent) { parentRegion = parent; }
   RecursiveRegion *getParentRegion() const { return parentRegion; }
 
+  virtual Vec<BasicBlock *> getBasicBlocks() const = 0;
+
+  void setMetadata(json metadata) { this->metadata = metadata; }
+  inline const json &getMetadata() const { return metadata; }
+
 private:
   RecursiveRegion *parentRegion = nullptr;
   BasicBlock *header;
+  json metadata;
 };
 
 class NonRecursiveRegion : public Region {
@@ -54,10 +63,15 @@ public:
   virtual ~NonRecursiveRegion() = default;
   virtual void print(std::ostream &os) const override = 0;
   virtual String getRegionLabel() const override = 0;
+
+  Vec<BasicBlock *> getBasicBlocks() const override { return {getHeader()}; }
 };
 
 class RecursiveRegion : public Region {
-protected:
+public:
+  // RecursiveRegion(BasicBlock *header, bool attach) : Region(header, attach)
+  // {}
+
   template <typename... Args>
   RecursiveRegion(BasicBlock *header, bool attach, Args... args)
       : Region(header, attach) {
@@ -72,17 +86,45 @@ protected:
 
 public:
   virtual ~RecursiveRegion() = default;
-  virtual void print(std::ostream &os) const override = 0;
-  virtual String getRegionLabel() const override = 0;
+  virtual void print(std::ostream &os) const override {
+    ERROR("print not implemented for RecursiveRegion");
+  }
+  virtual String getRegionLabel() const override {
+    ERROR("getRegionLabel not implemented for RecursiveRegion");
+    return "";
+  }
 
   Vec<const Region *> getNestedRegions() const {
     Vec<const Region *> result;
     for (auto &region : nestedRegions) {
-      if (region) {
+      if (region != nullptr) {
         result.push_back(region.get());
       }
     }
     return result;
+  }
+
+  Vec<const Region *> getNestedRegionsWithNull() const {
+    Vec<const Region *> result;
+    for (auto &region : nestedRegions) {
+      result.push_back(region.get());
+    }
+    return result;
+  }
+
+  void addNestedRegion(Own<Region> region) {
+    if (region) {
+      region->setParentRegion(this);
+    }
+    nestedRegions.push_back(std::move(region));
+  }
+
+  /**
+   * Unlike getNestedRegions that for conditional regions returns only the
+   * true region, this function returns both the true and false regions.
+   */
+  virtual Vec<const Region *> getSuccessorRegions() const {
+    return getNestedRegions();
   }
 
   void releaseNestedRegions() {
@@ -91,14 +133,42 @@ public:
     }
   }
 
-  void replaceNestedRegion(RecursiveRegion *toReplace, Region *newRegion) {
-    toReplace->releaseNestedRegions();
+  void replaceNestedRegion(Region *toReplace, Region *newRegion) {
+    for (auto &region : nestedRegions) {
+      if (region.get() == newRegion) {
+        region.release();
+      }
+    }
     for (auto &region : nestedRegions) {
       if (region.get() == toReplace) {
         newRegion->setParentRegion(this);
         region.reset(newRegion);
       }
     }
+  }
+
+  void removeNestedRegions(Set<Region *> regionsToRemove) {
+    auto it = nestedRegions.begin();
+    while (it != nestedRegions.end()) {
+      if (regionsToRemove.find(it->get()) != regionsToRemove.end()) {
+        ASSERT(it == nestedRegions.end() - 1,
+               "Only the last region can be removed");
+        *it = nullptr;
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  Vec<BasicBlock *> getBasicBlocks() const override {
+    Vec<BasicBlock *> result = {getHeader()};
+    for (auto &region : nestedRegions) {
+      if (region) {
+        auto blocks = region->getBasicBlocks();
+        result.insert(result.end(), blocks.begin(), blocks.end());
+      }
+    }
+    return result;
   }
 
 protected:
@@ -189,8 +259,22 @@ public:
     return "CR" + getHeader()->getLabel().substr(1);
   }
 
-  Region *getTrueRegion() const { return nestedRegions[0].get(); }
+  Region *getTrueRegion() const {
+    ASSERT(nestedRegions[0].get() != nullptr,
+           "Conditional region must have a true region. Check "
+           "replaceNestedRegion because that may be the cause.");
+    return nestedRegions[0].get();
+  }
   Region *getFalseRegion() const { return nestedRegions[1].get(); }
+
+  Vec<const Region *> getSuccessorRegions() const override {
+    Vec<const Region *> result;
+    for (auto succ : getHeader()->getSuccessors()) {
+      ASSERT(succ->getRegion(), "Successor must have a region");
+      result.push_back(succ->getRegion());
+    }
+    return result;
+  }
 
 protected:
   void print(std::ostream &os) const override {
@@ -219,7 +303,7 @@ protected:
 class LoopRegion : public RecursiveRegion {
 public:
   LoopRegion(BasicBlock *header, Own<Region> bodyRegion)
-      : RecursiveRegion(header, true, std::move(bodyRegion)) {}
+      : RecursiveRegion(header, true, std::move(bodyRegion), nullptr) {}
 
   String getRegionLabel() const override {
     return "LR" + getHeader()->getLabel().substr(1);
@@ -238,3 +322,11 @@ protected:
     os << *getBodyRegion();
   }
 };
+
+inline String getRegionString(Region *region) {
+  std::stringstream ss;
+  ss << "digraph region {";
+  ss << *region << std::endl;
+  ss << "}" << std::endl;
+  return ss.str();
+}

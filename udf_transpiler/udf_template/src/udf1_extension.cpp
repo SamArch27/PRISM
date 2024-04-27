@@ -10,6 +10,7 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/extension_util.hpp"
+#include "aggify.hpp"
 
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 
@@ -30,9 +31,6 @@ namespace duckdb
 	{
 		con = make_uniq<Connection>(instance);
 		context = con->context.get();
-		// auto isListDistinct_scalar_function = ScalarFunction("isListDistinct", {LogicalType::VARCHAR, LogicalType::VARCHAR},
-		// 													 LogicalType::BOOLEAN, isListDistinct);
-		// ExtensionUtil::RegisterFunction(instance, isListDistinct_scalar_function);
 /* ==== Unique identifier to indicate register insertion point start: 04rj39jds934 ==== */
 
 

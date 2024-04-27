@@ -8,6 +8,9 @@
 #include "utils.hpp"
 
 #include "cfg_code_generator.hpp"
+#include "fixpoint_pass.hpp"
+#include "function_pass.hpp"
+#include "pipeline_pass.hpp"
 
 using json = nlohmann::json;
 
@@ -19,13 +22,20 @@ class Compiler {
 public:
   Compiler(duckdb::Connection *conn, const String &programText,
            const YAMLConfig &config, size_t &udfCount)
-      : conn(conn), programText(programText), config(config), udfCount(udfCount) {}
+      : conn(conn), programText(programText), config(config),
+        udfCount(udfCount) {}
 
   CompilationResult run();
+
+  CompilationResult runOnFunction(Function &f);
 
   CFGCodeGeneratorResult generateCode(const Function &function);
 
   void optimize(Function &f);
+
+  inline size_t &getUdfCount() { return udfCount; }
+  inline duckdb::Connection *getConnection() { return conn; }
+  inline const YAMLConfig &getConfig() { return config; }
 
   static constexpr std::size_t VECTOR_SIZE = 2048;
   static constexpr std::size_t DECIMAL_WIDTH = 18;

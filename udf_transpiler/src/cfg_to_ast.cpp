@@ -24,7 +24,8 @@ const LoopRegion *findCurrentLoopRegion(const BasicBlock *bb) {
  * whether the basic block belongs to the loop region
  */
 bool belongToLoopRegion(const BasicBlock *bb, const LoopRegion *loopRegion) {
-  ASSERT(bb->getRegion(), "Basic block should have a parent region");
+  ASSERT(bb->getRegion(),
+         "Basic block " + bb->getLabel() + " should have a parent region");
   Region *parentRegion = bb->getRegion();
   while (parentRegion) {
     if (parentRegion == loopRegion) {
@@ -94,13 +95,13 @@ String basicBlockCodeGenerator(const Function &function, const BasicBlock *bb,
     if (auto assign = dynamic_cast<const Assignment *>(&inst)) {
       // if the instruction is an assignment, generate the corresponding
       // PL/pgSQL code
-      String code = fmt::format("{} := {};", assign->getLHS()->getName(),
+      String code = fmt::format("{} := ({});", assign->getLHS()->getName(),
                                 assign->getRHS()->getRawSQL());
       result.push_back(code);
     } else if (auto ret = dynamic_cast<const ReturnInst *>(&inst)) {
       // if the instruction is a return instruction, generate the corresponding
       // PL/pgSQL code
-      String code = fmt::format("RETURN {};", ret->getExpr()->getRawSQL());
+      String code = fmt::format("RETURN ({});", ret->getExpr()->getRawSQL());
       result.push_back(code);
     } else if (auto branch = dynamic_cast<const BranchInst *>(&inst)) {
       // we only consider adding break and continue statement at jmp position
@@ -157,9 +158,8 @@ void PLpgSQLGenerator::regionCodeGenerator(const Function &function,
     PLpgSQLContainer loopContainer;
     regionCodeGenerator(function, loopContainer, currentRegion->getBodyRegion(),
                         indent);
-    auto loopCode =
-        fmt::format("WHILE TRUE LOOP\n{}END LOOP;\n", joinCode(loopContainer));
-    container.regionCodes.push_back(headerCode);
+    auto loopCode = fmt::format("LOOP\n{}\n{}END LOOP;\n", headerCode,
+                                joinCode(loopContainer));
     container.regionCodes.push_back(loopCode);
   } else if (auto currentRegion =
                  dynamic_cast<const ConditionalRegion *>(region)) {
@@ -230,10 +230,10 @@ void PLpgSQLGenerator::bodyCodeGenerator(const Function &function,
  * based on the region of the cfg, generate the corresponding PL/pgSQL code
  */
 PLpgSQLGeneratorResult PLpgSQLGenerator::run(const Function &function) {
+
   PLpgSQLContainer container;
 
   // generate the region code
-  // String body = "empty now";
   bodyCodeGenerator(function, container);
   String body = joinCode(container);
 

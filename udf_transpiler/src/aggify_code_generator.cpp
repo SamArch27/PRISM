@@ -35,73 +35,81 @@ Vec<String> AggifyCodeGenerator::getOrginalCursorLoopCol(const json &ast) {
   return res;
 }
 
-AggifyCodeGeneratorResult AggifyCodeGenerator::run(Function &f, const json &ast,
-                                                   const AggifyDFA &dfaResult,
-                                                   size_t id) {
-  std::set<String> cursorVars;
-  for (const json &vars : ast["var"]["PLpgSQL_row"]["fields"]) {
-    cursorVars.insert(vars["name"]);
-  }
-  // except for cursor variables, assume now that all others variables are used
-  // in cursor loop
+AggifyCodeGeneratorResult AggifyCodeGenerator::run(
+    Function &f, const json &ast, Vec<const Variable *> cursorVars,
+    Vec<const Variable *> usedVars, const Variable *retVariable, size_t id) {
 
+  String name = f.getFunctionName();
   String code;
   String varyingFuncTemplate = config.aggify["varyingFuncTemplate"].Scalar();
   Vec<String> inputDependentComps(20);
 
-  String stateDefition, operationArgs, operationNullArgs, varInit;
+  String stateDefinition, argInit, argStore, operationArgs, operationNullArgs,
+      varInit, createValue, destroyValue;
   String inputTypes, inputLogicalTypes;
-  String funcArgs;
   size_t count = 0;
-  size_t stateVarCount = 0;
-  const auto &allBindings = f.getAllBindings();
 
-  auto originalCursorLoopCols = getOrginalCursorLoopCol(ast);
-  ASSERT(originalCursorLoopCols.size() == cursorVars.size(),
-         "Cursor loop columns size does not match cursor variables size");
-
-  for (const auto &p : allBindings) {
+  for (auto *usedVar : usedVars) {
     // all the c(s) in the template file
+
+    if (std::find(cursorVars.begin(), cursorVars.end(), usedVar) ==
+        cursorVars.end()) {
+      // not cursor variable, is state variable
+      // cursor variable: variable that is assigned a value in every iteration
+      // state variable: variable that reused across iterations
+      stateDefinition +=
+          fmt::format(fmt::runtime(config.aggify["stateDefinition"].Scalar()),
+                      fmt::arg("type", usedVar->getType().getCppType()),
+                      fmt::arg("name", usedVar->getName()));
+
+      varInit += fmt::format(fmt::runtime(config.aggify["varInit"].Scalar()),
+                             fmt::arg("name", usedVar->getName()),
+                             fmt::arg("i", count));
+
+      argInit += fmt::format(fmt::runtime(config.aggify["argInit"].Scalar()),
+                             fmt::arg("name", usedVar->getName()));
+
+      argStore += fmt::format(fmt::runtime(config.aggify["argStore"].Scalar()),
+                              fmt::arg("name", usedVar->getName()),
+                              fmt::arg("i", count));
+
+      createValue +=
+          fmt::format(fmt::runtime(config.aggify["createValue"].Scalar()),
+                      fmt::arg("name", usedVar->getName()));
+
+      destroyValue +=
+          fmt::format(fmt::runtime(config.aggify["destroyValue"].Scalar()),
+                      fmt::arg("name", usedVar->getName()));
+
+      operationArgs += fmt::format(
+          fmt::runtime(config.aggify["operationArg"].Scalar()),
+          fmt::arg("i", count), fmt::arg("name", usedVar->getName() + "_arg"));
+
+    } else {
+      // is custom aggregate argument
+      operationArgs += fmt::format(
+          fmt::runtime(config.aggify["operationArg"].Scalar()),
+          fmt::arg("i", count), fmt::arg("name", usedVar->getName()));
+    }
+
     for (std::size_t i = 0; i < inputDependentComps.size(); i++) {
       inputDependentComps[i] += fmt::format(
           fmt::runtime(config.aggify["c" + std::to_string(i + 1)].Scalar()),
           fmt::arg("i", count));
     }
 
-    operationArgs +=
-        fmt::format(fmt::runtime(config.aggify["operationArg"].Scalar()),
-                    fmt::arg("i", count), fmt::arg("name", p.first));
-
     operationNullArgs +=
         fmt::format(fmt::runtime(config.aggify["operationNullArg"].Scalar()),
-                    fmt::arg("i", count), fmt::arg("name", p.first));
+                    fmt::arg("i", count), fmt::arg("name", usedVar->getName()));
 
     inputTypes += fmt::format(
         fmt::runtime(config.aggify["inputType"].Scalar()), fmt::arg("i", count),
-        fmt::arg("type", p.second->getType().getCppType()));
+        fmt::arg("type", usedVar->getType().getCppType()));
 
     inputLogicalTypes += fmt::format(
         fmt::runtime(config.aggify["inputLogicalType"].Scalar()),
         fmt::arg("i", count),
-        fmt::arg("type", p.second->getType().getDuckDBLogicalTypeStr()));
-
-    if (cursorVars.count(p.first) == 0) {
-      // is state variable
-      stateDefition +=
-          fmt::format(fmt::runtime(config.aggify["stateDefition"].Scalar()),
-                      fmt::arg("type", p.second->getType().getCppType()),
-                      fmt::arg("name", p.first));
-
-      varInit += fmt::format(fmt::runtime(config.aggify["varInit"].Scalar()),
-                             fmt::arg("name", p.first));
-
-      funcArgs += p.first + ", ";
-
-      stateVarCount++;
-    } else {
-      // is custom aggregate argument
-      funcArgs += originalCursorLoopCols[count - stateVarCount] + ", ";
-    }
+        fmt::arg("type", usedVar->getType().getDuckDBLogicalTypeStr()));
 
     count++;
   }
@@ -116,12 +124,32 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(Function &f, const json &ast,
   inputTypes = inputTypes.substr(0, inputTypes.size() - 2);
   inputLogicalTypes = inputLogicalTypes.substr(0, inputLogicalTypes.size() - 2);
 
-  funcArgs = funcArgs.substr(0, funcArgs.size() - 2);
-
   // code gen the body
   CodeGenInfo function_info;
   for (auto &bbUniq : f) {
+    if (bbUniq.getLabel() == "accumulateReturnBlock") {
+      String blockCode =
+          fmt::format("accumulateReturnBlock:\n{{{}\nreturn;}}", argStore);
+      container.basicBlockCodes.push_back(blockCode);
+      continue;
+    }
     basicBlockCodeGenerator(&bbUniq, f, function_info);
+  }
+
+  String optionalDataChunk, dataChunkInit, tmpVecInit, optionalChunkReset;
+  if (function_info.vectorCount > 0) {
+    optionalDataChunk =
+        fmt::format(fmt::runtime(config.aggify["optionalDataChunk"].Scalar()));
+    dataChunkInit =
+        fmt::format(fmt::runtime(config.aggify["dataChunkInit"].Scalar()),
+                    fmt::arg("vectorCount", function_info.vectorCount));
+    for (int i = 0; i < function_info.vectorCount; i++) {
+      tmpVecInit +=
+          fmt::format(fmt::runtime(config.aggify["tmpVecInit"].Scalar()),
+                      fmt::arg("vecId", i));
+    }
+    optionalChunkReset =
+        fmt::format(fmt::runtime(config.aggify["optionalChunkReset"].Scalar()));
   }
 
   String body = joinVector(container.basicBlockCodes, "\n");
@@ -132,32 +160,31 @@ AggifyCodeGeneratorResult AggifyCodeGenerator::run(Function &f, const json &ast,
     String c = "c" + std::to_string(i + 1);
     store.push_back(fmt::arg(c.c_str(), inputDependentComps[i]));
   }
+  store.push_back(fmt::arg("optionalChunkReset", optionalChunkReset));
 
   code = fmt::vformat(fmt::runtime(varyingFuncTemplate).str, store);
 
   code += fmt::format(
       fmt::runtime(config.aggify["customAggregateTemplate"].Scalar()),
       fmt::arg("id", id), fmt::arg("c1", inputDependentComps[0]),
-      fmt::arg("stateDefition", stateDefition),
+      fmt::arg("stateDefinition", stateDefinition),
+      fmt::arg("createValue", createValue),
+      fmt::arg("optionalDataChunk", optionalDataChunk),
+      fmt::arg("dataChunkInit", dataChunkInit),
+      fmt::arg("destroyValue", destroyValue), fmt::arg("argInit", argInit),
+      fmt::arg("tmpVecInit", tmpVecInit),
       fmt::arg("operationArgs", operationArgs),
       fmt::arg("operationNullArgs", operationNullArgs),
-      fmt::arg("varInit", varInit), fmt::arg("body", body));
+      fmt::arg("varInit", varInit), fmt::arg("body", body),
+      fmt::arg("returnVariable", retVariable->getName()));
 
   String registration = fmt::format(
       fmt::runtime(config.aggify["registration"].Scalar()), fmt::arg("id", id),
-      fmt::arg("inputTypes", inputTypes),
-      fmt::arg("outputType", dfaResult.getReturnVar()->getType().getCppType()),
+      fmt::arg("name", name), fmt::arg("inputTypes", inputTypes),
+      fmt::arg("outputType", f.getReturnType().getCppType()),
       fmt::arg("inputLogicalTypes", inputLogicalTypes),
       fmt::arg("outputLogicalType",
-               dfaResult.getReturnVar()->getType().getDuckDBLogicalTypeStr()));
+               f.getReturnType().getDuckDBLogicalTypeStr()));
 
-  String customAggCaller = fmt::format(
-      fmt::runtime(config.aggify["caller"].Scalar()), fmt::arg("id", id),
-      fmt::arg("funcArgs", funcArgs),
-      fmt::arg("returnVarName", dfaResult.getReturnVarName()),
-      fmt::arg("cursorQuery",
-               ast["query"]["PLpgSQL_expr"]["query"].get<String>()));
-  // COUT << code << ENDL;
-  return {
-      {code, registration}, "custom_agg" + std::to_string(id), customAggCaller};
+  return {{code, registration}, name};
 }
