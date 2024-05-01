@@ -33,7 +33,7 @@
 #   EXPORT "${DUCKDB_EXPORT_SET}"
 #   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
 #   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
-cmake_minimum_required(VERSION 3.22.1)
+cmake_minimum_required(VERSION 3.24.1)
 set(TARGET_NAME udf_transpiler)
 
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
