@@ -47,7 +47,7 @@ udfs:
 	mkdir -p udf1
 	- cp -r -n udf_template/* udf1
 	cmake $(GENERATOR) $(FORCE_COLOR) $(UDF_UDF1_EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=0 -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/udfs
-	cmake --build build/udfs --config Release
+	cmake --build build/udfs --config Release -j6
 
 UDF_UDF_AGG_EXTENSION_FLAGS=-DBUILD_MAIN_DUCKDB_LIBRARY=0 -DDISABLE_BUILTIN_EXTENSIONS=1 -DDUCKDB_EXTENSION_NAMES="udf_agg" -DDUCKDB_EXTENSION_UDF_AGG_PATH="$(PROJ_DIR)udf_agg" -DDUCKDB_EXTENSION_UDF_AGG_INCLUDE_PATH="$(PROJ_DIR)udf_agg/src/include"
 udafs:
@@ -65,7 +65,7 @@ release:
 	- make udfs
 	mkdir -p build/release
 	cmake $(GENERATOR) $(FORCE_COLOR) $(EXTENSION_FLAGS) ${CLIENT_FLAGS} -DEXTENSION_STATIC_BUILD=1 -DCMAKE_BUILD_TYPE=Release ${BUILD_FLAGS} -S ./duckdb/ -B build/release && \
-	cmake --build build/release --config Release -j10
+	cmake --build build/release --config Release -j6
 
 start_profile:
 	./build/release/duckdb -unsigned -cmd "install './build/release/extension/profiler/profiler.duckdb_extension'; load './build/release/extension/profiler/profiler.duckdb_extension';"
