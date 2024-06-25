@@ -4,6 +4,7 @@
 #include "ast_to_cfg.hpp"
 #include "cfg_code_generator.hpp"
 #include "cfg_to_ast.hpp"
+#include "control_dependence_analysis.hpp"
 #include "dead_code_elimination.hpp"
 #include "dominator_analysis.hpp"
 #include "duckdb/main/connection.hpp"
@@ -118,6 +119,9 @@ void Compiler::optimize(Function &f) {
 
   // Run the core optimizations
   coreOptimizations->runOnFunction(f);
+
+  auto controlDependenceAnalysis = Make<ControlDependenceAnalysis>(f);
+  controlDependenceAnalysis->runAnalysis();
 
   // Extract the predicates
   auto predicateAnalysis = Make<PredicateAnalysis>(f);

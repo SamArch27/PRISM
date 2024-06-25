@@ -328,11 +328,10 @@ public:
     return ss.str();
   }
 
-  Own<Function> partialCloneAndRename(const String &newName,
-                                      const Vec<const Variable *> &newArgs,
-                                      const Type &newReturnType,
-                                      const Vec<BasicBlock *> basicBlocks,
-                                      Map<BasicBlock *, BasicBlock *> &oldToNew) const;
+  Own<Function> partialCloneAndRename(
+      const String &newName, const Vec<const Variable *> &newArgs,
+      const Type &newReturnType, const Vec<BasicBlock *> basicBlocks,
+      Map<BasicBlock *, BasicBlock *> &oldToNew) const;
 
 protected:
   void print(std::ostream &os) const {
