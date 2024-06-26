@@ -59,7 +59,24 @@ public:
 
   void addChild(const String &parent, const String &child) {
     edges.at(parent).insert(child);
+    parentMap[child] = parent;
   }
+
+  bool dominates(const String &b1, const String &b2) {
+    // b1 dominates b2 if b1 is an ancestor of b2
+    while (true) {
+      auto parent = getParent(b2);
+      if (parent.empty()) {
+        return false;
+      }
+      if (parent == b1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  String getParent(const String &child) { return parentMap[child]; }
 
   const Set<String> &getChildren(const String &node) { return edges.at(node); }
 
@@ -78,6 +95,7 @@ protected:
 
 private:
   Map<String, Set<String>> edges;
+  Map<String, String> parentMap;
 };
 
 class DominatorAnalysis : public Analysis {

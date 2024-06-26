@@ -264,7 +264,7 @@ public:
 
   BasicBlock *getEntryBlock() {
     for (auto &block : basicBlocks) {
-      if (block->getLabel() == "entry") {
+      if (block->getPredecessors().empty()) {
         return block.get();
       }
     }
