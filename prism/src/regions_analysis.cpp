@@ -36,10 +36,67 @@ String RegionsAnalysis::getNextPostdom(BasicBlock *block) {
   return postDominatorTree->getParent(it->second->getLabel());
 }
 
+bool RegionsAnalysis::isCommonDomFrontier(BasicBlock *block, BasicBlock *entry,
+                                          BasicBlock *exit) {
+  for (auto *pred : block->getPredecessors()) {
+    if (dominatorTree->dominates(entry->getLabel(), pred->getLabel()) &&
+        !dominatorTree->dominates(exit->getLabel(), pred->getLabel())) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool RegionsAnalysis::isRegion(BasicBlock *entry, BasicBlock *exit) {
+  ASSERT(entry != nullptr && exit != nullptr,
+         "entry and exit must not be nullptr!\n");
+
+  auto &entrySuccs = dominanceFrontier->getFrontier(entry);
+
+  // Exit is the header of a loop that contains the entry. In this case,
+  // the dominance frontier must only contain the exit.
+  if (!dominatorTree->dominates(entry->getLabel(), exit->getLabel())) {
+    for (auto *succ : entrySuccs) {
+      if (succ != exit && succ != entry) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  auto &exitSuccs = dominanceFrontier->getFrontier(exit);
+
+  // Do not allow edges leaving the region.
+  for (auto *succ : entrySuccs) {
+    if (succ == exit || succ == entry) {
+      continue;
+    }
+    bool containsSucc = (exitSuccs.find(succ) != exitSuccs.end());
+    if (!containsSucc) {
+      return false;
+    }
+    if (!isCommonDomFrontier(succ, entry, exit)) {
+      return false;
+    }
+  }
+
+  // Do not allow edges pointing into the region.
+  for (auto *succ : exitSuccs) {
+    bool dominates =
+        dominatorTree->dominates(entry->getLabel(), succ->getLabel());
+    bool strictlyDominates = dominates && (entry != succ);
+    if (strictlyDominates && exit != succ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void RegionsAnalysis::findRegionsWithEntry(BasicBlock *entry) {
   ASSERT(entry, "Entry should not be nullptr!\n");
 
-  Own<NewRegion> lastRegion = nullptr;
+  NewRegion *lastRegion = nullptr;
   BasicBlock *lastExit = entry;
 
   BasicBlock *exit = entry;
@@ -55,10 +112,10 @@ void RegionsAnalysis::findRegionsWithEntry(BasicBlock *entry) {
       auto newRegion = createRegion(entry, exit);
 
       if (lastRegion) {
-        newRegion->addSubregion(std::move(lastRegion));
+        newRegion->addSubregion(lastRegion);
       }
 
-      lastRegion = std::move(newRegion);
+      lastRegion = newRegion.release();
       lastExit = exit;
     }
 
@@ -134,6 +191,9 @@ void RegionsAnalysis::runAnalysis() {
   auto dominatorAnalysis = Make<DominatorAnalysis>(f);
   dominatorAnalysis->runAnalysis();
   dominatorTree = dominatorAnalysis->getDominatorTree().get();
+  dominanceFrontier = dominatorAnalysis->getDominanceFrontier().get();
+  std::cout << "Original function:" << std::endl;
+  std::cout << f << std::endl;
   std::cout << *dominatorTree << std::endl;
 
   // Compute post-dominator tree
@@ -145,18 +205,24 @@ void RegionsAnalysis::runAnalysis() {
   for (auto &block : f) {
     auto *reversedBlock = reversed->getBlockFromLabel(block.getLabel());
     for (auto *pred : block.getPredecessors()) {
-      reversedBlock->addSuccessor(pred);
+      auto *reversedPred = reversed->getBlockFromLabel(pred->getLabel());
+      reversedBlock->addSuccessor(reversedPred);
     }
     for (auto *succ : block.getSuccessors()) {
-      reversedBlock->addPredecessor(succ);
+      auto *reversedSucc = reversed->getBlockFromLabel(succ->getLabel());
+      reversedBlock->addPredecessor(reversedSucc);
     }
   }
-  auto postDominatorAnalysis = Make<DominatorAnalysis>(reversed);
+
+  std::cout << "Reversed function:" << std::endl;
+  std::cout << *reversed << std::endl;
+  std::cout << "Done!" << std::endl;
+
+  auto postDominatorAnalysis = Make<DominatorAnalysis>(*reversed);
   postDominatorAnalysis->runAnalysis();
   postDominatorTree = postDominatorAnalysis->getDominatorTree().get();
 
   scanForRegions();
-
   topLevelRegion = Make<NewRegion>(f.getEntryBlock(), nullptr);
   buildRegionsTree(f.getEntryBlock(), topLevelRegion.get());
 

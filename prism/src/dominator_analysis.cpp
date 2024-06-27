@@ -9,6 +9,7 @@ void DominatorAnalysis::runAnalysis() {
     idoms[&block] = nullptr;
     blocks.push_back(&block);
   }
+
   idoms[f.getEntryBlock()] = f.getEntryBlock();
 
   Map<BasicBlock *, std::size_t> rpoNumber;

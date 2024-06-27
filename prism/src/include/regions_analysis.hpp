@@ -15,9 +15,9 @@ public:
   NewRegion *getParent() const { return parent; }
   void setParent(NewRegion *parentRegion) { parent = parentRegion; }
 
-  void addSubregion(Own<NewRegion> subregion) {
+  void addSubregion(NewRegion *subregion) {
     subregion->setParent(this);
-    children.emplace_back(std::move(subregion));
+    children.emplace_back(Own<NewRegion>(subregion));
   }
 
 private:
@@ -43,9 +43,13 @@ private:
   void buildRegionsTree(BasicBlock *block, NewRegion *region);
   void scanForRegions();
   String getNextPostdom(BasicBlock *block);
+  bool isCommonDomFrontier(BasicBlock *block, BasicBlock *entry,
+                           BasicBlock *exit);
+  bool isRegion(BasicBlock *entry, BasicBlock *exit);
   void findRegionsWithEntry(BasicBlock *entry);
   void insertShortcut(BasicBlock *entry, BasicBlock *exit);
 
+  DominanceFrontier *dominanceFrontier = nullptr;
   DominatorTree *dominatorTree = nullptr;
   DominatorTree *postDominatorTree = nullptr;
 
