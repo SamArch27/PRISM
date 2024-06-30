@@ -28,12 +28,14 @@ void RegionsAnalysis::insertShortcut(BasicBlock *entry, BasicBlock *exit) {
   }
 }
 
-String RegionsAnalysis::getNextPostdom(BasicBlock *block) {
+BasicBlock *RegionsAnalysis::getNextPostdom(BasicBlock *block) {
   auto it = shortcut.find(block);
   if (it == shortcut.end()) {
-    return postDominatorTree->getParent(block->getLabel());
+    auto label = postDominatorTree->getParent(block->getLabel());
+    return label.empty() ? nullptr : f.getBlockFromLabel(label);
   }
-  return postDominatorTree->getParent(it->second->getLabel());
+  auto label = postDominatorTree->getParent(it->second->getLabel());
+  return label.empty() ? nullptr : f.getBlockFromLabel(label);
 }
 
 bool RegionsAnalysis::isCommonDomFrontier(BasicBlock *block, BasicBlock *entry,
@@ -99,14 +101,10 @@ void RegionsAnalysis::findRegionsWithEntry(BasicBlock *entry) {
   NewRegion *lastRegion = nullptr;
   BasicBlock *lastExit = entry;
 
-  BasicBlock *exit = entry;
+  auto *N = entry;
 
-  while (true) {
-    auto nextLabel = getNextPostdom(exit);
-    if (nextLabel.empty()) {
-      break;
-    }
-    exit = f.getBlockFromLabel(nextLabel);
+  while ((N = getNextPostdom(N))) {
+    auto *exit = N;
 
     if (isRegion(entry, exit)) {
       auto newRegion = createRegion(entry, exit);
@@ -130,12 +128,14 @@ void RegionsAnalysis::findRegionsWithEntry(BasicBlock *entry) {
 }
 
 void RegionsAnalysis::scanForRegions() {
-  // Compute post order
+  // Compute post order of the dominator tree
   Vec<BasicBlock *> postorder;
   Set<BasicBlock *> visited;
   std::function<void(BasicBlock *)> postorderTraversal = [&](BasicBlock *root) {
     visited.insert(root);
-    for (auto *succ : root->getSuccessors()) {
+
+    for (auto &succLabel : dominatorTree->getChildren(root->getLabel())) {
+      auto *succ = f.getBlockFromLabel(succLabel);
       if (visited.find(succ) == visited.end()) {
         postorderTraversal(succ);
       }
@@ -151,6 +151,7 @@ void RegionsAnalysis::scanForRegions() {
 }
 
 void RegionsAnalysis::buildRegionsTree(BasicBlock *block, NewRegion *region) {
+
   while (block == region->getExit()) {
     region = region->getParent();
   }
@@ -214,15 +215,24 @@ void RegionsAnalysis::runAnalysis() {
     }
   }
 
-  std::cout << "Reversed function:" << std::endl;
-  std::cout << *reversed << std::endl;
-  std::cout << "Done!" << std::endl;
-
   auto postDominatorAnalysis = Make<DominatorAnalysis>(*reversed);
   postDominatorAnalysis->runAnalysis();
   postDominatorTree = postDominatorAnalysis->getDominatorTree().get();
 
   scanForRegions();
+
+  std::cout << "Printing BB to Regions!" << std::endl;
+  Map<NewRegion *, int> lookup;
+  int counter = 0;
+  for (auto &[block, region] : blockToRegion) {
+    if (lookup.find(region) == lookup.end()) {
+      lookup[region] = counter;
+      ++counter;
+    }
+    std::cout << "Block: " << block->getLabel()
+              << " is in region: " << lookup[region] << std::endl;
+  }
+
   topLevelRegion = Make<NewRegion>(f.getEntryBlock(), nullptr);
   buildRegionsTree(f.getEntryBlock(), topLevelRegion.get());
 

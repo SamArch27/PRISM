@@ -42,7 +42,7 @@ private:
   Own<NewRegion> createRegion(BasicBlock *entry, BasicBlock *exit);
   void buildRegionsTree(BasicBlock *block, NewRegion *region);
   void scanForRegions();
-  String getNextPostdom(BasicBlock *block);
+  BasicBlock *getNextPostdom(BasicBlock *block);
   bool isCommonDomFrontier(BasicBlock *block, BasicBlock *entry,
                            BasicBlock *exit);
   bool isRegion(BasicBlock *entry, BasicBlock *exit);
