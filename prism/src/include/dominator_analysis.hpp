@@ -64,14 +64,12 @@ public:
 
   bool dominates(const String &b1, const String &b2) {
     // b1 dominates b2 if b1 is an ancestor of b2
-    while (true) {
-      auto parent = getParent(b2);
-      if (parent.empty()) {
-        return false;
-      }
-      if (parent == b1) {
+    auto ancestor = b2;
+    while (!ancestor.empty()) {
+      if (ancestor == b1) {
         return true;
       }
+      ancestor = getParent(ancestor);
     }
     return false;
   }
