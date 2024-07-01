@@ -39,6 +39,7 @@ public:
 
 private:
   NewRegion *getTopMostParent(NewRegion *region);
+  bool isTrivialRegion(BasicBlock *entry, BasicBlock *exit);
   Own<NewRegion> createRegion(BasicBlock *entry, BasicBlock *exit);
   void buildRegionsTree(BasicBlock *block, NewRegion *region);
   void scanForRegions();

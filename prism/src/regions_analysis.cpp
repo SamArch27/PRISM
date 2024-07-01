@@ -9,8 +9,26 @@ NewRegion *RegionsAnalysis::getTopMostParent(NewRegion *region) {
   return region;
 }
 
+bool RegionsAnalysis::isTrivialRegion(BasicBlock *entry, BasicBlock *exit) {
+  ASSERT(entry != nullptr && exit != nullptr,
+         "Entry and exit must not be nullptr!\n");
+
+  auto &successors = entry->getSuccessors();
+
+  if (successors.size() <= 1 && exit == successors.front()) {
+    return true;
+  }
+
+  return false;
+}
+
 Own<NewRegion> RegionsAnalysis::createRegion(BasicBlock *entry,
                                              BasicBlock *exit) {
+
+  if (isTrivialRegion(entry, exit)) {
+    return nullptr;
+  }
+
   auto region = Make<NewRegion>(entry, exit);
   blockToRegion.insert({entry, region.get()});
   return region;
@@ -144,6 +162,11 @@ void RegionsAnalysis::scanForRegions() {
   };
   postorderTraversal(f.getEntryBlock());
 
+  for (auto *block : postorder) {
+    std::cout << "PostOrder: " << block->getLabel() << std::endl;
+  }
+  std::cout << std::endl;
+
   // For each node in post order
   for (auto *block : postorder) {
     findRegionsWithEntry(block);
@@ -218,6 +241,9 @@ void RegionsAnalysis::runAnalysis() {
   auto postDominatorAnalysis = Make<DominatorAnalysis>(*reversed);
   postDominatorAnalysis->runAnalysis();
   postDominatorTree = postDominatorAnalysis->getDominatorTree().get();
+
+  std::cout << "Post Dominator Tree" << std::endl;
+  std::cout << *postDominatorTree << std::endl;
 
   scanForRegions();
 
