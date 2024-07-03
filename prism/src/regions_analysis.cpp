@@ -264,11 +264,33 @@ void RegionsAnalysis::runAnalysis() {
 
   std::cout << f << std::endl;
 
+  std::cout << "Deduplicating region blocks!" << std::endl;
+
+  Set<BasicBlock *> toRemove;
+  for (auto &[region, _] : regionToBlocks) {
+    if (region->getEntry()) {
+      toRemove.insert(region->getEntry());
+    }
+    if (region->getExit()) {
+      toRemove.insert(region->getExit());
+    }
+  }
+  for (auto &[region, blocks] : regionToBlocks) {
+    for (auto *block : toRemove) {
+      blocks.erase(block);
+    }
+  }
+
   int i = 0;
   for (auto &[region, blocks] : regionToBlocks) {
     std::cout << "Region " << i << " has blocks: " << std::endl;
+    std::cout << "Entry: " << region->getEntry()->getLabel() << std::endl;
     for (auto block : blocks) {
       std::cout << block->getLabel() << " ";
+    }
+    std::cout << std::endl;
+    if (region->getExit()) {
+      std::cout << "Exit: " << region->getExit()->getLabel() << std::endl;
     }
     std::cout << std::endl;
     ++i;
